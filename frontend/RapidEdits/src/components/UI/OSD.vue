@@ -1,59 +1,74 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { Play, Pause, Volume2 } from 'lucide-vue-next';
-import { globalEventBus } from '../../core/EventBus';
+import { ref, onMounted } from "vue";
+import { Play, Pause, Volume2 } from "lucide-vue-next";
+import { globalEventBus } from "../../core/EventBus";
 
 const isVisible = ref(false);
 const icon = ref<any>(Play);
-const label = ref('');
+const label = ref("");
 
 let timeout: number | null = null;
 
 const getIconComponent = (name: string) => {
-  switch (name) {
-    case 'Play': return Play;
-    case 'Pause': return Pause;
-    case 'Volume': return Volume2;
-    default: return Play;
-  }
+    switch (name) {
+        case "Play":
+            return Play;
+        case "Pause":
+            return Pause;
+        case "Volume":
+            return Volume2;
+        default:
+            return Play;
+    }
 };
 
 onMounted(() => {
-  globalEventBus.on('SHOW_FEEDBACK', (payload: any) => {
-    if (timeout) clearTimeout(timeout);
-    
-    icon.value = getIconComponent(payload.icon);
-    label.value = payload.text || '';
-    isVisible.value = true;
+    globalEventBus.on("SHOW_FEEDBACK", (payload: any) => {
+        if (timeout) clearTimeout(timeout);
 
-    timeout = window.setTimeout(() => {
-      isVisible.value = false;
-    }, 800);
-  });
+        icon.value = getIconComponent(payload.icon);
+        label.value = payload.text || "";
+        isVisible.value = true;
+
+        timeout = window.setTimeout(() => {
+            isVisible.value = false;
+        }, 800);
+    });
 });
 </script>
 
 <template>
-  <Transition name="fade">
-    <div 
-      v-if="isVisible"
-      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 flex flex-col items-center justify-center w-32 h-32 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl pointer-events-none"
-    >
-       <component :is="icon" :size="48" class="text-white drop-shadow-lg mb-2" fill="currentColor" />
-       <span v-if="label" class="text-sm font-bold text-white drop-shadow-md">{{ label }}</span>
-    </div>
-  </Transition>
+    <Transition name="fade">
+        <div
+            v-if="isVisible"
+            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 flex flex-col items-center justify-center w-32 h-32 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl pointer-events-none"
+        >
+            <component
+                :is="icon"
+                :size="48"
+                class="text-white drop-shadow-lg mb-2"
+                fill="currentColor"
+            />
+            <span
+                v-if="label"
+                class="text-sm font-bold text-white drop-shadow-md"
+                >{{ label }}</span
+            >
+        </div>
+    </Transition>
 </template>
 
 <style scoped>
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+    transition:
+        opacity 0.2s ease,
+        transform 0.2s ease;
 }
 
 .fade-enter-from,
 .fade-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
 }
 </style>
