@@ -15,7 +15,6 @@ export class EditorEngine {
     private masterVolume: number = 1.0; // 0 to 1
 
     constructor() {
-        console.log("Editor Engine Initialized");
         this.initializeTracks();
         this.setupShortcuts();
     }
@@ -158,7 +157,7 @@ export class EditorEngine {
                     asset,
                     audioTrack.id,
                     startTime,
-                    'audio' // Force type audio for the separated track
+                    "audio", // Force type audio for the separated track
                 );
                 // Link them visually? For now just ID match
                 audioTrack.clips.push(audioClip);
@@ -173,7 +172,7 @@ export class EditorEngine {
         asset: Asset,
         trackId: number,
         start: number,
-        typeOverride?: MediaTypeValue
+        typeOverride?: MediaTypeValue,
     ): Clip {
         return {
             id: uuidv4(),
@@ -279,7 +278,7 @@ export class EditorEngine {
         return new Promise((resolve) => {
             const element = document.createElement("video");
             element.preload = "metadata";
-            
+
             const timeout = setTimeout(() => {
                 console.warn("Metadata load timed out for:", url);
                 resolve(0);
@@ -289,10 +288,10 @@ export class EditorEngine {
             element.onloadedmetadata = () => {
                 clearTimeout(timeout);
                 if (element.duration === Infinity) {
-                     console.warn("Duration is Infinity for:", url);
-                     resolve(0);
+                    console.warn("Duration is Infinity for:", url);
+                    resolve(0);
                 } else {
-                     resolve(element.duration);
+                    resolve(element.duration);
                 }
                 element.remove();
             };
@@ -303,7 +302,7 @@ export class EditorEngine {
                 resolve(0);
                 element.remove();
             };
-            
+
             element.src = url;
         });
     }
