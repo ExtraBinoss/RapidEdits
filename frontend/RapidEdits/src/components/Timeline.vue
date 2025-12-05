@@ -14,6 +14,7 @@ import { useDragDrop } from "../composables/useDragDrop";
 import Button from "./UI/Button.vue";
 import DynamicTrack from "./Timeline/DynamicTrack.vue";
 import TimeRuler from "./Timeline/TimeRuler.vue";
+import ContextMenu from "./Timeline/ContextMenu.vue";
 import { ref, watch, computed } from "vue";
 import { storeToRefs } from "pinia";
 
@@ -164,10 +165,37 @@ const startScrubbing = (e: MouseEvent) => {
 
     window.addEventListener("mouseup", stopScrubbing);
 };
+
+// Context menu logic
+const showContextMenu = ref(false);
+const contextMenuX = ref(0);
+const contextMenuY = ref(0);
+const contextMenuTargets = ref<string[]>([]);
+
+const handleClipContextMenu = (e: MouseEvent, clipId: string) => {
+    showContextMenu.value = true;
+    contextMenuX.value = e.clientX;
+    contextMenuY.value = e.clientY;
+    contextMenuTargets.value = store.getSelectedClipIds();
+};
+
+const handleTimelineClick = () => {
+    store.selectClip("", false); // Deselect all when clicking empty space
+};
 </script>
 
 <template>
-    <div class="flex flex-col h-full select-none">
+    <div class="flex flex-col h-full select-none" @click="handleTimelineClick">
+        <!-- Context Menu -->
+        <Teleport to="body">
+            <ContextMenu
+                v-if="showContextMenu"
+                v-model="showContextMenu"
+                :x="contextMenuX"
+                :y="contextMenuY"
+                :target-clip-ids="contextMenuTargets"
+            />
+        </Teleport>
         <!-- Timeline Toolbar -->
         <div
             class="h-10 border-b border-canvas-border flex items-center justify-between px-4 bg-canvas-light shrink-0"
@@ -330,8 +358,8 @@ const startScrubbing = (e: MouseEvent) => {
                         v-for="track in videoTracks"
                         :key="track.id"
                         :track="track"
-                        :zoomLevel="zoomLevel"
-                        @drop="handleTrackDrop"
+                        :zoom-level="zoomLevel"
+                        @contextmenu="handleClipContextMenu"
                     />
 
                     <!-- Video Drop Zone (Create new track) -->
@@ -355,6 +383,7 @@ const startScrubbing = (e: MouseEvent) => {
                         :track="track"
                         :zoomLevel="zoomLevel"
                         @drop="handleTrackDrop"
+                        @contextmenu="handleClipContextMenu"
                     />
 
                     <!-- Audio Drop Zone (Create new track) -->

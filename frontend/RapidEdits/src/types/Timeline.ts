@@ -9,6 +9,8 @@ export interface Clip {
     duration: number; // Duration of the clip (seconds)
     offset: number; // Start time within the source media (seconds)
     type: Asset["type"];
+    groupId?: string;
+    speed?: number;
 }
 
 export interface Track {

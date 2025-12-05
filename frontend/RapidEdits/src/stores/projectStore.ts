@@ -92,5 +92,23 @@ export const useProjectStore = defineStore("project", () => {
         addTrack,
         updateClip: (id: string, updates: Partial<Clip>) =>
             editorEngine.updateClip(id, updates),
+        // Selection Actions
+        selectClip: (id: string, toggle: boolean) =>
+            editorEngine.selectClip(id, toggle),
+        getSelectedClipIds: () => editorEngine.getSelectedClipIds(),
+        deleteSelectedClips: () => editorEngine.deleteSelectedClips(),
+        unlinkSelectedClips: () => editorEngine.unlinkSelectedClips(),
+
+        // Reactive State for selection (sync via event)
+        selectedClipIds: computed(() => {
+            // We can't easily make a set reactive from engine without a ref here
+            // Using event bus to update local ref is better.
+            return selectionState.value;
+        }),
     };
+});
+
+const selectionState = ref<string[]>([]);
+globalEventBus.on("SELECTION_CHANGED", (ids: any) => {
+    selectionState.value = ids;
 });

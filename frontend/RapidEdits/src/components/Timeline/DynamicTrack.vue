@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Track, Clip } from "../../types/Timeline";
+import type { Track } from "../../types/Timeline";
 import TimelineClip from "./TimelineClip.vue";
 // import { useProjectStore } from "../../stores/projectStore";
 
@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: "drop", event: DragEvent, trackId: number): void;
+    (e: "contextmenu", event: MouseEvent, clipId: string): void;
 }>();
 
 // Store not currently needed in this component
@@ -33,6 +34,9 @@ const handleDrop = (e: DragEvent) => {
             :clip="clip"
             :track="track"
             :zoomLevel="zoomLevel"
+            @contextmenu="
+                (e: MouseEvent, id: string) => emit('contextmenu', e, id)
+            "
         />
     </div>
 </template>

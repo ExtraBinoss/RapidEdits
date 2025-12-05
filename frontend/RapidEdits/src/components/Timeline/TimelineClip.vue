@@ -85,26 +85,15 @@ const startDrag = (e: MouseEvent) => {
 
         const { x: currentMouseX } = editorEngine.getMousePosition();
 
-        // Calculate raw new time based on mouse pos
-        // We assume the track hasn't moved (scrolling handled by container, but verify?)
-        // If the container scrolls, trackRect.left changes.
-        // Ideally we should re-read trackRect if we expect scrolling WHILE dragging without mouse moving?
-        // Usually safe enough for now.
-
-        const newTrackRect = trackEl.getBoundingClientRect(); // Re-read for scroll support
+        const newTrackRect = trackEl.getBoundingClientRect();
         const rawNewStartPct =
             (currentMouseX - newTrackRect.left) / props.zoomLevel;
         let newStart = rawNewStartPct - timeOffsetInClip;
 
-        // Clamp to 0
         newStart = Math.max(0, newStart);
 
-        // SNAP LOGIC
-        // We check if the NEW start or NEW end is close to a snap point
-        // 10px threshold
         const threshold = 15 / props.zoomLevel;
 
-        // Check Start Snap
         const snapStart = editorEngine.getClosestSnapPoint(
             newStart,
             threshold,
@@ -113,7 +102,6 @@ const startDrag = (e: MouseEvent) => {
         if (snapStart !== null) {
             newStart = snapStart;
         } else {
-            // Check End Snap
             const end = newStart + props.clip.duration;
             const snapEnd = editorEngine.getClosestSnapPoint(
                 end,
@@ -132,21 +120,50 @@ const startDrag = (e: MouseEvent) => {
 
     dragLoop();
 
-    const stopDrag = () => {
-        isDragging.value = false;
-        if (rafId) {
-            cancelAnimationFrame(rafId);
-            rafId = null;
-        }
-        window.removeEventListener("mouseup", stopDrag);
-
-        // Commit change
-        if (Math.abs(tempStart.value - props.clip.start) > 0.001) {
-            store.updateClip(props.clip.id, { start: tempStart.value });
-        }
-    };
-
     window.addEventListener("mouseup", stopDrag);
+};
+
+// emits "contextmenu" event with native event to parent
+// We don't handle context menu LOCALLY, we bubble it up or emit logic
+const emit = defineEmits<{
+    (e: "contextmenu", event: MouseEvent, clipId: string): void;
+}>();
+
+const isSelected = computed(() => {
+    return store.selectedClipIds.includes(props.clip.id);
+});
+
+const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    // Logic moved to mousedown for selection start, but we can refine toggle here
+    const toggle = e.ctrlKey || e.metaKey || e.shiftKey;
+    if (toggle) {
+        store.selectClip(props.clip.id, true);
+    }
+};
+
+const handleContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
+    // e.stopPropagation(); // Bubbling might be needed if dynamic track wraps it
+    // Ensure this clip is selected
+    if (!isSelected.value) {
+        store.selectClip(props.clip.id, false);
+    }
+    emit("contextmenu", e, props.clip.id);
+};
+
+const stopDrag = () => {
+    isDragging.value = false;
+    if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+    window.removeEventListener("mouseup", stopDrag);
+
+    // Commit change
+    if (Math.abs(tempStart.value - props.clip.start) > 0.001) {
+        store.updateClip(props.clip.id, { start: tempStart.value });
+    }
 };
 </script>
 
@@ -155,10 +172,13 @@ const startDrag = (e: MouseEvent) => {
         class="absolute top-2 bottom-2 rounded overflow-hidden border border-opacity-30 group shadow-sm flex items-center px-2 select-none"
         :class="[
             getTrackColor(clip.type),
+            { 'ring-2 ring-white': isSelected && !isDragging },
             { 'ring-2 ring-white/50': isDragging },
         ]"
         :style="clipStyle"
         @mousedown="startDrag"
+        @click="handleClick"
+        @contextmenu="handleContextMenu"
     >
         <!-- Content -->
         <!-- GPU Preview for Video Clips -->

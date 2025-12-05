@@ -40,4 +40,5 @@ export type EditorEvent =
     | { type: "VOLUME_CHANGED"; payload: number } // 0-100
     | { type: "PLAYBACK_TOGGLED"; payload: boolean }
     | { type: "SHOW_FEEDBACK"; payload: { icon: string; text?: string } }
-    | { type: "AMBIENT_COLOR_UPDATE"; payload: string };
+    | { type: "AMBIENT_COLOR_UPDATE"; payload: string }
+    | { type: "SELECTION_CHANGED"; payload: string[] };

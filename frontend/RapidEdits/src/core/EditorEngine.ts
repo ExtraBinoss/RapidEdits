@@ -201,6 +201,8 @@ export class EditorEngine {
         return newTrack;
     }
 
+    private selectedClipIds: Set<string> = new Set();
+
     public addClip(assetId: string, targetTrackId: number, startTime: number) {
         const asset = this.assets.get(assetId);
         if (!asset) return;
@@ -230,12 +232,16 @@ export class EditorEngine {
             targetTrack = videoTrack;
         }
 
+        // Generate Group ID if this is a video with audio
+        const groupId = asset.type === MediaType.VIDEO ? uuidv4() : undefined;
+
         // 1. Add Main Clip
         const mainClip = this.createClipObject(
             asset,
             targetTrack.id,
             startTime,
         );
+        mainClip.groupId = groupId; // Set Group ID
         targetTrack.clips.push(mainClip);
         targetTrack.clips.sort((a, b) => a.start - b.start);
 
@@ -275,6 +281,7 @@ export class EditorEngine {
                     startTime,
                     "audio", // Force type audio for the separated track
                 );
+                audioClip.groupId = groupId; // Link via same Group ID
                 audioTrack.clips.push(audioClip);
                 audioTrack.clips.sort((a, b) => a.start - b.start);
             }
@@ -302,43 +309,33 @@ export class EditorEngine {
     }
 
     public updateClip(id: string, updates: Partial<Clip>) {
-        // 1. Find the Primary Clip roughly to calculate delta
-        let originalStart = -1;
-        let originalAssetId = "";
+        // Find Primary
+        let groupId: string | undefined = undefined;
         let deltaStart = 0;
+        let originalStart = 0;
 
-        // Helper to find clip by ID
-        const findClip = (targetId: string) => {
-            for (const track of this.tracks) {
-                const c = track.clips.find((x) => x.id === targetId);
-                if (c) return c;
+        for (const track of this.tracks) {
+            const clip = track.clips.find((c) => c.id === id);
+            if (clip) {
+                groupId = clip.groupId; // Get group ID
+                originalStart = clip.start;
+                break;
             }
-            return null;
-        };
-
-        const primaryClip = findClip(id);
-        if (!primaryClip) return;
-
-        originalStart = primaryClip.start;
-        originalAssetId = primaryClip.assetId;
+        }
 
         if (updates.start !== undefined) {
             deltaStart = updates.start - originalStart;
         }
 
-        // 2. Perform updates on Primary AND Linked clips
+        // Identify clips to update: Primary + Same Group
+        // OR if GroupId is undefined, just the primary.
         const clipsToUpdate = new Set<string>();
         clipsToUpdate.add(id);
 
-        // Find linked clips (same asset, same start/duration, different type)
-        if (deltaStart !== 0 && originalAssetId) {
+        if (groupId && deltaStart !== 0) {
             this.tracks.forEach((t) => {
                 t.clips.forEach((c) => {
-                    if (
-                        c.id !== id &&
-                        c.assetId === originalAssetId &&
-                        Math.abs(c.start - originalStart) < 0.001
-                    ) {
+                    if (c.groupId === groupId && c.id !== id) {
                         clipsToUpdate.add(c.id);
                     }
                 });
@@ -347,7 +344,6 @@ export class EditorEngine {
 
         let anythingChanged = false;
 
-        // 3. Apply updates
         for (let i = 0; i < this.tracks.length; i++) {
             const track = this.tracks[i];
             if (!track) continue;
@@ -358,15 +354,11 @@ export class EditorEngine {
 
             if (indexesToUpdate.length === 0) continue;
 
-            // Create new Clips array
             const newClips = [...track.clips];
 
             indexesToUpdate.forEach((idx) => {
                 const clip = newClips[idx];
                 if (!clip) return;
-                // Calculate specific updates for this clip
-                // If it's the primary clip, use 'updates'
-                // If it's a linked clip, apply calculated delta to start
 
                 let specificUpdates = {};
                 if (clip.id === id) {
@@ -381,13 +373,12 @@ export class EditorEngine {
                 newClips[idx] = { ...clip, ...specificUpdates } as Clip;
             });
 
-            // Re-sort
             if (updates.start !== undefined || deltaStart !== 0) {
                 newClips.sort((a, b) => a.start - b.start);
             }
 
-            // Update Track
-            this.tracks[i] = { ...track, clips: newClips } as Track;
+            const updatedTrack: Track = { ...track, clips: newClips } as Track;
+            this.tracks[i] = updatedTrack;
             anythingChanged = true;
         }
 
@@ -397,6 +388,94 @@ export class EditorEngine {
                 payload: undefined,
             });
         }
+    }
+
+    // Selection API
+    public selectClip(id: string, toggle: boolean = false) {
+        if (!toggle) {
+            this.selectedClipIds.clear();
+        }
+
+        // Find if this clip has a group
+        let groupId: string | undefined;
+        for (const track of this.tracks) {
+            const c = track.clips.find((clip) => clip.id === id);
+            if (c) {
+                groupId = c.groupId;
+                break;
+            }
+        }
+
+        if (groupId) {
+            // Select all in group
+            this.tracks.forEach((track) => {
+                track.clips.forEach((c) => {
+                    if (c.groupId === groupId) {
+                        if (this.selectedClipIds.has(c.id) && toggle) {
+                            this.selectedClipIds.delete(c.id);
+                        } else {
+                            this.selectedClipIds.add(c.id);
+                        }
+                    }
+                });
+            });
+        } else {
+            // Single
+            if (this.selectedClipIds.has(id) && toggle) {
+                this.selectedClipIds.delete(id);
+            } else {
+                this.selectedClipIds.add(id);
+            }
+        }
+
+        globalEventBus.emit({
+            type: "SELECTION_CHANGED",
+            payload: Array.from(this.selectedClipIds),
+        });
+    }
+
+    public getSelectedClipIds() {
+        return Array.from(this.selectedClipIds);
+    }
+
+    public deleteSelectedClips() {
+        const selected = this.selectedClipIds;
+        this.tracks.forEach((track) => {
+            const initialLen = track.clips.length;
+            track.clips = track.clips.filter((c) => !selected.has(c.id));
+            if (track.clips.length !== initialLen) {
+                // Track modified
+                this.tracks = [...this.tracks]; // Trigger track list update? Or just emit
+            }
+        });
+
+        this.selectedClipIds.clear();
+        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
+        globalEventBus.emit({ type: "SELECTION_CHANGED", payload: [] });
+    }
+
+    public unlinkSelectedClips() {
+        const selected = this.selectedClipIds;
+        this.tracks.forEach((track) => {
+            let trackChanged = false;
+            const newClips = track.clips.map((c) => {
+                if (selected.has(c.id)) {
+                    if (c.groupId) {
+                        trackChanged = true;
+                        // Return copy without groupId
+                        const { groupId, ...rest } = c;
+                        return rest as Clip;
+                    }
+                }
+                return c;
+            });
+            if (trackChanged) {
+                track.clips = newClips; // New reference
+            }
+        });
+
+        // Clear selection or keep it? Keep it.
+        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
     }
 
     // --- Playback Controls ---
