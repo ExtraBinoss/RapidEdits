@@ -13,6 +13,6 @@ const props = defineProps<{
         :class="[props.size || 'w-8 h-8', props.className]"
         :style="{ fontFamily: `'Gliker', sans-serif` }"
     >
-        <span class="translate-y-[1px]">RE</span>
+        <span class="translate-y-[0px]">RE</span>
     </div>
 </template>
