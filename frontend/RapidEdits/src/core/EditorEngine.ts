@@ -302,44 +302,100 @@ export class EditorEngine {
     }
 
     public updateClip(id: string, updates: Partial<Clip>) {
-        // Find clip in tracks
+        // 1. Find the Primary Clip roughly to calculate delta
+        let originalStart = -1;
+        let originalAssetId = "";
+        let deltaStart = 0;
+
+        // Helper to find clip by ID
+        const findClip = (targetId: string) => {
+            for (const track of this.tracks) {
+                const c = track.clips.find((x) => x.id === targetId);
+                if (c) return c;
+            }
+            return null;
+        };
+
+        const primaryClip = findClip(id);
+        if (!primaryClip) return;
+
+        originalStart = primaryClip.start;
+        originalAssetId = primaryClip.assetId;
+
+        if (updates.start !== undefined) {
+            deltaStart = updates.start - originalStart;
+        }
+
+        // 2. Perform updates on Primary AND Linked clips
+        const clipsToUpdate = new Set<string>();
+        clipsToUpdate.add(id);
+
+        // Find linked clips (same asset, same start/duration, different type)
+        if (deltaStart !== 0 && originalAssetId) {
+            this.tracks.forEach((t) => {
+                t.clips.forEach((c) => {
+                    if (
+                        c.id !== id &&
+                        c.assetId === originalAssetId &&
+                        Math.abs(c.start - originalStart) < 0.001
+                    ) {
+                        clipsToUpdate.add(c.id);
+                    }
+                });
+            });
+        }
+
+        let anythingChanged = false;
+
+        // 3. Apply updates
         for (let i = 0; i < this.tracks.length; i++) {
             const track = this.tracks[i];
-            if (!track) continue; // Safety check given ts warning
+            if (!track) continue;
 
-            const clipIndex = track.clips.findIndex((c) => c.id === id);
+            const indexesToUpdate = track.clips
+                .map((c, idx) => (clipsToUpdate.has(c.id) ? idx : -1))
+                .filter((idx) => idx !== -1);
 
-            if (clipIndex !== -1) {
-                const clip = track.clips[clipIndex];
-                // Type safe merge
-                const updatedClip: Clip = {
-                    ...clip,
-                    ...updates,
-                } as Clip;
+            if (indexesToUpdate.length === 0) continue;
 
-                // Create NEW array reference for clips
-                const newClips = [...track.clips];
-                newClips[clipIndex] = updatedClip;
+            // Create new Clips array
+            const newClips = [...track.clips];
 
-                // Re-sort if start time changed
-                if (updates.start !== undefined) {
-                    newClips.sort((a, b) => a.start - b.start);
+            indexesToUpdate.forEach((idx) => {
+                const clip = newClips[idx];
+                if (!clip) return;
+                // Calculate specific updates for this clip
+                // If it's the primary clip, use 'updates'
+                // If it's a linked clip, apply calculated delta to start
+
+                let specificUpdates = {};
+                if (clip.id === id) {
+                    specificUpdates = updates;
+                } else {
+                    // Linked clip
+                    specificUpdates = {
+                        start: clip.start + deltaStart,
+                    };
                 }
 
-                // Create NEW Track reference using type assertion to satisfy loose merging
-                const updatedTrack: Track = {
-                    ...track,
-                    clips: newClips,
-                } as Track;
+                newClips[idx] = { ...clip, ...specificUpdates } as Clip;
+            });
 
-                this.tracks[i] = updatedTrack;
-
-                globalEventBus.emit({
-                    type: "TIMELINE_UPDATED",
-                    payload: undefined,
-                });
-                return;
+            // Re-sort
+            if (updates.start !== undefined || deltaStart !== 0) {
+                newClips.sort((a, b) => a.start - b.start);
             }
+
+            // Update Track
+            this.tracks[i] = { ...track, clips: newClips } as Track;
+            anythingChanged = true;
+        }
+
+        if (anythingChanged) {
+            globalEventBus.emit({
+                type: "TIMELINE_UPDATED",
+                payload: undefined,
+            });
         }
     }
 
