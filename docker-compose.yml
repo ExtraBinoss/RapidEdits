@@ -1,0 +1,43 @@
+services:
+  rapid-edits-backend:
+    container_name: rapid_edits_backend
+    build:
+      context: ./backend/rapid-edits-backend
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=postgresql://myuser:mypassword@postgres:5432/rapid_edits?schema=public
+    depends_on:
+      - postgres
+    restart: always
+  
+  rapid-edits-frontend:
+    container_name: rapid_edits_frontend
+    build:
+      context: ./frontend/RapidEdits
+      dockerfile: Dockerfile
+    ports:
+      - "6500:6500"
+    volumes:
+      - ./frontend/RapidEdits:/app
+      - /app/node_modules
+    depends_on:
+      - rapid-edits-backend
+    restart: always
+
+  postgres:
+    image: postgres:17
+    container_name: rapid_edits_postgres
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: rapid_edits
+    ports:
+      - "5000:5000"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  postgres_data:
