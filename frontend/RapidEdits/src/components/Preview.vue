@@ -3,6 +3,7 @@ import { onMounted, ref, onBeforeUnmount } from 'vue';
 import { Application } from 'pixi.js';
 import { PixiRenderer } from '../core/PixiRenderer';
 import { useProjectStore } from '../stores/projectStore';
+import OSD from './UI/OSD.vue';
 
 const canvasContainer = ref<HTMLElement | null>(null);
 const store = useProjectStore();
@@ -61,6 +62,7 @@ const handleDrop = (e: DragEvent) => {
     @dragover.prevent
     @drop="handleDrop"
   >
+    <OSD />
     <!-- Overlay Controls (Play/Pause could go here) -->
     <div class="absolute top-4 left-4 text-xs text-brand-primary/50 font-mono pointer-events-none z-10">
       GPU Renderer Active
