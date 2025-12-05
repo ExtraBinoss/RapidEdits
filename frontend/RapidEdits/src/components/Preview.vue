@@ -4,12 +4,35 @@ import { ThreeRenderer } from "../core/ThreeRenderer";
 import { useProjectStore } from "../stores/projectStore";
 import { globalEventBus } from "../core/EventBus";
 import OSD from "./UI/OSD.vue";
+import Popover from "./UI/Popover.vue";
 
 const canvasContainer = ref<HTMLElement | null>(null);
 const store = useProjectStore();
 const ambientShadow = ref<string>("transparent");
 
 let renderer: ThreeRenderer | null = null;
+const currentScaleMode = ref<"fit" | "fill" | number>("fit");
+const currentLabel = ref("Fit");
+
+const zoomOptions = [
+    { label: "Fit", value: "fit" },
+    { label: "Fill", value: "fill" },
+    { label: "100%", value: 1.0 },
+    { label: "125%", value: 1.25 },
+    { label: "150%", value: 1.5 },
+    { label: "200%", value: 2.0 },
+];
+
+const setZoom = (
+    option: { label: string; value: string | number },
+    close: () => void,
+) => {
+    if (!renderer) return;
+    currentScaleMode.value = option.value as any;
+    currentLabel.value = option.label;
+    renderer.setScaleMode(currentScaleMode.value);
+    close();
+};
 
 const handleAmbientUpdate = (color: any) => {
     ambientShadow.value = color;
@@ -45,14 +68,6 @@ const handleDrop = (e: DragEvent) => {
         }
     }
 };
-
-const currentScaleMode = ref<"fit" | "fill">("fit");
-
-const toggleScaleMode = () => {
-    if (!renderer) return;
-    currentScaleMode.value = currentScaleMode.value === "fit" ? "fill" : "fit";
-    renderer.setScaleMode(currentScaleMode.value);
-};
 </script>
 
 <template>
@@ -62,15 +77,81 @@ const toggleScaleMode = () => {
         :style="{ boxShadow: `0 0 100px ${ambientShadow}` }"
         @dragover.prevent
         @drop="handleDrop"
-        @dblclick="toggleScaleMode"
     >
         <OSD />
-        <!-- Overlay Controls (Play/Pause could go here) -->
+
+        <!-- Zoom Controls -->
+        <div class="absolute top-4 left-4 z-20">
+            <Popover position="bottom-left">
+                <template #trigger="{ isOpen }">
+                    <button
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors border border-transparent hover:border-canvas-border hover:bg-canvas-light/50"
+                        :class="
+                            isOpen
+                                ? 'bg-canvas-light text-brand-primary'
+                                : 'text-text-muted'
+                        "
+                    >
+                        <span>{{ currentLabel }}</span>
+                        <svg
+                            class="w-3 h-3 opacity-50"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M19 9l-7 7-7-7"
+                            />
+                        </svg>
+                    </button>
+                </template>
+                <template #content="{ close }">
+                    <div
+                        class="py-1 min-w-[120px] bg-canvas-light border border-canvas-border rounded-lg shadow-xl overflow-hidden"
+                    >
+                        <div
+                            class="px-3 py-2 text-[10px] uppercase font-bold text-text-dim tracking-wider select-none"
+                        >
+                            Zoom Level
+                        </div>
+                        <button
+                            v-for="opt in zoomOptions"
+                            :key="opt.label"
+                            @click="setZoom(opt, close)"
+                            class="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary transition-colors flex items-center justify-between group"
+                        >
+                            {{ opt.label }}
+                            <span
+                                v-if="currentLabel === opt.label"
+                                class="text-brand-primary"
+                            >
+                                <svg
+                                    class="w-3 h-3"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M5 13l4 4L19 7"
+                                    />
+                                </svg>
+                            </span>
+                        </button>
+                    </div>
+                </template>
+            </Popover>
+        </div>
+
         <div
-            class="absolute top-4 left-4 text-xs text-brand-primary/50 font-mono pointer-events-none z-10"
+            class="absolute bottom-4 left-4 text-xs text-brand-primary/30 font-mono pointer-events-none z-10"
         >
-            GPU Renderer Active | Dbl-Click to
-            {{ currentScaleMode === "fit" ? "Fill" : "Fit" }}
+            GPU Renderer Active
         </div>
     </div>
 </template>

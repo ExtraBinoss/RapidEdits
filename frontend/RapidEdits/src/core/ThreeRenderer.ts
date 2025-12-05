@@ -13,7 +13,7 @@ export class ThreeRenderer {
     // Modules
     private allocator: TextureAllocator;
     private resizeObserver: ResizeObserver | null = null;
-    private scaleMode: "fit" | "fill" = "fit";
+    private scaleMode: "fit" | "fill" | number = "fit";
 
     // Scene Graph
     private clipMeshes: Map<string, THREE.Mesh> = new Map();
@@ -76,7 +76,7 @@ export class ThreeRenderer {
         this.renderer.setAnimationLoop(this.render.bind(this));
     }
 
-    public setScaleMode(mode: "fit" | "fill") {
+    public setScaleMode(mode: "fit" | "fill" | number) {
         this.scaleMode = mode;
         this.handleResize(); // Trigger re-layout
     }
@@ -246,8 +246,22 @@ export class ThreeRenderer {
         let scale = 1;
         if (this.scaleMode === "fill") {
             scale = Math.max(screenW / imgW, screenH / imgH);
-        } else {
+        } else if (this.scaleMode === "fit") {
             scale = Math.min(screenW / imgW, screenH / imgH);
+        } else if (typeof this.scaleMode === "number") {
+            // Percentage based (1.0 = 100% of video resolution)
+            // Note: ThreeJS planes are 1x1 by default, scaled by imgW/imgH in fitMeshToScreen base.
+            // If we want 1:1 pixel mapping:
+            // The camera is Ortho with height = screenHeight (since top=h/2, bottom=-h/2).
+            // A plane of height H will take up H pixels on screen if camera zoom is 1.
+
+            // Wait, fitMeshToScreen logic:
+            // mesh.scale.set(imgW * scale, imgH * scale, 1);
+            // If scale = 1, then mesh is imgW x imgH world units.
+            // Camera frustum height is screenH units.
+            // So mesh height imgH takes up imgH pixels on screen.
+            // This means scale = 1 gives 1:1 pixel mapping.
+            scale = this.scaleMode;
         }
 
         mesh.scale.set(imgW * scale, imgH * scale, 1);
