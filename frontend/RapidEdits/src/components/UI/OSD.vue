@@ -41,17 +41,17 @@ onMounted(() => {
     <Transition name="fade">
         <div
             v-if="isVisible"
-            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 flex flex-col items-center justify-center w-32 h-32 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl pointer-events-none"
+            class="absolute bottom-8 right-8 z-50 flex flex-col items-center justify-center w-20 h-20 rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 shadow-2xl pointer-events-none"
         >
             <component
                 :is="icon"
-                :size="48"
-                class="text-white drop-shadow-lg mb-2"
+                :size="32"
+                class="text-white/90 drop-shadow-lg mb-1"
                 fill="currentColor"
             />
             <span
                 v-if="label"
-                class="text-sm font-bold text-white drop-shadow-md"
+                class="text-xs font-bold text-white/90 drop-shadow-md"
                 >{{ label }}</span
             >
         </div>

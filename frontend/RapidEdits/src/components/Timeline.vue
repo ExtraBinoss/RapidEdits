@@ -32,6 +32,13 @@ const audioTracks = computed(() => {
 const zoomLevel = ref(20);
 
 const scrollContainer = ref<HTMLElement | null>(null);
+const headersContainer = ref<HTMLElement | null>(null);
+
+const handleScroll = () => {
+    if (scrollContainer.value && headersContainer.value) {
+        headersContainer.value.scrollTop = scrollContainer.value.scrollTop;
+    }
+};
 
 // Auto-scroll logic
 watch(currentTime, (time) => {
@@ -183,13 +190,14 @@ const handleSeek = (e: MouseEvent) => {
         <div class="flex-1 flex min-h-0 overflow-hidden bg-canvas relative">
             <!-- Track Headers -->
             <div
-                class="w-32 flex-shrink-0 border-r border-canvas-border bg-canvas-light z-20 flex flex-col pt-8 shadow-lg"
+                ref="headersContainer"
+                class="w-32 flex-shrink-0 border-r border-canvas-border bg-canvas-light z-20 flex flex-col pt-8 shadow-lg overflow-hidden"
             >
                 <!-- Video Tracks Header -->
                 <div
                     v-for="track in videoTracks"
                     :key="track.id"
-                    class="h-24 border-b border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group"
+                    class="h-24 border-b border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
                 >
                     <span class="font-medium text-text-main mb-1">{{
                         track.name
@@ -201,9 +209,12 @@ const handleSeek = (e: MouseEvent) => {
                     </div>
                 </div>
 
+                <!-- Spacer for Video Drop Zone -->
+                <div class="h-24 flex-shrink-0"></div>
+
                 <!-- Divider -->
                 <div
-                    class="h-4 bg-canvas-darker border-y border-canvas-border flex items-center justify-center"
+                    class="h-4 bg-canvas-darker border-y border-canvas-border flex items-center justify-center flex-shrink-0"
                 >
                     <!-- Optional: Icon or Label -->
                 </div>
@@ -212,7 +223,7 @@ const handleSeek = (e: MouseEvent) => {
                 <div
                     v-for="track in audioTracks"
                     :key="track.id"
-                    class="h-24 border-b border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group"
+                    class="h-24 border-b border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
                 >
                     <span class="font-medium text-text-main mb-1">{{
                         track.name
@@ -223,12 +234,16 @@ const handleSeek = (e: MouseEvent) => {
                         <!-- Track controls placeholder -->
                     </div>
                 </div>
+
+                <!-- Spacer for Audio Drop Zone -->
+                <div class="h-24 flex-shrink-0"></div>
             </div>
 
             <!-- Tracks Scroll Area -->
             <div
                 ref="scrollContainer"
                 class="flex-1 overflow-auto relative custom-scrollbar"
+                @scroll="handleScroll"
             >
                 <!-- Ruler -->
                 <div
@@ -242,18 +257,21 @@ const handleSeek = (e: MouseEvent) => {
                     <TimeRuler :duration="store.duration" :zoom="zoomLevel" />
                 </div>
 
-                <!-- Playhead Line -->
-                <div
-                    class="absolute top-0 bottom-0 w-[1px] bg-red-500 z-30 pointer-events-none transition-none"
-                    :style="{ left: `${currentTime * zoomLevel}px` }"
-                >
-                    <div
-                        class="w-3 h-3 -ml-1.5 bg-red-500 rotate-45 -mt-1.5 shadow-sm"
-                    ></div>
-                </div>
-
                 <!-- Track Content -->
                 <div class="relative min-w-[2000px]">
+                    <!-- Playhead Line (Now inside content to span full height) -->
+                    <div
+                        class="absolute top-0 bottom-0 w-[1px] bg-red-500 z-30 pointer-events-none transition-none"
+                        :style="{
+                            left: `${currentTime * zoomLevel}px`,
+                            height: '100%',
+                        }"
+                    >
+                        <div
+                            class="w-3 h-3 -ml-1.5 bg-red-500 rotate-45 -mt-1.5 shadow-sm sticky top-0"
+                        ></div>
+                    </div>
+
                     <!-- Video Tracks Loop -->
                     <DynamicTrack
                         v-for="track in videoTracks"

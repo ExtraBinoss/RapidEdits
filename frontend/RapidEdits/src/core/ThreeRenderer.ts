@@ -51,9 +51,9 @@ export class ThreeRenderer {
             alpha: false,
             powerPreference: "high-performance",
         });
-            this.renderer.setPixelRatio(window.devicePixelRatio);
-            this.renderer.toneMapping = THREE.NoToneMapping;
-            this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // Linear for performance on Mac/Chrome
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.toneMapping = THREE.NoToneMapping;
+        this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // Linear for performance on Mac/Chrome
         container.appendChild(this.renderer.domElement);
 
         // 4. Geometry
@@ -170,12 +170,14 @@ export class ThreeRenderer {
         const clipTime = globalTime - clip.start + clip.offset;
         // Looser threshold during playback to prevent stuttering seeks
         const threshold = editorEngine.getIsPlaying() ? 0.5 : 0.15;
-        
+
         const drift = Math.abs(video.currentTime - clipTime);
         if (drift > threshold) {
             if (!video.seeking) {
                 if (editorEngine.getIsPlaying()) {
-                    console.warn(`[Renderer] Hard Seek: Drift ${drift.toFixed(3)}s > ${threshold}s`);
+                    console.warn(
+                        `[Renderer] Hard Seek: Drift ${drift.toFixed(3)}s > ${threshold}s`,
+                    );
                 }
                 video.currentTime = clipTime;
             }
@@ -188,9 +190,6 @@ export class ThreeRenderer {
         }
 
         // Update Ambient Color
-        // DISABLE during playback to fix lag/frame skipping
-        if (editorEngine.getIsPlaying()) return;
-
         // Sample the topmost/active video
         // Throttle to every 100ms
         const now = performance.now();
@@ -214,12 +213,7 @@ export class ThreeRenderer {
 
         try {
             this.samplingCtx.drawImage(video, 0, 0, 1, 1);
-            const [r, g, b] = this.samplingCtx.getImageData(
-                0,
-                0,
-                1,
-                1,
-            ).data;
+            const [r, g, b] = this.samplingCtx.getImageData(0, 0, 1, 1).data;
             const color = `rgba(${r},${g},${b}, 0.6)`; // 0.6 opacity for glow
             globalEventBus.emit({
                 type: "AMBIENT_COLOR_UPDATE",

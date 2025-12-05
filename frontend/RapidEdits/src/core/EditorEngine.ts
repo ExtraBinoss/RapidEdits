@@ -20,24 +20,7 @@ export class EditorEngine {
     }
 
     private initializeTracks() {
-        this.tracks = [
-            {
-                id: 1,
-                name: "Video 1",
-                type: "video",
-                isMuted: false,
-                isLocked: false,
-                clips: [],
-            },
-            {
-                id: 2,
-                name: "Audio 1",
-                type: "audio",
-                isMuted: false,
-                isLocked: false,
-                clips: [],
-            },
-        ];
+        this.tracks = [];
     }
 
     private setupShortcuts() {
@@ -181,10 +164,28 @@ export class EditorEngine {
         // 2. If Video, try to add Audio part to an Audio track
         // Only if we haven't just redirected (i.e. if we are indeed handling a Video asset)
         if (asset.type === MediaType.VIDEO) {
-            // Find an audio track (different from the video track we just used)
-            let audioTrack = this.tracks.find((t) => t.type === "audio");
+            // Find an audio track that has space at the given time
+            // Or if we just created a new video track (by checking if targetTrack has only 1 clip),
+            // maybe we prefer a new audio track for symmetry?
 
-            // If no audio track exists, create one
+            // Heuristic: Try to find ANY audio track where this clip fits
+            let audioTrack = this.tracks
+                .filter((t) => t.type === "audio")
+                .find((track) => {
+                    // Check for collision
+                    // Simple collision check: does any clip overlap with [start, start + duration]
+                    const hasCollision = track.clips.some((clip) => {
+                        const cStart = clip.start;
+                        const cEnd = clip.start + clip.duration;
+                        const newStart = startTime;
+                        const newEnd = startTime + asset.duration!;
+
+                        return cStart < newEnd && cEnd > newStart;
+                    });
+                    return !hasCollision;
+                });
+
+            // If no suitable track found, create one
             if (!audioTrack) {
                 audioTrack = this.addTrack("audio");
             }
