@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { editorEngine } from "../core/EditorEngine";
 import { globalEventBus } from "../core/EventBus";
 import type { Asset } from "../types/Media";
@@ -10,6 +10,22 @@ export const useProjectStore = defineStore("project", () => {
     const tracks = ref<Track[]>(editorEngine.getTracks());
     const currentTime = ref(0);
     const isPlaying = ref(false);
+
+    // Dynamic duration based on content
+    const duration = computed(() => {
+        let maxTime = 0;
+        tracks.value.forEach((track) => {
+            track.clips.forEach((clip) => {
+                const end = clip.start + clip.duration;
+                if (end > maxTime) maxTime = end;
+            });
+        });
+        // Minimum duration of 3 minutes for empty/short projects,
+        // or just fit content + buffer?
+        // User asked for "37s" if content is 37s. So let's fit content.
+        // But keep at least 60s to be editable.
+        return Math.max(60, maxTime + 10);
+    });
 
     // Sync state with Engine events
     globalEventBus.on("ASSET_ADDED", (asset: any) => {
@@ -62,6 +78,7 @@ export const useProjectStore = defineStore("project", () => {
         assets,
         tracks,
         currentTime,
+        duration,
         isPlaying,
         uploadFiles,
         deleteAsset,

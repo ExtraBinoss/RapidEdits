@@ -70,8 +70,8 @@ export function useFilmstrip(
                 const relativeTime = Math.min(i * step, duration);
                 const absoluteTime = clipOffset + relativeTime;
                 // Avoid seeking to exactly 0 if possible as it can be buggy in some browsers
-                // Fixed: 0.1s is too large (3-6 frames). Using 0.0 or 0.001 is better.
-                const safeTime = absoluteTime;
+                // 0.05s is small enough to be "start" but safer than 0.0s for black frame issues
+                const safeTime = absoluteTime === 0 ? 0.05 : absoluteTime;
 
                 // Generate one by one to prioritize left-to-right
                 const url = await thumbnailGenerator.generate(

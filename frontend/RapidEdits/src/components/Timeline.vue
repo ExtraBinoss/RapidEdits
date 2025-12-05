@@ -13,6 +13,7 @@ import { useDragDrop } from "../composables/useDragDrop";
 import Button from "./UI/Button.vue";
 import Filmstrip from "./Timeline/Filmstrip.vue";
 import AudioWaveform from "./Timeline/AudioWaveform.vue";
+import TimeRuler from "./Timeline/TimeRuler.vue";
 import { ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 
@@ -21,6 +22,7 @@ const { tracks, currentTime, isPlaying } = storeToRefs(store);
 
 // Pixels per second
 const zoomLevel = ref(20);
+
 const scrollContainer = ref<HTMLElement | null>(null);
 
 // Auto-scroll logic
@@ -194,24 +196,14 @@ const getTrackColor = (type: string) => {
             >
                 <!-- Ruler -->
                 <div
-                    class="h-8 sticky top-0 bg-canvas-light border-b border-canvas-border z-10 flex items-end pb-1 cursor-pointer hover:bg-canvas-lighter"
+                    class="h-8 sticky top-0 bg-canvas-light border-b border-canvas-border z-10 flex items-end cursor-pointer hover:bg-canvas-lighter"
                     @click="handleSeek"
-                    :style="{ minWidth: '2000px' }"
+                    :style="{
+                        minWidth: '100%',
+                        width: `${store.duration * zoomLevel}px`,
+                    }"
                 >
-                    <!-- Simple Ruler rendering -->
-                    <div class="absolute inset-0 flex">
-                        <div
-                            v-for="i in 720"
-                            :key="i"
-                            class="h-full border-l border-canvas-border/30 relative"
-                            :style="{ width: `${zoomLevel * 5}px` }"
-                        >
-                            <span
-                                class="absolute bottom-1 left-1 text-[9px] text-text-muted"
-                                >{{ (i - 1) * 5 }}s</span
-                            >
-                        </div>
-                    </div>
+                    <TimeRuler :duration="store.duration" :zoom="zoomLevel" />
                 </div>
 
                 <!-- Playhead Line -->
