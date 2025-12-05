@@ -27,7 +27,8 @@ onMounted(async () => {
   canvasContainer.value.appendChild(app.canvas);
 
   // Initialize Custom Renderer
-  renderer = new PixiRenderer(app);
+  // We pass the container explicitly now for robust resizing
+  renderer = new PixiRenderer(app, canvasContainer.value);
   await renderer.init();
 });
 
