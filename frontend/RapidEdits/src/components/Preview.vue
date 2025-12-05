@@ -61,8 +61,20 @@ const handleDrop = (e: DragEvent) => {
     if (data) {
         try {
             const assetData = JSON.parse(data);
-            // Drop into preview = Add to first available video track at current time
-            store.addClipToTimeline(assetData.id, 1, store.currentTime);
+
+            // Determine track type
+            let trackType: "video" | "audio" = "video";
+            if (assetData.type === "audio") trackType = "audio";
+
+            // Create new track for this asset to ensure it fits and doesn't overwrite
+            const newTrack = store.addTrack(trackType);
+
+            // Add to the new track at current time
+            store.addClipToTimeline(
+                assetData.id,
+                newTrack.id,
+                store.currentTime,
+            );
         } catch (err) {
             console.error(err);
         }

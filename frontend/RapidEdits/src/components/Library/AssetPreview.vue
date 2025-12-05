@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import type { Asset } from '../../types/Media';
 import { thumbnailGenerator } from '../../core/ThumbnailGenerator';
 
@@ -13,6 +13,13 @@ const activeIndex = ref(0);
 const isHovering = ref(false);
 const isLoadingPreviews = ref(false);
 const hasGeneratedPreviews = ref(false);
+
+const currentSrc = computed(() => {
+    if (isHovering.value && hasGeneratedPreviews.value && previewUrls.value.length > 0) {
+        return previewUrls.value[activeIndex.value];
+    }
+    return coverUrl.value;
+});
 
 const generateCover = async () => {
     if (coverUrl.value) return; // Already generated
@@ -70,7 +77,7 @@ const onMouseMove = (e: MouseEvent) => {
 
 const onMouseLeave = () => {
     isHovering.value = false;
-    activeIndex.value = 0; // Reset to cover (implicitly handled by template)
+    activeIndex.value = 0; // Reset to cover (implicitly handled by computed)
 };
 
 onMounted(() => {
@@ -98,14 +105,9 @@ watch(() => props.asset, () => {
         @mouseenter="generatePreviews"
     >
         <img 
-            v-if="isHovering && hasGeneratedPreviews && previewUrls.length > 0 && previewUrls[activeIndex]"
-            :src="previewUrls[activeIndex]" 
+            v-if="currentSrc"
+            :src="currentSrc" 
             class="w-full h-full object-cover pointer-events-none transition-opacity duration-100"
-        />
-        <img 
-            v-else-if="coverUrl"
-            :src="coverUrl" 
-            class="w-full h-full object-cover pointer-events-none"
         />
         <div v-else class="w-full h-full flex items-center justify-center text-white/20 text-xs">
             Loading...

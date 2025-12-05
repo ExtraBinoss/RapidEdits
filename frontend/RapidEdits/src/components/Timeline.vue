@@ -11,14 +11,22 @@ import {
 import { useProjectStore } from "../stores/projectStore";
 import { useDragDrop } from "../composables/useDragDrop";
 import Button from "./UI/Button.vue";
-import Filmstrip from "./Timeline/Filmstrip.vue";
-import AudioWaveform from "./Timeline/AudioWaveform.vue";
+import DynamicTrack from "./Timeline/DynamicTrack.vue";
 import TimeRuler from "./Timeline/TimeRuler.vue";
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { storeToRefs } from "pinia";
 
 const store = useProjectStore();
 const { tracks, currentTime, isPlaying } = storeToRefs(store);
+
+const videoTracks = computed(() => {
+    return tracks.value.filter(
+        (t) => t.type === "video" || t.type === "image" || t.type === "text",
+    );
+});
+const audioTracks = computed(() => {
+    return tracks.value.filter((t) => t.type === "audio");
+});
 
 // Pixels per second
 const zoomLevel = ref(20);
@@ -59,22 +67,44 @@ const {} = useDragDrop(() => {
     // For now, focus on Internal Asset Drop which is handled differently
 });
 
-// Handle Internal Drag Drop (from Asset Library)
 const handleTrackDrop = (e: DragEvent, trackId: number) => {
     e.preventDefault();
     const data = e.dataTransfer?.getData("application/json");
     if (data) {
         try {
             const assetData = JSON.parse(data);
-            // Calculate start time based on drop X position
             const rect = (
                 e.currentTarget as HTMLElement
             ).getBoundingClientRect();
             const offsetX = e.clientX - rect.left;
-            // Account for scroll? For now assume simple
             const startTime = Math.max(0, offsetX / zoomLevel.value);
 
             store.addClipToTimeline(assetData.id, trackId, startTime);
+        } catch (err) {
+            console.error("Invalid drop data", err);
+        }
+    }
+};
+
+const handleNewTrackDrop = (e: DragEvent, type: "video" | "audio") => {
+    e.preventDefault();
+    const data = e.dataTransfer?.getData("application/json");
+    if (data) {
+        try {
+            const assetData = JSON.parse(data);
+
+            // Auto create track
+            const newTrack = store.addTrack(type);
+
+            // Add clip to the new track
+            const rect = (
+                e.currentTarget as HTMLElement
+            ).getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const startTime = Math.max(0, offsetX / zoomLevel.value);
+
+            // We must add to the SPECIFIC track we just created
+            store.addClipToTimeline(assetData.id, newTrack.id, startTime);
         } catch (err) {
             console.error("Invalid drop data", err);
         }
@@ -86,24 +116,6 @@ const handleSeek = (e: MouseEvent) => {
     const offsetX = e.clientX - rect.left;
     const time = Math.max(0, offsetX / zoomLevel.value);
     store.seek(time);
-};
-
-const getClipStyle = (clip: any) => {
-    return {
-        left: `${clip.start * zoomLevel.value}px`,
-        width: `${clip.duration * zoomLevel.value}px`,
-    };
-};
-
-const getTrackColor = (type: string) => {
-    switch (type) {
-        case "video":
-            return "bg-brand-primary/20 border-brand-primary/50 text-brand-primary";
-        case "audio":
-            return "bg-emerald-500/20 border-emerald-500/50 text-emerald-500";
-        default:
-            return "bg-gray-500/20 border-gray-500/50";
-    }
 };
 </script>
 
@@ -173,8 +185,32 @@ const getTrackColor = (type: string) => {
             <div
                 class="w-32 flex-shrink-0 border-r border-canvas-border bg-canvas-light z-20 flex flex-col pt-8 shadow-lg"
             >
+                <!-- Video Tracks Header -->
                 <div
-                    v-for="track in tracks"
+                    v-for="track in videoTracks"
+                    :key="track.id"
+                    class="h-24 border-b border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group"
+                >
+                    <span class="font-medium text-text-main mb-1">{{
+                        track.name
+                    }}</span>
+                    <div
+                        class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                        <!-- Track controls placeholder -->
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div
+                    class="h-4 bg-canvas-darker border-y border-canvas-border flex items-center justify-center"
+                >
+                    <!-- Optional: Icon or Label -->
+                </div>
+
+                <!-- Audio Tracks Header -->
+                <div
+                    v-for="track in audioTracks"
                     :key="track.id"
                     class="h-24 border-b border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group"
                 >
@@ -218,41 +254,45 @@ const getTrackColor = (type: string) => {
 
                 <!-- Track Content -->
                 <div class="relative min-w-[2000px]">
-                    <div
-                        v-for="track in tracks"
+                    <!-- Video Tracks Loop -->
+                    <DynamicTrack
+                        v-for="track in videoTracks"
                         :key="track.id"
-                        class="h-24 border-b border-canvas-border/30 relative bg-canvas/20 transition-colors"
+                        :track="track"
+                        :zoomLevel="zoomLevel"
+                        @drop="handleTrackDrop"
+                    />
+
+                    <!-- Video Drop Zone (Create new track) -->
+                    <div
+                        class="h-24 border-b border-canvas-border/30 relative bg-canvas/10 border-dashed border-2 border-transparent hover:border-brand-primary/30 transition-colors flex items-center justify-center text-text-muted/50 hover:text-brand-primary/80"
                         @dragover.prevent
-                        @drop="handleTrackDrop($event, track.id)"
+                        @drop="handleNewTrackDrop($event, 'video')"
                     >
-                        <!-- Clips -->
-                        <div
-                            v-for="clip in track.clips"
-                            :key="clip.id"
-                            class="absolute top-2 bottom-2 rounded overflow-hidden border border-opacity-30 group cursor-grab shadow-sm flex items-center px-2"
-                            :class="getTrackColor(track.type)"
-                            :style="getClipStyle(clip)"
-                        >
-                            <!-- GPU Preview for Video Clips -->
-                            <Filmstrip
-                                v-if="
-                                    clip.type === 'video' ||
-                                    clip.type === 'image'
-                                "
-                                :clip="clip"
-                            />
+                        <span>Drop here to add Video Track</span>
+                    </div>
 
-                            <!-- Audio Waveform -->
-                            <AudioWaveform
-                                v-else-if="clip.type === 'audio'"
-                                :clip="clip"
-                            />
+                    <!-- Divider -->
+                    <div
+                        class="h-4 bg-canvas-darker border-y border-canvas-border/30"
+                    ></div>
 
-                            <span
-                                class="relative z-10 text-[10px] font-medium truncate w-full select-none"
-                                >{{ clip.name }}</span
-                            >
-                        </div>
+                    <!-- Audio Tracks Loop -->
+                    <DynamicTrack
+                        v-for="track in audioTracks"
+                        :key="track.id"
+                        :track="track"
+                        :zoomLevel="zoomLevel"
+                        @drop="handleTrackDrop"
+                    />
+
+                    <!-- Audio Drop Zone (Create new track) -->
+                    <div
+                        class="h-24 border-b border-canvas-border/30 relative bg-canvas/10 border-dashed border-2 border-transparent hover:border-emerald-500/30 transition-colors flex items-center justify-center text-text-muted/50 hover:text-emerald-500/80"
+                        @dragover.prevent
+                        @drop="handleNewTrackDrop($event, 'audio')"
+                    >
+                        <span>Drop here to add Audio Track</span>
                     </div>
                 </div>
             </div>

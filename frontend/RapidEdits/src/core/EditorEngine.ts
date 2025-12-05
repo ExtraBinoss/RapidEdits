@@ -37,22 +37,6 @@ export class EditorEngine {
                 isLocked: false,
                 clips: [],
             },
-            {
-                id: 3,
-                name: "Overlay",
-                type: "video",
-                isMuted: false,
-                isLocked: false,
-                clips: [],
-            },
-            {
-                id: 4,
-                name: "Audio 2",
-                type: "audio",
-                isMuted: false,
-                isLocked: false,
-                clips: [],
-            },
         ];
     }
 
@@ -134,23 +118,76 @@ export class EditorEngine {
         return this.tracks;
     }
 
+    public addTrack(type: "video" | "audio"): Track {
+        const id =
+            this.tracks.length > 0
+                ? Math.max(...this.tracks.map((t) => t.id)) + 1
+                : 1;
+        const count = this.tracks.filter((t) => t.type === type).length + 1;
+        const name = type === "video" ? `Video ${count}` : `Audio ${count}`;
+
+        const newTrack: Track = {
+            id,
+            name,
+            type,
+            isMuted: false,
+            isLocked: false,
+            clips: [],
+        };
+
+        this.tracks.push(newTrack);
+        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
+        return newTrack;
+    }
+
     public addClip(assetId: string, targetTrackId: number, startTime: number) {
         const asset = this.assets.get(assetId);
         if (!asset) return;
 
-        const targetTrack = this.tracks.find((t) => t.id === targetTrackId);
+        let targetTrack = this.tracks.find((t) => t.id === targetTrackId);
         if (!targetTrack) return;
 
+        // Force correct track type
+        // If trying to put Audio on Video track -> Switch to Audio track
+        if (targetTrack.type === "video" && asset.type === MediaType.AUDIO) {
+            // Find or create audio track
+            let audioTrack = this.tracks.find((t) => t.type === "audio");
+            if (!audioTrack) {
+                audioTrack = this.addTrack("audio");
+            }
+            targetTrack = audioTrack;
+        }
+        // If trying to put Video on Audio track -> Switch to Video track
+        else if (
+            targetTrack.type === "audio" &&
+            asset.type === MediaType.VIDEO
+        ) {
+            let videoTrack = this.tracks.find((t) => t.type === "video");
+            if (!videoTrack) {
+                videoTrack = this.addTrack("video");
+            }
+            targetTrack = videoTrack;
+        }
+
         // 1. Add Main Clip
-        const mainClip = this.createClipObject(asset, targetTrackId, startTime);
+        const mainClip = this.createClipObject(
+            asset,
+            targetTrack.id,
+            startTime,
+        );
         targetTrack.clips.push(mainClip);
         targetTrack.clips.sort((a, b) => a.start - b.start);
 
-        // 2. If Video, try to add Audio part to the next available Audio track
+        // 2. If Video, try to add Audio part to an Audio track
+        // Only if we haven't just redirected (i.e. if we are indeed handling a Video asset)
         if (asset.type === MediaType.VIDEO) {
-            const audioTrack = this.tracks.find(
-                (t) => t.type === "audio" && t.id > targetTrackId,
-            );
+            // Find an audio track (different from the video track we just used)
+            let audioTrack = this.tracks.find((t) => t.type === "audio");
+
+            // If no audio track exists, create one
+            if (!audioTrack) {
+                audioTrack = this.addTrack("audio");
+            }
 
             if (audioTrack) {
                 const audioClip = this.createClipObject(
@@ -159,7 +196,6 @@ export class EditorEngine {
                     startTime,
                     "audio", // Force type audio for the separated track
                 );
-                // Link them visually? For now just ID match
                 audioTrack.clips.push(audioClip);
                 audioTrack.clips.sort((a, b) => a.start - b.start);
             }

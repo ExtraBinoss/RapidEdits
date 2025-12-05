@@ -74,6 +74,10 @@ export const useProjectStore = defineStore("project", () => {
         editorEngine.seek(time);
     };
 
+    const addTrack = (type: "video" | "audio") => {
+        return editorEngine.addTrack(type);
+    };
+
     return {
         assets,
         tracks,
@@ -85,5 +89,6 @@ export const useProjectStore = defineStore("project", () => {
         addClipToTimeline,
         togglePlayback,
         seek,
+        addTrack,
     };
 });
