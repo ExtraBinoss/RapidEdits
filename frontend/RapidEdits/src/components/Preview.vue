@@ -85,11 +85,11 @@ const handleDrop = (e: DragEvent) => {
             <Popover position="bottom-left">
                 <template #trigger="{ isOpen }">
                     <button
-                        class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors border border-transparent hover:border-canvas-border hover:bg-canvas-light/50"
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 border border-white/10 bg-black/40 backdrop-blur-md shadow-lg hover:bg-black/60 hover:border-white/20"
                         :class="
                             isOpen
-                                ? 'bg-canvas-light text-brand-primary'
-                                : 'text-text-muted'
+                                ? 'text-brand-primary border-brand-primary/30'
+                                : 'text-gray-200'
                         "
                     >
                         <span>{{ currentLabel }}</span>

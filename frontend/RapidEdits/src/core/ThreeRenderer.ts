@@ -87,7 +87,11 @@ export class ThreeRenderer {
 
         const visibleClips: Clip[] = [];
         tracks.forEach((track: Track) => {
-            if (track.type !== "video" || track.isMuted) return;
+            if (
+                (track.type !== "video" && track.type !== "image") ||
+                track.isMuted
+            )
+                return;
             const clip = track.clips.find(
                 (c) =>
                     currentTime >= c.start &&
@@ -145,6 +149,10 @@ export class ThreeRenderer {
 
             if (clip.type === "video" && mesh) {
                 this.syncVideoFrame(clip, mesh, currentTime);
+            } else if (clip.type === "image" && mesh) {
+                // Images are static, but we might want to sample them for ambient color if they are top-most
+                // For now, simpler: do nothing as texture is static.
+                // We could implement an updateAmbientColor(image) if desired.
             }
         });
 

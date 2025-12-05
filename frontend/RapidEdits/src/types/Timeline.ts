@@ -14,7 +14,7 @@ export interface Clip {
 export interface Track {
     id: number;
     name: string;
-    type: "video" | "audio" | "text";
+    type: "video" | "audio" | "text" | "image";
     isMuted: boolean;
     isLocked: boolean;
     clips: Clip[];
