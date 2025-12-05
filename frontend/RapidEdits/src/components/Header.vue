@@ -3,6 +3,7 @@ import { Download, Settings, FileVideo } from "lucide-vue-next";
 import Button from "./UI/Button.vue";
 import Tooltip from "./UI/Tooltip.vue";
 import Popover from "./UI/Popover.vue";
+import AppLogo from "./AppLogo.vue";
 </script>
 
 <template>
@@ -11,11 +12,7 @@ import Popover from "./UI/Popover.vue";
     >
         <!-- Logo Area -->
         <div class="flex items-center gap-3">
-            <div
-                class="w-8 h-8 rounded bg-brand-gradient flex items-center justify-center text-white font-bold shadow-lg shadow-brand-primary/20"
-            >
-                RE
-            </div>
+            <AppLogo size="w-8 h-8" />
             <span class="text-lg font-bold tracking-tight text-text-main">
                 RapidEdits
             </span>

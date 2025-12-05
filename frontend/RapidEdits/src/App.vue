@@ -4,6 +4,12 @@ import Sidebar from "./components/Sidebar.vue";
 import Timeline from "./components/Timeline.vue";
 import Preview from "./components/Preview.vue";
 import Properties from "./components/Properties.vue";
+import { onMounted } from "vue";
+import { updateFavicon } from "./utils/faviconUtils";
+
+onMounted(() => {
+    updateFavicon("#3b82f6"); // Brand primary color
+});
 </script>
 
 <template>
