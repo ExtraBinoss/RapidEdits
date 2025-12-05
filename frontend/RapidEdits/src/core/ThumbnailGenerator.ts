@@ -79,8 +79,8 @@ export class ThumbnailGenerator {
             request.reject(error);
         } finally {
             this.isProcessing = false;
-            // Process next immediately
-            this.processQueue();
+            // Process next with a yield to main thread
+            setTimeout(() => this.processQueue(), 0);
         }
     }
 }

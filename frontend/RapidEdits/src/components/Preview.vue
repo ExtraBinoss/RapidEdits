@@ -151,7 +151,7 @@ const handleDrop = (e: DragEvent) => {
         <div
             class="absolute bottom-4 left-4 text-xs text-brand-primary/30 font-mono pointer-events-none z-10"
         >
-            GPU Renderer Active
+            GPU
         </div>
     </div>
 </template>

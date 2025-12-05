@@ -169,7 +169,10 @@ export class ThreeRenderer {
         if (!video) return;
 
         const clipTime = globalTime - clip.start + clip.offset;
-        if (Math.abs(video.currentTime - clipTime) > 0.15) {
+        // Looser threshold during playback to prevent stuttering seeks
+        const threshold = editorEngine.getIsPlaying() ? 0.3 : 0.15;
+        
+        if (Math.abs(video.currentTime - clipTime) > threshold) {
             if (!video.seeking) video.currentTime = clipTime;
         }
 
@@ -198,21 +201,22 @@ export class ThreeRenderer {
             return;
         }
 
+        // Skip if video data isn't ready enough to avoid stalling
+        if (video.readyState < 3) return;
+
         try {
-            if (video.readyState >= 2) {
-                this.samplingCtx.drawImage(video, 0, 0, 1, 1);
-                const [r, g, b] = this.samplingCtx.getImageData(
-                    0,
-                    0,
-                    1,
-                    1,
-                ).data;
-                const color = `rgba(${r},${g},${b}, 0.6)`; // 0.6 opacity for glow
-                globalEventBus.emit({
-                    type: "AMBIENT_COLOR_UPDATE",
-                    payload: color,
-                });
-            }
+            this.samplingCtx.drawImage(video, 0, 0, 1, 1);
+            const [r, g, b] = this.samplingCtx.getImageData(
+                0,
+                0,
+                1,
+                1,
+            ).data;
+            const color = `rgba(${r},${g},${b}, 0.6)`; // 0.6 opacity for glow
+            globalEventBus.emit({
+                type: "AMBIENT_COLOR_UPDATE",
+                payload: color,
+            });
         } catch (e) {
             // Ignore CORS or not ready
         }

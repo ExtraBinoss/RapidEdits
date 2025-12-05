@@ -10,6 +10,7 @@ interface Thumbnail {
 
 export function useFilmstrip(
     assetUrl: string,
+    assetType: string,
     duration: number,
     containerWidth: Ref<number>,
     clipHeight: number = 96 // h-24 = 96px
@@ -39,7 +40,6 @@ export function useFilmstrip(
         const step = duration / count;
         
         // Initialize placeholders
-        // We create a new array to reset the view immediately to match new zoom
         const placeholders: Thumbnail[] = new Array(count).fill(null).map((_, i) => ({
             id: `pending-${Math.random()}-${i}`, // Unique temp ID
             url: '',
@@ -48,6 +48,17 @@ export function useFilmstrip(
         }));
         
         thumbnails.value = placeholders;
+
+        // If it's an image, just use the asset URL for all frames immediately
+        if (assetType === 'image') {
+             thumbnails.value = placeholders.map(t => ({
+                 ...t,
+                 url: assetUrl,
+                 loaded: true
+             }));
+             isLoading.value = false;
+             return;
+        }
 
         try {
             for (let i = 0; i < count; i++) {

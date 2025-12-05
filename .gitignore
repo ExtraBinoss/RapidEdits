@@ -2,3 +2,4 @@ frontend/RapidEdits/public/videos/*.mp4
 frontend/RapidEdits/public/videos/*.webm
 frontend/RapidEdits/public/videos/*.mp3
 frontend/RapidEdits/public/audio/*.mp3
+frontend/RapidEdits/public/videos/*.jpg

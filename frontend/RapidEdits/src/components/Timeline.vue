@@ -220,7 +220,7 @@ const getTrackColor = (type: string) => {
                         >
                             <!-- GPU Preview for Video Clips -->
                             <Filmstrip 
-                                v-if="clip.type === 'video'"
+                                v-if="clip.type === 'video' || clip.type === 'image'"
                                 :clip="clip"
                             />
                             
