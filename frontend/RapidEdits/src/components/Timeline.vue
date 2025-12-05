@@ -11,6 +11,8 @@ import {
 import { useProjectStore } from "../stores/projectStore";
 import { useDragDrop } from "../composables/useDragDrop";
 import Button from "./UI/Button.vue";
+import Filmstrip from "./Timeline/Filmstrip.vue";
+import AudioWaveform from "./Timeline/AudioWaveform.vue";
 import { ref } from "vue";
 import { storeToRefs } from "pinia";
 
@@ -216,8 +218,20 @@ const getTrackColor = (type: string) => {
                             :class="getTrackColor(track.type)"
                             :style="getClipStyle(clip)"
                         >
+                            <!-- GPU Preview for Video Clips -->
+                            <Filmstrip 
+                                v-if="clip.type === 'video'"
+                                :clip="clip"
+                            />
+                            
+                            <!-- Audio Waveform -->
+                            <AudioWaveform 
+                                v-else-if="clip.type === 'audio'"
+                                :clip="clip"
+                            />
+                            
                             <span
-                                class="text-[10px] font-medium truncate w-full select-none"
+                                class="relative z-10 text-[10px] font-medium truncate w-full select-none"
                                 >{{ clip.name }}</span
                             >
                         </div>
