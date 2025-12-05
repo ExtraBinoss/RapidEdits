@@ -20,7 +20,9 @@ export interface Asset {
 }
 
 export type EditorEvent =
-    | { type: "ASSET_ADDED"; payload: Asset }
+    | { type: "ASSET_LOADED"; payload: Asset }
+    | { type: "WAVEFORM_GENERATION_START"; payload: { assetId: string } }
+    | { type: "WAVEFORM_GENERATION_END"; payload: { assetId: string } }
     | { type: "ASSET_REMOVED"; payload: string } // ID
     | { type: "PROJECT_LOADED"; payload: void }
     | { type: "TIMELINE_UPDATED"; payload: void }
