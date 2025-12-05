@@ -30,17 +30,33 @@ const typeColor = computed(() => {
   }
 });
 
-const formatSize = (bytes: number) => {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+const formatDuration = (seconds?: number) => {
+   if (!seconds) return '';
+   const m = Math.floor(seconds / 60);
+   const s = Math.floor(seconds % 60);
+   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+const onDragStart = (e: DragEvent) => {
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('application/json', JSON.stringify({
+       id: props.asset.id,
+       type: props.asset.type,
+       duration: props.asset.duration
+    }));
+    // Also Copy text for simple drops
+    e.dataTransfer.setData('text/plain', props.asset.id);
+  }
 };
 </script>
 
 <template>
-  <div class="group relative aspect-square bg-canvas-lighter rounded-lg overflow-hidden border border-transparent hover:border-brand-primary transition-all cursor-pointer">
+  <div 
+    class="group relative aspect-square bg-canvas-lighter rounded-lg overflow-hidden border border-transparent hover:border-brand-primary transition-all cursor-grab active:cursor-grabbing"
+    draggable="true"
+    @dragstart="onDragStart"
+  >
     <!-- Preview Image/Placeholder -->
     <div v-if="asset.type === MediaType.AUDIO" class="w-full h-full flex items-center justify-center bg-gradient-to-br from-canvas-light to-canvas">
        <Music :size="32" class="text-text-muted opacity-50" />
@@ -63,16 +79,15 @@ const formatSize = (bytes: number) => {
     </div>
 
     <!-- Metadata Overlay -->
-    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2 pt-6">
+    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2 pt-6 pointer-events-none">
        <div class="text-xs font-medium text-white truncate mb-0.5">{{ asset.name }}</div>
        <div class="flex items-center justify-between">
-          <span class="text-[10px] text-gray-300">{{ formatSize(asset.size) }}</span>
+          <span class="text-[10px] text-gray-300">{{ formatDuration(asset.duration) }}</span>
           
           <!-- Type Icon Badge -->
           <div 
             class="flex items-center justify-center w-5 h-5 rounded-full text-white shadow-sm"
             :class="typeColor"
-            :title="asset.type"
           >
              <component :is="typeIcon" :size="10" />
           </div>

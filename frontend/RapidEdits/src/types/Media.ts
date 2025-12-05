@@ -22,4 +22,6 @@ export interface Asset {
 export type EditorEvent = 
   | { type: 'ASSET_ADDED', payload: Asset }
   | { type: 'ASSET_REMOVED', payload: string } // ID
-  | { type: 'PROJECT_LOADED', payload: void };
+  | { type: 'PROJECT_LOADED', payload: void }
+  | { type: 'TIMELINE_UPDATED', payload: void }
+  | { type: 'PLAYBACK_TIME_UPDATED', payload: number };

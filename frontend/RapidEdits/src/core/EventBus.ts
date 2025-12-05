@@ -1,18 +1,18 @@
 import type { EditorEvent } from '../types/Media';
 
-type EventHandler<T> = (payload: T) => void;
+type EventHandler<T = any> = (payload: T) => void;
 
 export class EventBus {
-  private listeners: Map<string, EventHandler<any>[]> = new Map();
+  private listeners: Map<string, EventHandler[]> = new Map();
 
-  on<T extends EditorEvent>(eventType: T['type'], handler: EventHandler<Extract<T, { type: T['type'] }>['payload']>) {
+  on<T extends EditorEvent>(eventType: T['type'], handler: EventHandler<T['payload']>) {
     if (!this.listeners.has(eventType)) {
       this.listeners.set(eventType, []);
     }
     this.listeners.get(eventType)?.push(handler);
   }
 
-  off<T extends EditorEvent>(eventType: T['type'], handler: EventHandler<Extract<T, { type: T['type'] }>['payload']>) {
+  off<T extends EditorEvent>(eventType: T['type'], handler: EventHandler<T['payload']>) {
     const handlers = this.listeners.get(eventType);
     if (handlers) {
       this.listeners.set(eventType, handlers.filter(h => h !== handler));
