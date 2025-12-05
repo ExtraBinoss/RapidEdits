@@ -25,8 +25,8 @@ const scrollContainer = ref<HTMLElement | null>(null);
 
 // Auto-scroll logic
 watch(currentTime, (time) => {
-    if (!isPlaying.value || !scrollContainer.value) return;
-    
+    if (!scrollContainer.value) return;
+
     const el = scrollContainer.value;
     const playheadX = time * zoomLevel.value;
     const width = el.clientWidth;
@@ -35,7 +35,7 @@ watch(currentTime, (time) => {
     // If playhead moves out of view to the right
     if (playheadX > scrollLeft + width - 50) {
         el.scrollLeft = playheadX - 100;
-    } 
+    }
     // If playhead moves out of view to the left (e.g. loop or seek)
     else if (playheadX < scrollLeft) {
         el.scrollLeft = playheadX - 100;
@@ -188,7 +188,10 @@ const getTrackColor = (type: string) => {
             </div>
 
             <!-- Tracks Scroll Area -->
-            <div ref="scrollContainer" class="flex-1 overflow-auto relative custom-scrollbar">
+            <div
+                ref="scrollContainer"
+                class="flex-1 overflow-auto relative custom-scrollbar"
+            >
                 <!-- Ruler -->
                 <div
                     class="h-8 sticky top-0 bg-canvas-light border-b border-canvas-border z-10 flex items-end pb-1 cursor-pointer hover:bg-canvas-lighter"
@@ -198,7 +201,7 @@ const getTrackColor = (type: string) => {
                     <!-- Simple Ruler rendering -->
                     <div class="absolute inset-0 flex">
                         <div
-                            v-for="i in 50"
+                            v-for="i in 720"
                             :key="i"
                             class="h-full border-l border-canvas-border/30 relative"
                             :style="{ width: `${zoomLevel * 5}px` }"
@@ -239,17 +242,20 @@ const getTrackColor = (type: string) => {
                             :style="getClipStyle(clip)"
                         >
                             <!-- GPU Preview for Video Clips -->
-                            <Filmstrip 
-                                v-if="clip.type === 'video' || clip.type === 'image'"
+                            <Filmstrip
+                                v-if="
+                                    clip.type === 'video' ||
+                                    clip.type === 'image'
+                                "
                                 :clip="clip"
                             />
-                            
+
                             <!-- Audio Waveform -->
-                            <AudioWaveform 
+                            <AudioWaveform
                                 v-else-if="clip.type === 'audio'"
                                 :clip="clip"
                             />
-                            
+
                             <span
                                 class="relative z-10 text-[10px] font-medium truncate w-full select-none"
                                 >{{ clip.name }}</span

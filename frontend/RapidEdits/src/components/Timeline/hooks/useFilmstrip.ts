@@ -14,7 +14,7 @@ export function useFilmstrip(
     clipOffset: number,
     duration: number,
     containerWidth: Ref<number>,
-    clipHeight: number = 96 // h-24 = 96px
+    clipHeight: number = 96, // h-24 = 96px
 ) {
     const thumbnails = ref<Thumbnail[]>([]);
     const isLoading = ref(false);
@@ -28,37 +28,39 @@ export function useFilmstrip(
         });
 
         isLoading.value = true;
-        
+
         // Calculate how many frames fit
         // Aspect ratio 16:9 approx => width = height * 1.77
-        const thumbHeight = clipHeight; 
-        const thumbWidth = thumbHeight * 1.77; 
-        
+        const thumbHeight = clipHeight;
+        const thumbWidth = thumbHeight * 1.77;
+
         // Prevent division by zero or negative
         if (thumbWidth <= 0) return;
 
         const count = Math.ceil(containerWidth.value / thumbWidth);
         const step = duration / count;
-        
+
         // Initialize placeholders
-        const placeholders: Thumbnail[] = new Array(count).fill(null).map((_, i) => ({
-            id: `pending-${Math.random()}-${i}`, // Unique temp ID
-            url: '',
-            time: clipOffset + (i * step),
-            loaded: false
-        }));
-        
+        const placeholders: Thumbnail[] = new Array(count)
+            .fill(null)
+            .map((_, i) => ({
+                id: `pending-${Math.random()}-${i}`, // Unique temp ID
+                url: "",
+                time: clipOffset + i * step,
+                loaded: false,
+            }));
+
         thumbnails.value = placeholders;
 
         // If it's an image, just use the asset URL for all frames immediately
-        if (assetType === 'image') {
-             thumbnails.value = placeholders.map(t => ({
-                 ...t,
-                 url: assetUrl,
-                 loaded: true
-             }));
-             isLoading.value = false;
-             return;
+        if (assetType === "image") {
+            thumbnails.value = placeholders.map((t) => ({
+                ...t,
+                url: assetUrl,
+                loaded: true,
+            }));
+            isLoading.value = false;
+            return;
         }
 
         try {
@@ -68,11 +70,17 @@ export function useFilmstrip(
                 const relativeTime = Math.min(i * step, duration);
                 const absoluteTime = clipOffset + relativeTime;
                 // Avoid seeking to exactly 0 if possible as it can be buggy in some browsers
-                const safeTime = absoluteTime === 0 ? 0.1 : absoluteTime; 
-                
+                // Fixed: 0.1s is too large (3-6 frames). Using 0.0 or 0.001 is better.
+                const safeTime = absoluteTime;
+
                 // Generate one by one to prioritize left-to-right
-                const url = await thumbnailGenerator.generate(assetUrl, safeTime, thumbWidth, thumbHeight);
-                
+                const url = await thumbnailGenerator.generate(
+                    assetUrl,
+                    safeTime,
+                    thumbWidth,
+                    thumbHeight,
+                );
+
                 if (cancelled) break;
 
                 // Update the specific index
@@ -81,7 +89,7 @@ export function useFilmstrip(
                         id: `${absoluteTime}`,
                         url,
                         time: absoluteTime,
-                        loaded: true
+                        loaded: true,
                     };
                 }
             }
@@ -94,6 +102,6 @@ export function useFilmstrip(
 
     return {
         thumbnails,
-        isLoading
+        isLoading,
     };
 }
