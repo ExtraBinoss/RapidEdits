@@ -13,7 +13,7 @@ import { useDragDrop } from "../composables/useDragDrop";
 import Button from "./UI/Button.vue";
 import Filmstrip from "./Timeline/Filmstrip.vue";
 import AudioWaveform from "./Timeline/AudioWaveform.vue";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 
 const store = useProjectStore();
@@ -21,6 +21,26 @@ const { tracks, currentTime, isPlaying } = storeToRefs(store);
 
 // Pixels per second
 const zoomLevel = ref(20);
+const scrollContainer = ref<HTMLElement | null>(null);
+
+// Auto-scroll logic
+watch(currentTime, (time) => {
+    if (!isPlaying.value || !scrollContainer.value) return;
+    
+    const el = scrollContainer.value;
+    const playheadX = time * zoomLevel.value;
+    const width = el.clientWidth;
+    const scrollLeft = el.scrollLeft;
+
+    // If playhead moves out of view to the right
+    if (playheadX > scrollLeft + width - 50) {
+        el.scrollLeft = playheadX - 100;
+    } 
+    // If playhead moves out of view to the left (e.g. loop or seek)
+    else if (playheadX < scrollLeft) {
+        el.scrollLeft = playheadX - 100;
+    }
+});
 
 const formatTime = (seconds: number) => {
     const date = new Date(seconds * 1000);
@@ -168,7 +188,7 @@ const getTrackColor = (type: string) => {
             </div>
 
             <!-- Tracks Scroll Area -->
-            <div class="flex-1 overflow-auto relative custom-scrollbar">
+            <div ref="scrollContainer" class="flex-1 overflow-auto relative custom-scrollbar">
                 <!-- Ruler -->
                 <div
                     class="h-8 sticky top-0 bg-canvas-light border-b border-canvas-border z-10 flex items-end pb-1 cursor-pointer hover:bg-canvas-lighter"

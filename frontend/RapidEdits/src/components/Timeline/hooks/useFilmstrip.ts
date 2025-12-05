@@ -11,6 +11,7 @@ interface Thumbnail {
 export function useFilmstrip(
     assetUrl: string,
     assetType: string,
+    clipOffset: number,
     duration: number,
     containerWidth: Ref<number>,
     clipHeight: number = 96 // h-24 = 96px
@@ -43,7 +44,7 @@ export function useFilmstrip(
         const placeholders: Thumbnail[] = new Array(count).fill(null).map((_, i) => ({
             id: `pending-${Math.random()}-${i}`, // Unique temp ID
             url: '',
-            time: i * step,
+            time: clipOffset + (i * step),
             loaded: false
         }));
         
@@ -64,8 +65,10 @@ export function useFilmstrip(
             for (let i = 0; i < count; i++) {
                 if (cancelled) break;
 
-                const time = Math.min(i * step, duration);
-                const safeTime = time === 0 ? 0.1 : time; 
+                const relativeTime = Math.min(i * step, duration);
+                const absoluteTime = clipOffset + relativeTime;
+                // Avoid seeking to exactly 0 if possible as it can be buggy in some browsers
+                const safeTime = absoluteTime === 0 ? 0.1 : absoluteTime; 
                 
                 // Generate one by one to prioritize left-to-right
                 const url = await thumbnailGenerator.generate(assetUrl, safeTime, thumbWidth, thumbHeight);
@@ -75,9 +78,9 @@ export function useFilmstrip(
                 // Update the specific index
                 if (thumbnails.value[i]) {
                     thumbnails.value[i] = {
-                        id: `${time}`,
+                        id: `${absoluteTime}`,
                         url,
-                        time,
+                        time: absoluteTime,
                         loaded: true
                     };
                 }

@@ -15,6 +15,7 @@ const asset = editorEngine.getAsset(props.clip.assetId);
 const { thumbnails } = useFilmstrip(
     asset?.url || "", 
     asset?.type || 'video',
+    props.clip.offset,
     props.clip.duration, 
     width
 );
