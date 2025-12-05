@@ -8,6 +8,8 @@ import {
   Sticker, 
   SplitSquareHorizontal,
 } from 'lucide-vue-next';
+import Button from './UI/Button.vue';
+import Tooltip from './UI/Tooltip.vue';
 
 const activeTab = ref('media');
 
@@ -22,53 +24,54 @@ const tabs = [
 </script>
 
 <template>
-  <div class="w-80 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0 z-10">
+  <div class="w-80 bg-canvas-light border-r border-canvas-border flex flex-col shrink-0 z-10">
     <div class="flex flex-1 min-h-0">
       <!-- Icon Rail -->
-      <div class="w-16 flex flex-col items-center py-4 gap-4 border-r border-gray-800 bg-gray-950">
-        <button 
+      <div class="w-16 flex flex-col items-center py-4 gap-3 border-r border-canvas-border bg-canvas">
+        <Tooltip 
           v-for="tab in tabs" 
-          :key="tab.id"
-          @click="activeTab = tab.id"
-          class="flex flex-col items-center gap-1 p-2 rounded-lg transition-all duration-200 w-14 group relative"
-          :class="activeTab === tab.id ? 'text-gemini-primary bg-gray-800' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-900'"
+          :key="tab.id" 
+          :text="tab.label" 
+          position="right"
         >
-          <component :is="tab.icon" :size="20" stroke-width="2" />
-          <span class="text-[10px] font-medium">{{ tab.label }}</span>
-          
-          <!-- Active Indicator -->
-          <div v-if="activeTab === tab.id" class="absolute left-0 top-2 bottom-2 w-0.5 bg-gemini-primary rounded-full"></div>
-        </button>
+          <Button 
+             variant="icon" 
+             :icon="tab.icon" 
+             :active="activeTab === tab.id"
+             size="lg"
+             @click="activeTab = tab.id"
+          />
+        </Tooltip>
       </div>
 
       <!-- Content Panel -->
-      <div class="flex-1 flex flex-col min-w-0 bg-gray-900">
-        <div class="p-4 border-b border-gray-800">
-          <h2 class="font-semibold text-white capitalize">{{ activeTab }}</h2>
+      <div class="flex-1 flex flex-col min-w-0 bg-canvas-light">
+        <div class="p-4 border-b border-canvas-border">
+          <h2 class="font-semibold text-text-main capitalize">{{ activeTab }}</h2>
         </div>
         
         <!-- Media Import Area (Placeholder) -->
         <div v-if="activeTab === 'media'" class="p-4 flex flex-col gap-4 overflow-y-auto">
-          <button class="w-full py-8 border-2 border-dashed border-gray-700 hover:border-gemini-primary hover:bg-gemini-primary/5 rounded-lg flex flex-col items-center justify-center gap-2 transition-all group text-gray-500 hover:text-gemini-primary">
-            <div class="p-3 bg-gray-800 rounded-full group-hover:bg-gemini-primary/10 transition-colors">
+          <button class="w-full py-8 border-2 border-dashed border-canvas-border hover:border-brand-primary hover:bg-brand-primary/5 rounded-lg flex flex-col items-center justify-center gap-2 transition-all group text-text-muted hover:text-brand-primary">
+            <div class="p-3 bg-canvas rounded-full group-hover:bg-brand-primary/10 transition-colors">
               <Files :size="24" />
             </div>
             <span class="text-sm font-medium">Import Media</span>
           </button>
 
           <div class="grid grid-cols-2 gap-2">
-             <div class="aspect-video bg-gray-800 rounded-md overflow-hidden relative group cursor-pointer border border-transparent hover:border-gemini-primary">
+             <div class="aspect-video bg-canvas rounded-md overflow-hidden relative group cursor-pointer border border-transparent hover:border-brand-primary">
                <img src="https://picsum.photos/200/300" class="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-opacity" />
-               <span class="absolute bottom-1 right-1 text-[10px] bg-black/70 px-1 rounded">00:15</span>
+               <span class="absolute bottom-1 right-1 text-[10px] text-white bg-black/70 px-1 rounded">00:15</span>
              </div>
-             <div class="aspect-video bg-gray-800 rounded-md overflow-hidden relative group cursor-pointer border border-transparent hover:border-gemini-primary">
-                <div class="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800"></div>
-                <span class="absolute bottom-1 right-1 text-[10px] bg-black/70 px-1 rounded">00:05</span>
+             <div class="aspect-video bg-canvas rounded-md overflow-hidden relative group cursor-pointer border border-transparent hover:border-brand-primary">
+                <div class="w-full h-full bg-gradient-to-br from-canvas-lighter to-canvas-border"></div>
+                <span class="absolute bottom-1 right-1 text-[10px] text-white bg-black/70 px-1 rounded">00:05</span>
              </div>
           </div>
         </div>
 
-        <div v-else class="flex-1 flex items-center justify-center text-gray-600 text-sm">
+        <div v-else class="flex-1 flex items-center justify-center text-text-muted text-sm">
            {{ activeTab }} content coming soon
         </div>
       </div>

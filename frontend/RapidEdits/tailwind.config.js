@@ -7,22 +7,41 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Deep dark background similar to professional editors
-        gray: {
-          750: '#2d2d3a',
-          850: '#1a1a24',
-          950: '#0f0f16',
+        // Brand colors (The new requested gradient)
+        brand: {
+          primary: '#316ea0ff', 
+          secondary: '#2a5298',
+          accent: '#4facfe', // Lighter accent for hover states
         },
-        // Gemini-inspired accents
-        gemini: {
-          primary: '#4E75FF', // A rough approximation of Gemini Blue
-          secondary: '#8E44AD', // Purple accent
-          gradient: 'linear-gradient(135deg, #4E75FF 0%, #8E44AD 100%)',
+        // Pro "Deep Night" Theme (Not dull gray)
+        canvas: {
+          DEFAULT: '#0b0e14', // Main background (almost black, cool tone)
+          light: '#151b26',   // Secondary panels
+          lighter: '#1e2532', // Hover states / Cards
+          border: '#2a3445',  // Borders
+        },
+        text: {
+          main: '#e2e8f0',    // Primary text
+          muted: '#94a3b8',   // Secondary text
         }
       },
       backgroundImage: {
-        'gemini-gradient': 'linear-gradient(to right, #4E75FF, #8E44AD)',
-        'gemini-sheen': 'linear-gradient(135deg, rgba(78, 117, 255, 0.1) 0%, rgba(142, 68, 173, 0.1) 100%)',
+        'brand-gradient': 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+        'brand-sheen': 'linear-gradient(135deg, rgba(30, 60, 114, 0.1) 0%, rgba(42, 82, 152, 0.1) 100%)',
+      },
+      animation: {
+        'scale-in': 'scaleIn 0.15s ease-out forwards',
+        'fade-in': 'fadeIn 0.15s ease-out forwards',
+      },
+      keyframes: {
+        scaleIn: {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        }
       }
     },
   },
