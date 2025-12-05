@@ -1,238 +1,161 @@
-```
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted, computed } from "vue";
-import { waveformGenerator } from "../../core/WaveformGenerator";
-import type { Clip } from "../../types/Timeline";
-import { editorEngine } from "../../core/EditorEngine";
-import { globalEventBus } from "../../core/EventBus";
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { waveformGenerator } from '../../core/WaveformGenerator';
+import { globalEventBus } from '../../core/EventBus';
+import type { Clip } from '../../types/Timeline';
+import { editorEngine } from '../../core/EditorEngine';
 
 const props = defineProps<{
-    clip: Clip;
+  clip: Clip;
 }>();
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 const container = ref<HTMLElement | null>(null);
 const asset = editorEngine.getAsset(props.clip.assetId);
-const isProcessing = ref(false);
+const peaks = ref<Float32Array | null>(null);
 
-// Track visible window
+// Fixed resolution for caching (100 peaks per second)
+// This offers good detail even at high zoom, while keeping memory low (40min = ~1MB)
+const PEAKS_PER_SECOND = 100; 
+
+// Virtualization State
 const canvasLeft = ref(0);
 const canvasWidth = ref(0);
-
-// We need to know pixelsPerSecond to calculate time ranges
-// Since we don't have it explicitly as a prop, we can derive it?
-// Or we can just calculate based on container width vs clip duration.
-// If the parent is the "clip" element, then container.width = clip.duration * zoom
-// So zoom = container.width / clip.duration
-const zoom = computed(() => {
-    if (!container.value || props.clip.duration === 0) return 10; // default
-    // This is valid if the container is the full clip width
-    return container.value.clientWidth / props.clip.duration;
-});
-
 let animationFrame: number;
 
-const visibleWindow = ref({ start: 0, end: 0, width: 0 });
-// Cache for the last used parameters to prevent duplicate requests
-const lastFetchParams = ref({ start: 0, end: 0, samples: 0 });
-const waveformData = ref<Float32Array | number[]>([]);
-const isFetching = ref(false);
+const render = () => {
+    if (!canvas.value || !container.value || !peaks.value) return;
+    
+    const containerRect = container.value.getBoundingClientRect();
+    const windowWidth = window.innerWidth;
 
-const render = (timestamp: number = 0) => {
-    if (!canvas.value || !container.value) return;
-    const ctx = canvas.value.getContext("2d");
+    // 1. Visibility Check
+    if (containerRect.right < 0 || containerRect.left > windowWidth) {
+        return; // Offscreen
+    }
+
+    // 2. Virtualization Calculations
+    // Determine visible part of the clip container
+    const visibleStartPx = Math.max(0, -containerRect.left);
+    const visibleEndPx = Math.min(containerRect.width, windowWidth - containerRect.left);
+    const visibleWidthPx = visibleEndPx - visibleStartPx;
+
+    // Add buffer for smooth scrolling
+    const bufferPx = 500;
+    const renderStartPx = Math.max(0, visibleStartPx - bufferPx);
+    const renderWidthPx = Math.min(
+        containerRect.width - renderStartPx,
+        visibleWidthPx + bufferPx * 2
+    );
+
+    // Update Canvas Position
+    canvasLeft.value = renderStartPx;
+    canvasWidth.value = renderWidthPx;
+
+    // Resize Canvas
+    const ctx = canvas.value.getContext('2d');
     if (!ctx) return;
 
-    const { width: renderWidthPx } = visibleWindow.value;
     const dpr = window.devicePixelRatio || 1;
-
-    // Ensure canvas size matches
-    if (canvas.value.width !== renderWidthPx * dpr) {
+    if (canvas.value.width !== renderWidthPx * dpr || canvas.value.height !== containerRect.height * dpr) {
         canvas.value.width = renderWidthPx * dpr;
-        canvas.value.height = container.value.clientHeight * dpr;
+        canvas.value.height = containerRect.height * dpr;
     }
-
-    // Clear
+    
+    ctx.resetTransform();
     ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, renderWidthPx, container.value.clientHeight);
+    ctx.clearRect(0, 0, renderWidthPx, containerRect.height);
 
-    // Draw Skeleton if fetching/processing
-    if (isProcessing.value || isFetching.value) {
-        // Animated Green Gradient Shimmer
-        const offset = (timestamp * 0.5) % (renderWidthPx * 2);
-        const gradient = ctx.createLinearGradient(
-            offset - renderWidthPx,
-            0,
-            offset,
-            0,
-        );
-        gradient.addColorStop(0, "rgba(16, 185, 129, 0.1)");
-        gradient.addColorStop(0.5, "rgba(16, 185, 129, 0.5)");
-        gradient.addColorStop(1, "rgba(16, 185, 129, 0.1)");
+    // 3. Draw Waveform
+    ctx.fillStyle = '#10b981'; // Emerald-500
+    ctx.beginPath();
+    
+    const height = containerRect.height;
+    const centerY = height / 2;
+    const scaleY = height / 2;
+    
+    // Map pixels to peaks
+    // Clip Duration (s) -> Container Width (px) -> Peaks (index)
+    // Pixels Per Second = containerRect.width / props.clip.duration
+    const pixelsPerSecond = containerRect.width / props.clip.duration;
+    
+    // We want to draw `renderWidthPx` pixels starting at `renderStartPx`
+    // Start Time = renderStartPx / pixelsPerSecond
+    // const startTime = renderStartPx / pixelsPerSecond; // unused
+    // const endTime = (renderStartPx + renderWidthPx) / pixelsPerSecond; // unused
 
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, renderWidthPx, container.value.clientHeight);
-    }
-
-    // Always draw existing data if available (even while fetching new data for smoother UX)
-    if (waveformData.value.length > 0) {
-        ctx.fillStyle = "#10b981";
-        const height = container.value.clientHeight;
-        const centerY = height / 2;
-        const scaleY = height / 2;
-        const samples = waveformData.value.length;
-
-        ctx.beginPath();
-        for (let i = 0; i < samples; i++) {
-            const x = i * (renderWidthPx / samples);
-            const magnitude = (waveformData.value[i] || 0) * scaleY;
-            ctx.fillRect(x, centerY - magnitude, 1, magnitude * 2);
+    // Loop through pixels (optimization: one line per pixel column)
+    for (let x = 0; x < renderWidthPx; x++) {
+        // Pixel global position
+        const globalX = renderStartPx + x;
+        const time = globalX / pixelsPerSecond;
+        
+        // Find corresponding peak
+        const peakIndex = Math.floor(time * PEAKS_PER_SECOND);
+        
+        if (peakIndex < peaks.value.length) {
+            const val = peaks.value[peakIndex] ?? 0;
+            if (val > 0.01) {
+                 const magnitude = val * scaleY;
+                 ctx.fillRect(x, centerY - magnitude, 1, magnitude * 2);
+            }
         }
     }
 };
 
-const fetchWaveformData = async (
-    start: number,
-    end: number,
-    samples: number,
-) => {
-    if (isFetching.value || !asset) return;
-
-    // Check if params changed significantly (epsilon check could be added here)
-    if (
-        start === lastFetchParams.value.start &&
-        end === lastFetchParams.value.end &&
-        samples === lastFetchParams.value.samples
-    ) {
-        return;
-    }
-
-    isFetching.value = true;
-    try {
-        const data = await waveformGenerator.getWaveformSubset(
-            asset.url,
-            start,
-            end,
-            samples,
-            asset.id,
-        );
-        waveformData.value = data as Float32Array | number[];
-
-        // Update cache
-        lastFetchParams.value = { start, end, samples };
-    } catch (error) {
-        console.error("Failed to fetch waveform subset", error);
-    } finally {
-        isFetching.value = false;
-    }
-};
-
-const updateLayout = () => {
-    if (!container.value || !asset) return;
-
-    const containerRect = container.value.getBoundingClientRect();
-    const windowWidth = window.innerWidth;
-
-    // Check visibility
-    if (containerRect.right < 0 || containerRect.left > windowWidth) {
-        return;
-    }
-
-    const visibleStartPx = Math.max(0, -containerRect.left);
-    const visibleEndPx = Math.min(
-        containerRect.width,
-        windowWidth - containerRect.left,
-    );
-    const visibleWidthPx = visibleEndPx - visibleStartPx;
-
-    const bufferPx = 200;
-    const renderStartPx = Math.max(0, visibleStartPx - bufferPx);
-    const renderWidthPx = Math.min(
-        containerRect.width - renderStartPx,
-        visibleWidthPx + bufferPx * 2,
-    );
-
-    // Update Virtualization State
-    canvasLeft.value = renderStartPx;
-    canvasWidth.value = renderWidthPx;
-    visibleWindow.value = {
-        start: renderStartPx,
-        end: renderStartPx + renderWidthPx,
-        width: renderWidthPx,
-    };
-
-    // Calculate time range for fetching
-    const pixelsPerSecond = zoom.value;
-    const startTime = renderStartPx / pixelsPerSecond;
-    const endTime = (renderStartPx + renderWidthPx) / pixelsPerSecond;
-    const samples = Math.floor(renderWidthPx);
-
-    // Trigger fetch (it handles its own throttling via isFetching)
-    fetchWaveformData(startTime, endTime, samples);
-};
-
-const loop = (timestamp: number) => {
-    // Only update layout/fetch if needed?
-    // Actually, for smooth scrolling, we need to check layout on loop
-    // BUT we shouldn't spam the worker. fetchWaveformData handles that.
-    updateLayout();
-    render(timestamp);
+const loop = () => {
+    render();
     animationFrame = requestAnimationFrame(loop);
 };
 
-const handleWindowEvents = () => {
-    // We can rely on loop, or trigger an immediate update.
-    // relying on loop is safer for performace.
-};
+const handleChunk = (payload: any) => {
+    if (payload.assetId !== props.clip.assetId || !peaks.value) return;
 
-// Event Handlers
-const onWaveformStart = (payload: any) => {
-    if (payload.assetId === asset?.id) {
-        isProcessing.value = true;
-    }
-};
-
-const onWaveformEnd = (payload: any) => {
-    if (payload.assetId === asset?.id) {
-        isProcessing.value = false;
-        // Trigger a re-draw immediately
-        // updateWaveform(); -> render is inside loop
+    const { start, data } = payload;
+    // Map chunk time range to peaks index range
+    const startIndex = Math.floor(start * PEAKS_PER_SECOND);
+    
+    // Copy data
+    const len = Math.min(data.length, peaks.value.length - startIndex);
+    for (let i = 0; i < len; i++) {
+        peaks.value[startIndex + i] = data[i];
     }
 };
 
 onMounted(() => {
-    loop(performance.now());
-    // Also trigger on generic events just in case
-    window.addEventListener("resize", handleWindowEvents);
-    window.addEventListener("scroll", handleWindowEvents, true);
+    if (!asset) return;
 
-    globalEventBus.on("WAVEFORM_GENERATION_START", onWaveformStart);
-    globalEventBus.on("WAVEFORM_GENERATION_END", onWaveformEnd);
+    // Alloc Buffer
+    const duration = asset.duration || props.clip.duration || 10;
+    const totalSamples = Math.ceil(duration * PEAKS_PER_SECOND);
+    peaks.value = new Float32Array(totalSamples);
+
+    // Listen
+    globalEventBus.on('WAVEFORM_CHUNK_GENERATED', handleChunk);
+
+    // Request Generation
+    waveformGenerator.requestWaveform(asset.url, asset.id, totalSamples);
+
+    loop();
 });
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
     cancelAnimationFrame(animationFrame);
-    window.removeEventListener("resize", handleWindowEvents);
-    window.removeEventListener("scroll", handleWindowEvents, true);
-
-    globalEventBus.off("WAVEFORM_GENERATION_START", onWaveformStart);
-    globalEventBus.off("WAVEFORM_GENERATION_END", onWaveformEnd);
+    globalEventBus.off('WAVEFORM_CHUNK_GENERATED', handleChunk);
 });
 
-watch(() => props.clip.duration, updateLayout);
+watch(() => props.clip.assetId, () => {
+    peaks.value = null;
+    // Logic to re-request would go here
+});
 </script>
 
 <template>
-    <div
-        ref="container"
-        class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none opacity-80"
-    >
-        <!-- Add an animated overlay if desired, but canvas drawing handles it -->
-        <canvas
-            ref="canvas"
-            class="absolute top-0 h-full"
-            :style="{ left: `${canvasLeft}px`, width: `${canvasWidth}px` }"
-        ></canvas>
-    </div>
+  <div ref="container" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none opacity-80">
+    <canvas 
+        ref="canvas" 
+        class="absolute top-0 h-full"
+        :style="{ left: `${canvasLeft}px`, width: `${canvasWidth}px` }"
+    ></canvas>
+  </div>
 </template>
-```
