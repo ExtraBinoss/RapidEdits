@@ -23,7 +23,8 @@ export class TextureAllocator {
 
             if (texture) {
                 // Optimize for 2D/Video usage
-                texture.colorSpace = THREE.SRGBColorSpace;
+                // USE LINEAR to avoid Chrome/Mac sRGB decode lag
+                texture.colorSpace = THREE.LinearSRGBColorSpace;
                 this.textureCache.set(asset.id, texture);
             }
             return texture;

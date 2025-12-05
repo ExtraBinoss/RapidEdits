@@ -51,10 +51,9 @@ export class ThreeRenderer {
             alpha: false,
             powerPreference: "high-performance",
         });
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.toneMapping = THREE.NoToneMapping;
-        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-
+            this.renderer.setPixelRatio(window.devicePixelRatio);
+            this.renderer.toneMapping = THREE.NoToneMapping;
+            this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // Linear for performance on Mac/Chrome
         container.appendChild(this.renderer.domElement);
 
         // 4. Geometry
@@ -170,10 +169,16 @@ export class ThreeRenderer {
 
         const clipTime = globalTime - clip.start + clip.offset;
         // Looser threshold during playback to prevent stuttering seeks
-        const threshold = editorEngine.getIsPlaying() ? 0.3 : 0.15;
+        const threshold = editorEngine.getIsPlaying() ? 0.5 : 0.15;
         
-        if (Math.abs(video.currentTime - clipTime) > threshold) {
-            if (!video.seeking) video.currentTime = clipTime;
+        const drift = Math.abs(video.currentTime - clipTime);
+        if (drift > threshold) {
+            if (!video.seeking) {
+                if (editorEngine.getIsPlaying()) {
+                    console.warn(`[Renderer] Hard Seek: Drift ${drift.toFixed(3)}s > ${threshold}s`);
+                }
+                video.currentTime = clipTime;
+            }
         }
 
         if (editorEngine.getIsPlaying()) {
@@ -183,6 +188,9 @@ export class ThreeRenderer {
         }
 
         // Update Ambient Color
+        // DISABLE during playback to fix lag/frame skipping
+        if (editorEngine.getIsPlaying()) return;
+
         // Sample the topmost/active video
         // Throttle to every 100ms
         const now = performance.now();

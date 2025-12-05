@@ -11,7 +11,7 @@ export class EditorEngine {
     // State
     private currentTime: number = 0;
     private isPlaying: boolean = false;
-    private playbackInterval: number | null = null;
+    private animationFrameId: number | null = null;
     private masterVolume: number = 1.0; // 0 to 1
 
     constructor() {
@@ -149,9 +149,6 @@ export class EditorEngine {
 
         // 2. If Video, try to add Audio part to the next available Audio track
         if (asset.type === MediaType.VIDEO) {
-            // Find the first Audio track with ID > targetTrackId
-            // Or just the "next" track if it happens to be audio
-            // Logic: Look for a track named "Audio X" or type 'audio'
             const audioTrack = this.tracks.find(
                 (t) => t.type === "audio" && t.id > targetTrackId,
             );
@@ -161,6 +158,7 @@ export class EditorEngine {
                     asset,
                     audioTrack.id,
                     startTime,
+                    'audio' // Force type audio for the separated track
                 );
                 // Link them visually? For now just ID match
                 audioTrack.clips.push(audioClip);
@@ -175,6 +173,7 @@ export class EditorEngine {
         asset: Asset,
         trackId: number,
         start: number,
+        typeOverride?: MediaTypeValue
     ): Clip {
         return {
             id: uuidv4(),
@@ -184,7 +183,7 @@ export class EditorEngine {
             start,
             duration: asset.duration || 5,
             offset: 0,
-            type: asset.type,
+            type: typeOverride || asset.type,
         };
     }
 
@@ -198,11 +197,11 @@ export class EditorEngine {
         });
 
         if (this.isPlaying) {
-            const fps = 60; // Smoother UI
-            const interval = 1000 / fps;
             let lastTime = performance.now();
 
-            this.playbackInterval = window.setInterval(() => {
+            const tick = () => {
+                if (!this.isPlaying) return;
+
                 const now = performance.now();
                 const delta = (now - lastTime) / 1000;
                 lastTime = now;
@@ -219,11 +218,15 @@ export class EditorEngine {
                     this.isPlaying,
                     this.masterVolume,
                 );
-            }, interval);
+
+                this.animationFrameId = requestAnimationFrame(tick);
+            };
+
+            this.animationFrameId = requestAnimationFrame(tick);
         } else {
-            if (this.playbackInterval) {
-                clearInterval(this.playbackInterval);
-                this.playbackInterval = null;
+            if (this.animationFrameId) {
+                cancelAnimationFrame(this.animationFrameId);
+                this.animationFrameId = null;
             }
             // Force one sync to pause everything
             audioManager.sync(this.currentTime, false, this.masterVolume);
