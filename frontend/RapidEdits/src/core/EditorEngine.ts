@@ -279,14 +279,31 @@ export class EditorEngine {
         return new Promise((resolve) => {
             const element = document.createElement("video");
             element.preload = "metadata";
+            
+            const timeout = setTimeout(() => {
+                console.warn("Metadata load timed out for:", url);
+                resolve(0);
+                element.remove();
+            }, 3000);
+
             element.onloadedmetadata = () => {
-                resolve(element.duration);
+                clearTimeout(timeout);
+                if (element.duration === Infinity) {
+                     console.warn("Duration is Infinity for:", url);
+                     resolve(0);
+                } else {
+                     resolve(element.duration);
+                }
                 element.remove();
             };
+
             element.onerror = () => {
+                clearTimeout(timeout);
+                console.error("Failed to load metadata:", element.error, url);
                 resolve(0);
                 element.remove();
             };
+            
             element.src = url;
         });
     }

@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { Video, Music, Image as ImageIcon, Trash2 } from "lucide-vue-next";
 import type { Asset } from "../../types/Media";
 import { MediaType } from "../../types/Media";
+import AssetPreview from "./AssetPreview.vue";
 
 const props = defineProps<{
     asset: Asset;
@@ -11,7 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: "delete", id: string): void;
 }>();
-
+// ... (keep existing computed/methods)
 const typeIcon = computed(() => {
     switch (props.asset.type) {
         case MediaType.VIDEO:
@@ -75,6 +76,14 @@ const onDragStart = (e: DragEvent) => {
         >
             <Music :size="32" class="text-text-muted opacity-50" />
         </div>
+        
+        <!-- Video Preview Scrubbing -->
+        <AssetPreview 
+            v-else-if="asset.type === MediaType.VIDEO" 
+            :asset="asset" 
+        />
+
+        <!-- Static Image -->
         <img
             v-else
             :src="asset.url"
@@ -84,7 +93,7 @@ const onDragStart = (e: DragEvent) => {
 
         <!-- Hover Actions -->
         <div
-            class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto"
         >
             <button
                 @click.stop="emit('delete', asset.id)"
