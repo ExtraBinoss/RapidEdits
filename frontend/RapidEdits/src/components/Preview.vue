@@ -1,43 +1,25 @@
 <script setup lang="ts">
 import { onMounted, ref, onBeforeUnmount } from 'vue';
-import { Application } from 'pixi.js';
-import { PixiRenderer } from '../core/PixiRenderer';
+import { ThreeRenderer } from '../core/ThreeRenderer';
 import { useProjectStore } from '../stores/projectStore';
 import OSD from './UI/OSD.vue';
 
 const canvasContainer = ref<HTMLElement | null>(null);
 const store = useProjectStore();
 
-let app: Application | null = null;
-let renderer: PixiRenderer | null = null;
+let renderer: ThreeRenderer | null = null;
 
 onMounted(async () => {
   if (!canvasContainer.value) return;
 
-  // Initialize PixiJS Application
-  app = new Application();
-  await app.init({
-    background: '#0b0e14', // Canvas BG
-    resizeTo: canvasContainer.value,
-    antialias: true,
-    autoDensity: true,
-    resolution: window.devicePixelRatio || 1,
-  });
-
-  canvasContainer.value.appendChild(app.canvas);
-
   // Initialize Custom Renderer
-  // We pass the container explicitly now for robust resizing
-  renderer = new PixiRenderer(app, canvasContainer.value);
+  renderer = new ThreeRenderer(canvasContainer.value);
   await renderer.init();
 });
 
 onBeforeUnmount(() => {
   if (renderer) renderer.destroy();
-  if (app) {
-    app.destroy({ removeView: true });
-    app = null;
-  }
+  renderer = null;
 });
 
 // Drag & Drop to Preview (Adds to start of timeline or specific logic)
