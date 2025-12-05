@@ -14,9 +14,30 @@ export class EditorEngine {
     private animationFrameId: number | null = null;
     private masterVolume: number = 1.0; // 0 to 1
 
+    private mouseX: number = 0;
+    private mouseY: number = 0;
+
     constructor() {
         this.initializeTracks();
         this.setupShortcuts();
+        this.setupGlobalMouseTracking();
+    }
+
+    private setupGlobalMouseTracking() {
+        const updatePos = (e: MouseEvent) => {
+            this.mouseX = e.clientX;
+            this.mouseY = e.clientY;
+        };
+
+        window.addEventListener("mousemove", updatePos, { passive: true });
+        window.addEventListener("mousedown", updatePos, {
+            passive: true,
+            capture: true,
+        });
+    }
+
+    public getMousePosition() {
+        return { x: this.mouseX, y: this.mouseY };
     }
 
     private initializeTracks() {

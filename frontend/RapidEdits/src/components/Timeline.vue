@@ -118,11 +118,43 @@ const handleNewTrackDrop = (e: DragEvent, type: "video" | "audio") => {
     }
 };
 
-const handleSeek = (e: MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const offsetX = e.clientX - rect.left;
-    const time = Math.max(0, offsetX / zoomLevel.value);
-    store.seek(time);
+import { editorEngine } from "../core/EditorEngine";
+
+const isScrubbing = ref(false);
+let scrubRafId: number | null = null;
+
+const startScrubbing = (e: MouseEvent) => {
+    e.preventDefault();
+    isScrubbing.value = true;
+
+    const rulerEl = e.currentTarget as HTMLElement;
+
+    const scrubLoop = () => {
+        if (!isScrubbing.value) return;
+
+        const { x } = editorEngine.getMousePosition();
+        const rect = rulerEl.getBoundingClientRect();
+        const offsetX = x - rect.left;
+        const time = Math.max(0, offsetX / zoomLevel.value);
+
+        store.seek(time);
+
+        scrubRafId = requestAnimationFrame(scrubLoop);
+    };
+
+    // Initial seek
+    scrubLoop();
+
+    const stopScrubbing = () => {
+        isScrubbing.value = false;
+        if (scrubRafId) {
+            cancelAnimationFrame(scrubRafId);
+            scrubRafId = null;
+        }
+        window.removeEventListener("mouseup", stopScrubbing);
+    };
+
+    window.addEventListener("mouseup", stopScrubbing);
 };
 </script>
 
@@ -248,7 +280,7 @@ const handleSeek = (e: MouseEvent) => {
                 <!-- Ruler -->
                 <div
                     class="h-8 sticky top-0 bg-canvas-light border-b border-canvas-border z-10 flex items-end cursor-pointer hover:bg-canvas-lighter"
-                    @click="handleSeek"
+                    @mousedown="startScrubbing"
                     :style="{
                         minWidth: '100%',
                         width: `${store.duration * zoomLevel}px`,
