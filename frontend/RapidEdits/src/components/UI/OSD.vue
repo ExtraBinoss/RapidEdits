@@ -69,6 +69,6 @@ onMounted(() => {
 .fade-enter-from,
 .fade-leave-to {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.9);
+    transform: translate(-5%, -5%) scale(0.9);
 }
 </style>

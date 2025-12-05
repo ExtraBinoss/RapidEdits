@@ -13,6 +13,63 @@ export class EditorEngine {
     private isPlaying: boolean = false;
     private animationFrameId: number | null = null;
     private masterVolume: number = 1.0; // 0 to 1
+    private isSnappingEnabled: boolean = true;
+
+    // ... mouse tracking ...
+
+    public toggleSnapping() {
+        this.isSnappingEnabled = !this.isSnappingEnabled;
+        globalEventBus.emit({
+            type: "SHOW_FEEDBACK",
+            payload: {
+                icon: "Magnet",
+                text: this.isSnappingEnabled ? "Snapping On" : "Snapping Off",
+            },
+        });
+        return this.isSnappingEnabled;
+    }
+
+    public getIsSnappingEnabled() {
+        return this.isSnappingEnabled;
+    }
+
+    public getSnapPoints(excludeClipId?: string): number[] {
+        const points = new Set<number>();
+        points.add(0);
+        points.add(this.currentTime);
+
+        this.tracks.forEach((track) => {
+            track.clips.forEach((clip) => {
+                if (clip.id === excludeClipId) return;
+                points.add(clip.start);
+                points.add(clip.start + clip.duration);
+            });
+        });
+
+        return Array.from(points).sort((a, b) => a - b);
+    }
+
+    public getClosestSnapPoint(
+        time: number,
+        thresholdSeconds: number,
+        excludeClipId?: string,
+    ): number | null {
+        if (!this.isSnappingEnabled) return null;
+
+        const points = this.getSnapPoints(excludeClipId);
+        let closest = null;
+        let minDiff = thresholdSeconds;
+
+        for (const point of points) {
+            const diff = Math.abs(point - time);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = point;
+            }
+        }
+
+        return closest;
+    }
 
     private mouseX: number = 0;
     private mouseY: number = 0;
@@ -242,6 +299,48 @@ export class EditorEngine {
             offset: 0,
             type: typeOverride || asset.type,
         };
+    }
+
+    public updateClip(id: string, updates: Partial<Clip>) {
+        // Find clip in tracks
+        for (let i = 0; i < this.tracks.length; i++) {
+            const track = this.tracks[i];
+            if (!track) continue; // Safety check given ts warning
+
+            const clipIndex = track.clips.findIndex((c) => c.id === id);
+
+            if (clipIndex !== -1) {
+                const clip = track.clips[clipIndex];
+                // Type safe merge
+                const updatedClip: Clip = {
+                    ...clip,
+                    ...updates,
+                } as Clip;
+
+                // Create NEW array reference for clips
+                const newClips = [...track.clips];
+                newClips[clipIndex] = updatedClip;
+
+                // Re-sort if start time changed
+                if (updates.start !== undefined) {
+                    newClips.sort((a, b) => a.start - b.start);
+                }
+
+                // Create NEW Track reference using type assertion to satisfy loose merging
+                const updatedTrack: Track = {
+                    ...track,
+                    clips: newClips,
+                } as Track;
+
+                this.tracks[i] = updatedTrack;
+
+                globalEventBus.emit({
+                    type: "TIMELINE_UPDATED",
+                    payload: undefined,
+                });
+                return;
+            }
+        }
     }
 
     // --- Playback Controls ---

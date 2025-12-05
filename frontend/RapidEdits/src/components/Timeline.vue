@@ -7,6 +7,7 @@ import {
     ZoomIn,
     ZoomOut,
     Scissors,
+    Magnet,
 } from "lucide-vue-next";
 import { useProjectStore } from "../stores/projectStore";
 import { useDragDrop } from "../composables/useDragDrop";
@@ -120,10 +121,17 @@ const handleNewTrackDrop = (e: DragEvent, type: "video" | "audio") => {
 
 import { editorEngine } from "../core/EditorEngine";
 
+// ...
+
 const isScrubbing = ref(false);
 let scrubRafId: number | null = null;
 
+const toggleSnapping = () => {
+    editorEngine.toggleSnapping();
+};
+
 const startScrubbing = (e: MouseEvent) => {
+    // ...
     e.preventDefault();
     isScrubbing.value = true;
 
@@ -173,6 +181,19 @@ const startScrubbing = (e: MouseEvent) => {
                 />
                 <Button variant="icon" size="sm" :icon="SkipForward" />
                 <div class="h-4 w-[1px] bg-canvas-border mx-2"></div>
+
+                <Button
+                    variant="icon"
+                    size="sm"
+                    :icon="Magnet"
+                    :class="{
+                        'text-brand-primary':
+                            editorEngine.getIsSnappingEnabled(),
+                        'text-text-muted': !editorEngine.getIsSnappingEnabled(),
+                    }"
+                    @click="toggleSnapping"
+                />
+
                 <Button variant="ghost" size="sm" :icon="Scissors"
                     >Split</Button
                 >

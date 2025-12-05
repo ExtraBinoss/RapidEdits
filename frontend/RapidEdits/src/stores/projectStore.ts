@@ -3,7 +3,7 @@ import { ref, computed } from "vue";
 import { editorEngine } from "../core/EditorEngine";
 import { globalEventBus } from "../core/EventBus";
 import type { Asset } from "../types/Media";
-import type { Track } from "../types/Timeline";
+import type { Track, Clip } from "../types/Timeline";
 
 export const useProjectStore = defineStore("project", () => {
     const assets = ref<Asset[]>([]);
@@ -90,5 +90,7 @@ export const useProjectStore = defineStore("project", () => {
         togglePlayback,
         seek,
         addTrack,
+        updateClip: (id: string, updates: Partial<Clip>) =>
+            editorEngine.updateClip(id, updates),
     };
 });
