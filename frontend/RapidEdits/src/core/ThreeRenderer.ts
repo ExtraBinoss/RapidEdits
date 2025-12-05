@@ -49,15 +49,15 @@ export class ThreeRenderer {
         // 4. Geometry
         this.planeGeometry = new THREE.PlaneGeometry(1, 1);
 
-        // 5. Placeholder (Dark square fallback)
-        this.placeholderMesh = new THREE.Mesh(
-            this.planeGeometry,
-            new THREE.MeshBasicMaterial({ color: 0x1a1a1a }), // Dark grey, slightly lighter than bg
-        );
-        // Put it way back
-        this.placeholderMesh.position.z = -10;
-        this.scene.add(this.placeholderMesh);
-    }
+    // 5. Placeholder (Dark square fallback)
+    this.placeholderMesh = new THREE.Mesh(
+        this.planeGeometry,
+        new THREE.MeshBasicMaterial({ color: 0x000000 }) // Pure black
+    );
+    // Put it way back
+    this.placeholderMesh.position.z = -10;
+    this.scene.add(this.placeholderMesh);
+  }
 
     public async init() {
         this.resizeObserver = new ResizeObserver(() => this.handleResize());
