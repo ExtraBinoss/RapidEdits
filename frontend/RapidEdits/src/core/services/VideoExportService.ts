@@ -93,8 +93,7 @@ export class VideoExportService {
                             }
 
                             // Check readiness
-                            // For export, we might need to wait up to 10s or more if loading
-                            // If readyState is 0 (HAVE_NOTHING), we MUST wait.
+                            // Force wait for HAVE_CURRENT_DATA or higher
                             if (v.readyState < 2) {
                                 await new Promise((r) => {
                                     const onCanPlay = () => {
@@ -105,17 +104,18 @@ export class VideoExportService {
                                         r(null);
                                     };
                                     v.addEventListener("canplay", onCanPlay);
+                                    // Timeout if it takes too long to load
                                     setTimeout(() => {
                                         v.removeEventListener(
                                             "canplay",
                                             onCanPlay,
                                         );
                                         r(null);
-                                    }, 5000);
+                                    }, 10000);
                                 });
                             }
 
-                            // Check if seeking is done
+                            // Check if seeking is done (basic check)
                             if (v.seeking) {
                                 await new Promise((r) => {
                                     const onSeeked = () => {
@@ -132,29 +132,58 @@ export class VideoExportService {
                                             onSeeked,
                                         );
                                         r(null);
-                                    }, 2000);
+                                    }, 5000);
                                 });
                             }
 
-                            // Robust waiting for frame
-                            if (v.requestVideoFrameCallback) {
-                                await new Promise((r) => {
-                                    const handle = v.requestVideoFrameCallback(
-                                        () => {
-                                            r(null);
-                                        },
-                                    );
-                                    // Timeout fallback
-                                    setTimeout(() => {
-                                        if (v.cancelVideoFrameCallback) {
-                                            v.cancelVideoFrameCallback(handle);
+                            // Precise Frame Verification using VideoFrame API (Chrome/WebCodecs)
+                            // This ensures we don't capture a stale frame (stutter).
+                            if (window.VideoFrame) {
+                                const expectedTimeUs =
+                                    v.currentTime * 1_000_000;
+                                // Tolerance: 1/2 frame at 60fps ~ 8333us. Let's be generous: 40ms = 40000us
+                                const tolerance = 40_000;
+
+                                let attempts = 0;
+                                while (attempts < 50) {
+                                    // Try for ~1 second (50 * 20ms)
+                                    let frame = null;
+                                    try {
+                                        frame = new VideoFrame(v);
+                                        const diff = Math.abs(
+                                            frame.timestamp - expectedTimeUs,
+                                        );
+                                        if (diff < tolerance) {
+                                            frame.close();
+                                            break; // Good frame!
                                         }
-                                        r(null);
-                                    }, 200); // 200ms timeout for frame callback
-                                });
+                                        frame.close();
+                                    } catch (e) {
+                                        // VideoFrame construction might fail if readyState is low
+                                    }
+
+                                    await new Promise((r) => setTimeout(r, 20));
+                                    attempts++;
+                                }
                             } else {
-                                // Fallback
-                                await new Promise((r) => setTimeout(r, 20)); // basic drift wait
+                                // Fallback for envs without WebCodecs
+                                if (v.requestVideoFrameCallback) {
+                                    await new Promise((r) => {
+                                        const handle =
+                                            v.requestVideoFrameCallback(() =>
+                                                r(null),
+                                            );
+                                        setTimeout(() => {
+                                            if (v.cancelVideoFrameCallback)
+                                                v.cancelVideoFrameCallback(
+                                                    handle,
+                                                );
+                                            r(null);
+                                        }, 200);
+                                    });
+                                } else {
+                                    await new Promise((r) => setTimeout(r, 20));
+                                }
                             }
                         }),
                     );
