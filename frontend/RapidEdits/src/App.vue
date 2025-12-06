@@ -7,12 +7,17 @@ import Properties from "./components/Properties.vue";
 import { onMounted } from "vue";
 import { updateFavicon } from "./utils/faviconUtils";
 import { useThemeStore } from "./stores/themeStore";
+import { TextPlugin } from "./core/plugins/core/TextPlugin";
+import { pluginRegistry } from "./core/plugins/PluginRegistry";
 
 const themeStore = useThemeStore();
 
 onMounted(() => {
     updateFavicon("#3b82f6"); // Brand primary color
     themeStore.initTheme();
+    
+    // Register Core Plugins
+    pluginRegistry.register(new TextPlugin());
 });
 </script>
 

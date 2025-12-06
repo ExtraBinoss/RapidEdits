@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import {
     Files,
     Type,
@@ -8,11 +8,15 @@ import {
     SplitSquareHorizontal,
     Sun,
     Moon,
+    Box as DefaultPluginIcon
 } from "lucide-vue-next";
 import Button from "./UI/Button/Button.vue";
 import Tooltip from "./UI/Overlay/Tooltip.vue";
 import MediaLibrary from "./Library/MediaLibrary.vue";
 import { useThemeStore } from "../stores/themeStore";
+import { pluginRegistry } from "../core/plugins/PluginRegistry";
+import { editorEngine } from "../core/EditorEngine";
+import type { IPlugin } from "../core/plugins/PluginInterface";
 
 const activeTab = ref("media");
 const themeStore = useThemeStore();
@@ -24,6 +28,50 @@ const tabs = [
     { id: "effects", icon: Wand2, label: "Effects" },
     { id: "transitions", icon: SplitSquareHorizontal, label: "Transitions" },
 ];
+
+const activePlugins = computed(() => {
+    let type: "object" | "effect" | "transition" | null = null;
+    if (activeTab.value === 'text') type = 'object'; 
+    // TODO: Distinguish between Text objects and other 3D objects if needed
+    if (activeTab.value === 'effects') type = 'effect';
+    if (activeTab.value === 'transitions') type = 'transition';
+    
+    if (!type) return [];
+    return pluginRegistry.state.availablePlugins.filter(p => p.type === type);
+});
+
+const addPlugin = (plugin: IPlugin) => {
+    const track = editorEngine.addTrack("custom");
+    
+    // Generate a unique ID for the asset
+    const assetId = crypto.randomUUID();
+    
+    // Register Virtual Asset
+    editorEngine.assetSystem.registerAsset({
+        id: assetId,
+        name: plugin.name,
+        type: 'image', 
+        url: '', 
+        size: 0,
+        createdAt: Date.now(),
+        duration: 5
+    });
+    
+    // Add to timeline
+    editorEngine.addClip(assetId, track.id, editorEngine.getCurrentTime());
+    
+    // Find the newly added clip
+    const addedClip = track.clips[track.clips.length - 1];
+    
+    if (addedClip) {
+        editorEngine.updateClip(addedClip.id, {
+            type: plugin.id,
+            name: plugin.name,
+            data: plugin.createData(),
+            duration: 5
+        });
+    }
+};
 </script>
 
 <template>
@@ -77,10 +125,22 @@ const tabs = [
                             {{ activeTab }}
                         </h2>
                     </div>
-                    <div
-                        class="flex-1 flex items-center justify-center text-text-muted text-sm"
-                    >
-                        {{ activeTab }} content coming soon
+                    
+                    <!-- Plugin List -->
+                    <div class="p-4 grid grid-cols-2 gap-3 overflow-y-auto custom-scrollbar">
+                        <div 
+                            v-for="plugin in activePlugins" 
+                            :key="plugin.id"
+                            class="aspect-square bg-canvas border border-canvas-border rounded-lg hover:border-brand-primary hover:bg-canvas-darker cursor-pointer flex flex-col items-center justify-center gap-2 transition-all group"
+                            @click="addPlugin(plugin)"
+                        >
+                            <component :is="plugin.icon || DefaultPluginIcon" class="w-8 h-8 text-text-muted group-hover:text-brand-primary" />
+                            <span class="text-xs text-text-muted font-medium group-hover:text-text-main">{{ plugin.name }}</span>
+                        </div>
+
+                        <div v-if="activePlugins.length === 0" class="col-span-2 py-8 text-center text-text-muted text-xs">
+                            No {{ activeTab }} plugins found.
+                        </div>
                     </div>
                 </div>
             </div>

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { editorEngine } from "../EditorEngine";
 import { globalEventBus } from "../events/EventBus";
 import { TextureAllocator } from "./textures/TextureAllocator";
+import { pluginRegistry } from "../plugins/PluginRegistry"; // Import Registry
 import type { Clip, Track } from "../../types/Timeline";
 
 export interface ThreeRendererOptions {
@@ -29,7 +30,7 @@ export class ThreeRenderer {
     private scaleMode: "fit" | "fill" | number = "fit";
 
     // Scene Graph
-    private clipMeshes: Map<string, THREE.Mesh> = new Map();
+    private clipMeshes: Map<string, THREE.Object3D> = new Map(); // Changed to Object3D
 
     // Geometry Cache
     private planeGeometry: THREE.PlaneGeometry;
@@ -125,8 +126,10 @@ export class ThreeRenderer {
         
         // Re-fit meshes
         this.clipMeshes.forEach((mesh) => {
-            const mat = mesh.material as THREE.MeshBasicMaterial;
-            if (mat.map) this.fitMeshToScreen(mesh, mat.map);
+             if (mesh instanceof THREE.Mesh) { // Only refit standard meshes
+                const mat = mesh.material as THREE.MeshBasicMaterial;
+                if (mat.map) this.fitMeshToScreen(mesh, mat.map);
+             }
         });
     }
 
@@ -156,8 +159,10 @@ export class ThreeRenderer {
         if (this.container) this.handleResize();
         else {
              this.clipMeshes.forEach((mesh) => {
-                const mat = mesh.material as THREE.MeshBasicMaterial;
-                if (mat.map) this.fitMeshToScreen(mesh, mat.map);
+                 if (mesh instanceof THREE.Mesh) {
+                    const mat = mesh.material as THREE.MeshBasicMaterial;
+                    if (mat.map) this.fitMeshToScreen(mesh, mat.map);
+                 }
             });
         }
     }
@@ -171,11 +176,9 @@ export class ThreeRenderer {
     public renderFrame(currentTime: number, tracks: Track[]) {
         const visibleClips: Clip[] = [];
         tracks.forEach((track: Track) => {
-            if (
-                (track.type !== "video" && track.type !== "image") ||
-                track.isMuted
-            )
-                return;
+            // Support both standard and custom types (plugins)
+            if (track.isMuted) return;
+             
             const clip = track.clips.find(
                 (c) =>
                     currentTime >= c.start &&
@@ -189,7 +192,7 @@ export class ThreeRenderer {
             if (visibleClips.length > 0) {
                 visibleClips.forEach((c) => {
                     const mesh = this.clipMeshes.get(c.id);
-                    if (mesh) {
+                    if (mesh && mesh instanceof THREE.Mesh) {
                         const map = (mesh.material as any).map;
                         if (map) map.needsUpdate = true;
                     }
@@ -197,32 +200,63 @@ export class ThreeRenderer {
             }
         }
 
-        for (const [clipId, mesh] of this.clipMeshes) {
+        // Cleanup
+        for (const [clipId, object] of this.clipMeshes) {
             if (!visibleClipIds.has(clipId)) {
-                // Cleanup
-                const mat = mesh.material as THREE.MeshBasicMaterial;
-                if (mat.map && mat.map instanceof THREE.VideoTexture) {
-                    const video = mat.map.image;
-                    if (video && !video.paused) {
-                        video.pause();
+                if (object instanceof THREE.Mesh) {
+                    const mat = object.material as THREE.MeshBasicMaterial;
+                    if (mat.map && mat.map instanceof THREE.VideoTexture) {
+                        const video = mat.map.image;
+                        if (video && !video.paused) {
+                            video.pause();
+                        }
                     }
+                     object.geometry.dispose();
+                     (object.material as THREE.Material).dispose();
+                } else {
+                    // Plugin Object Cleanup?
+                    // For now assume plugin objects clean themselves up or rely on GC if detached
+                    // But we should ideally call plugin.destroy(object)
                 }
 
-                this.scene.remove(mesh);
-                (mesh.material as THREE.MeshBasicMaterial).dispose();
+                this.scene.remove(object);
                 this.clipMeshes.delete(clipId);
             }
         }
 
         // If no clips, reset ambient
-        if (visibleClips.length === 0) {
+        const videoClips = visibleClips.filter(c => c.type === 'video');
+        if (videoClips.length === 0) {
             this.updateAmbientColor(null);
         }
 
         visibleClips.forEach((clip) => {
-            let mesh = this.clipMeshes.get(clip.id);
+            let object = this.clipMeshes.get(clip.id);
+            const trackIndex = tracks.findIndex((t: Track) => t.id === clip.trackId);
 
-            if (!mesh) {
+            // Check if it's a Plugin Clip
+            const plugin = pluginRegistry.get(clip.type);
+            if (plugin) {
+                if (!object) {
+                    // Delegate to Plugin
+                    const newObj = plugin.render(clip);
+                    if (newObj) {
+                        this.scene.add(newObj);
+                        this.clipMeshes.set(clip.id, newObj);
+                        object = newObj;
+                    }
+                }
+                
+                // Update Plugin Object
+                if (object) {
+                    object.position.z = trackIndex;
+                    plugin.update(object, clip, currentTime - clip.start, 1/60);
+                }
+                return; // Skip standard logic
+            }
+
+            // Standard Video/Image Logic
+            if (!object) {
                 const material = new THREE.MeshBasicMaterial({
                     color: 0x222222,
                     map: null,
@@ -230,31 +264,28 @@ export class ThreeRenderer {
                 const newMesh = new THREE.Mesh(this.planeGeometry, material);
                 this.scene.add(newMesh);
                 this.clipMeshes.set(clip.id, newMesh);
-                mesh = newMesh;
+                object = newMesh;
 
                 const promise = this.allocator
                     .getTexture(editorEngine.getAsset(clip.assetId)!)
                     .then((texture) => {
                         const currentMesh = this.clipMeshes.get(clip.id);
-                        if (texture && currentMesh === newMesh) {
-                            const mat =
-                                newMesh.material as THREE.MeshBasicMaterial;
+                        if (texture && currentMesh === object) {
+                            const mesh = object as THREE.Mesh;
+                            const mat = mesh.material as THREE.MeshBasicMaterial;
                             mat.map = texture;
                             mat.color.setHex(0xffffff);
                             mat.needsUpdate = true;
-                            this.fitMeshToScreen(newMesh, texture);
+                            this.fitMeshToScreen(mesh, texture);
                         }
                     });
                 this.pendingLoads.add(promise);
             }
 
-            const trackIndex = tracks.findIndex(
-                (t: Track) => t.id === clip.trackId,
-            );
-            if (mesh) mesh.position.z = trackIndex;
+            if (object) object.position.z = trackIndex;
 
-            if (clip.type === "video" && mesh) {
-                this.syncVideoFrame(clip, mesh, currentTime);
+            if (clip.type === "video" && object instanceof THREE.Mesh) {
+                this.syncVideoFrame(clip, object, currentTime);
             }
         });
 
@@ -265,11 +296,13 @@ export class ThreeRenderer {
     public getActiveVideoElements(): HTMLVideoElement[] {
         const videos: HTMLVideoElement[] = [];
         this.clipMeshes.forEach((mesh) => {
-            const mat = mesh.material as THREE.MeshBasicMaterial;
-            if (mat.map && mat.map instanceof THREE.VideoTexture) {
-                const video = mat.map.image;
-                if (video instanceof HTMLVideoElement) {
-                    videos.push(video);
+            if (mesh instanceof THREE.Mesh) {
+                const mat = mesh.material as THREE.MeshBasicMaterial;
+                if (mat.map && mat.map instanceof THREE.VideoTexture) {
+                    const video = mat.map.image;
+                    if (video instanceof HTMLVideoElement) {
+                        videos.push(video);
+                    }
                 }
             }
         });
@@ -387,9 +420,11 @@ export class ThreeRenderer {
         this.allocator.destroy();
         (this.placeholderMesh.material as THREE.Material).dispose();
         (this.placeholderMesh.geometry as THREE.BufferGeometry).dispose();
-        this.clipMeshes.forEach((m) =>
-            (m.material as THREE.Material).dispose(),
-        );
+        this.clipMeshes.forEach((m) => {
+            if (m instanceof THREE.Mesh) {
+                (m.material as THREE.Material).dispose();
+            }
+        });
         this.planeGeometry.dispose();
     }
 }

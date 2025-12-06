@@ -1,5 +1,28 @@
 <script setup lang="ts">
-import { Sliders, Move } from "lucide-vue-next";
+import { Sliders } from "lucide-vue-next";
+import { useProjectStore } from "../stores/projectStore";
+import { storeToRefs } from "pinia";
+import { computed } from "vue";
+import { pluginRegistry } from "../core/plugins/PluginRegistry";
+
+const store = useProjectStore();
+const { selectedClipIds, tracks } = storeToRefs(store);
+
+const selectedClip = computed(() => {
+    if (selectedClipIds.value.length !== 1) return null;
+    const id = selectedClipIds.value[0];
+    for (const track of tracks.value) {
+        const clip = track.clips.find(c => c.id === id);
+        if (clip) return clip;
+    }
+    return null;
+});
+
+const pluginComponent = computed(() => {
+    if (!selectedClip.value) return null;
+    const plugin = pluginRegistry.get(selectedClip.value.type);
+    return plugin ? plugin.propertiesComponent : null;
+});
 </script>
 
 <template>
@@ -15,109 +38,25 @@ import { Sliders, Move } from "lucide-vue-next";
             </h3>
         </div>
 
-        <!-- Transform Section -->
-        <div class="p-4 border-b border-canvas-border space-y-4">
-            <div
-                class="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider"
-            >
-                <Move :size="12" />
-                Transform
-            </div>
+        <div v-if="selectedClip" class="p-4 space-y-4">
+             <div class="text-xs text-gray-500 font-mono mb-2">{{ selectedClip.name }}</div>
 
-            <div class="grid grid-cols-2 gap-3">
-                <div class="space-y-1">
-                    <label class="text-xs text-text-muted">Scale</label>
-                    <div
-                        class="flex items-center bg-canvas rounded border border-canvas-border px-2 py-1 hover:border-brand-primary focus-within:border-brand-primary transition-colors"
-                    >
-                        <span class="text-xs text-text-muted mr-2">X</span>
-                        <input
-                            type="number"
-                            value="100"
-                            class="w-full bg-transparent text-sm text-text-main outline-none appearance-none"
-                        />
-                        <span class="text-xs text-text-muted">%</span>
-                    </div>
-                </div>
-                <div class="space-y-1">
-                    <label class="text-xs text-text-muted opacity-0"
-                        >Scale</label
-                    >
-                    <div
-                        class="flex items-center bg-canvas rounded border border-canvas-border px-2 py-1"
-                    >
-                        <span class="text-xs text-text-muted mr-2">Y</span>
-                        <input
-                            type="number"
-                            value="100"
-                            class="w-full bg-transparent text-sm text-text-main outline-none appearance-none"
-                        />
-                        <span class="text-xs text-text-muted">%</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="space-y-1">
-                <label class="text-xs text-text-muted">Position</label>
-                <div class="grid grid-cols-2 gap-3">
-                    <div
-                        class="flex items-center bg-canvas rounded border border-canvas-border px-2 py-1"
-                    >
-                        <span class="text-xs text-text-muted mr-2">X</span>
-                        <input
-                            type="number"
-                            value="960"
-                            class="w-full bg-transparent text-sm text-text-main outline-none appearance-none"
-                        />
-                    </div>
-                    <div
-                        class="flex items-center bg-canvas rounded border border-canvas-border px-2 py-1"
-                    >
-                        <span class="text-xs text-text-muted mr-2">Y</span>
-                        <input
-                            type="number"
-                            value="540"
-                            class="w-full bg-transparent text-sm text-text-main outline-none appearance-none"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            <div class="space-y-1">
-                <label class="text-xs text-text-muted">Rotation</label>
-                <div
-                    class="flex items-center bg-canvas rounded border border-canvas-border px-2 py-1"
-                >
-                    <span class="text-xs text-text-muted mr-2">°</span>
-                    <input
-                        type="number"
-                        value="0"
-                        class="w-full bg-transparent text-sm text-text-main outline-none appearance-none"
-                    />
-                </div>
-            </div>
-        </div>
-
-        <!-- Opacity Section -->
-        <div class="p-4 border-b border-canvas-border space-y-4">
-            <div class="flex items-center justify-between">
-                <label
-                    class="text-xs font-semibold text-text-muted uppercase tracking-wider"
-                    >Opacity</label
-                >
-                <span class="text-xs text-text-muted">100%</span>
-            </div>
-            <input
-                type="range"
-                min="0"
-                max="100"
-                value="100"
-                class="w-full h-1 bg-canvas-border rounded-lg appearance-none cursor-pointer accent-brand-primary"
+            <!-- Plugin Specific Properties -->
+            <component 
+                v-if="pluginComponent" 
+                :is="pluginComponent" 
+                :clip="selectedClip" 
             />
+
+            <!-- Fallback / Default Properties (for video/images) -->
+            <div v-else class="text-sm text-gray-400">
+                No specific properties for this clip type.
+            </div>
         </div>
 
-        <div class="p-4 text-xs text-text-muted text-center mt-auto">
+        <div v-else class="p-4 text-xs text-text-muted text-center mt-auto">
             Select a clip to edit properties
         </div>
     </div>
 </template>
+

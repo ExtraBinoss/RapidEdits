@@ -84,7 +84,11 @@ export class SelectionSystem {
         });
 
         this.selectedClipIds.clear();
+        
         if (anythingChanged) {
+            // Cleanup empty custom tracks
+            this.timelineSystem.cleanupEmptyTracks();
+
             globalEventBus.emit({
                 type: "TIMELINE_UPDATED",
                 payload: undefined,

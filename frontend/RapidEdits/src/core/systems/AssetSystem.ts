@@ -32,6 +32,12 @@ export class AssetSystem {
         return asset;
     }
 
+    public registerAsset(asset: Asset) {
+        this.assets.set(asset.id, asset);
+        // We might not want to emit ASSET_ADDED if we don't want it in the asset bin UI
+        // But for now, let's keep it consistent or maybe add a hidden flag to Asset later.
+    }
+
     public removeAsset(id: string) {
         if (this.assets.has(id)) {
             const asset = this.assets.get(id);

@@ -43,7 +43,7 @@ export class EditorEngine {
         return this.timelineSystem.getTracks();
     }
 
-    public addTrack(type: "video" | "audio"): Track {
+    public addTrack(type: "video" | "audio" | "text" | "image" | "custom"): Track {
         return this.timelineSystem.addTrack(type);
     }
 

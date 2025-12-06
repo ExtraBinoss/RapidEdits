@@ -21,13 +21,18 @@ export class TimelineSystem {
         return this.tracks;
     }
 
-    public addTrack(type: "video" | "audio"): Track {
+    public addTrack(type: "video" | "audio" | "text" | "image" | "custom"): Track {
         const id =
             this.tracks.length > 0
                 ? Math.max(...this.tracks.map((t) => t.id)) + 1
                 : 1;
         const count = this.tracks.filter((t) => t.type === type).length + 1;
-        const name = type === "video" ? `Video ${count}` : `Audio ${count}`;
+        
+        let name = "";
+        if (type === "video") name = `Video ${count}`;
+        else if (type === "audio") name = `Audio ${count}`;
+        else if (type === "custom") name = `Custom ${count}`;
+        else name = `${type.charAt(0).toUpperCase() + type.slice(1)} ${count}`;
 
         const newTrack: Track = {
             id,
@@ -413,5 +418,22 @@ export class TimelineSystem {
         }
 
         return closest;
+    }
+
+    public cleanupEmptyTracks() {
+        const initialCount = this.tracks.length;
+        // Keep tracks that are NOT custom OR have clips
+        // We usually want to keep at least one video/audio track, but for custom ones, we can be aggressive.
+        this.tracks = this.tracks.filter(t => {
+            const isCustom = t.type !== 'video' && t.type !== 'audio';
+            if (isCustom && t.clips.length === 0) {
+                return false; // Remove empty custom track
+            }
+            return true;
+        });
+
+        if (this.tracks.length !== initialCount) {
+            globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
+        }
     }
 }

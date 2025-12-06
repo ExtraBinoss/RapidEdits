@@ -16,11 +16,14 @@ const { tracks, currentTime, isPlaying } = storeToRefs(store);
 
 const videoTracks = computed(() => {
     return tracks.value.filter(
-        (t) => t.type === "video" || t.type === "image" || t.type === "text",
+        (t) => t.type === "video",
     );
 });
 const audioTracks = computed(() => {
     return tracks.value.filter((t) => t.type === "audio");
+});
+const customTracks = computed(() => {
+    return tracks.value.filter((t) => t.type !== "video" && t.type !== "audio");
 });
 
 // Pixels per second
@@ -293,6 +296,24 @@ const handleTimelineClick = () => {
                 ref="headersContainer"
                 class="w-32 flex-shrink-0 border-r border-canvas-border bg-canvas-light z-20 flex flex-col pt-8 shadow-lg overflow-hidden"
             >
+                <!-- Custom/Overlay Tracks Header -->
+                <div
+                    v-for="track in customTracks"
+                    :key="track.id"
+                    class="h-24 border-b border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
+                >
+                    <span class="font-medium text-text-main mb-1">{{
+                        track.name
+                    }}</span>
+                    <div
+                        class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                        <!-- Track controls placeholder -->
+                    </div>
+                </div>
+
+                <div v-if="customTracks.length > 0" class="h-4 bg-canvas-darker border-y border-canvas-border flex items-center justify-center flex-shrink-0"></div>
+
                 <!-- Video Tracks Header -->
                 <div
                     v-for="track in videoTracks"
@@ -371,6 +392,23 @@ const handleTimelineClick = () => {
                             class="w-3 h-3 -ml-1.5 bg-red-500 rotate-45 -mt-1.5 shadow-sm sticky top-0"
                         ></div>
                     </div>
+
+                    <!-- Custom Tracks Loop -->
+                    <DynamicTrack
+                        v-for="track in customTracks"
+                        :key="track.id"
+                        :track="track"
+                        :zoom-level="zoomLevel"
+                        :active-tool="activeTool"
+                        @contextmenu="handleClipContextMenu"
+                        @razor-click="handleRazorClick"
+                    />
+
+                    <!-- Divider -->
+                    <div
+                        v-if="customTracks.length > 0"
+                        class="h-4 bg-canvas-darker border-y border-canvas-border/30"
+                    ></div>
 
                     <!-- Video Tracks Loop -->
                     <DynamicTrack

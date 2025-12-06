@@ -9,7 +9,7 @@ export type MediaTypeValue = (typeof MediaType)[keyof typeof MediaType];
 
 export interface Asset {
     id: string;
-    file: File;
+    file?: File;
     url: string; // Blob URL for preview
     name: string;
     type: MediaTypeValue;
