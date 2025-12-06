@@ -21,6 +21,14 @@ export class TimelineSystem {
         return this.tracks;
     }
 
+    public getClip(id: string): Clip | undefined {
+        for (const track of this.tracks) {
+            const clip = track.clips.find((c) => c.id === id);
+            if (clip) return clip;
+        }
+        return undefined;
+    }
+
     public addTrack(
         type: "video" | "audio" | "text" | "image" | "custom",
     ): Track {

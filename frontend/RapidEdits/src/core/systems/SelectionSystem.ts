@@ -63,6 +63,16 @@ export class SelectionSystem {
         });
     }
 
+    public deselectAll() {
+        if (this.selectedClipIds.size > 0) {
+            this.selectedClipIds.clear();
+            globalEventBus.emit({
+                type: "SELECTION_CHANGED",
+                payload: [],
+            });
+        }
+    }
+
     public getSelectedClipIds() {
         return Array.from(this.selectedClipIds);
     }
@@ -84,7 +94,7 @@ export class SelectionSystem {
         });
 
         this.selectedClipIds.clear();
-        
+
         if (anythingChanged) {
             // Cleanup empty custom tracks
             this.timelineSystem.cleanupEmptyTracks();

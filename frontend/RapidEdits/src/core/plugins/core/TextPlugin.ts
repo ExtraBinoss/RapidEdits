@@ -10,7 +10,6 @@ import {
 import {
     createPluginId,
     PluginCategory,
-    PluginType,
     type FilmstripConfig,
     type PluginPropertyDefinition,
 } from "../PluginTypes";
@@ -153,6 +152,10 @@ export class TextPlugin extends BasePlugin {
         const material = new THREE.MeshBasicMaterial({ color: data.color });
         const mesh = new THREE.Mesh(geometry, material);
 
+        // Metadata for Selection
+        mesh.userData.isSelectable = true;
+        mesh.userData.clipId = clip.id;
+
         this.updateTransform(mesh, data);
 
         return mesh;
@@ -161,8 +164,8 @@ export class TextPlugin extends BasePlugin {
     update(
         object: THREE.Object3D,
         clip: Clip,
-        time: number,
-        frameDuration: number,
+        _time: number,
+        _frameDuration: number,
     ): void {
         const mesh = object as THREE.Mesh;
         const data = clip.data;
@@ -206,6 +209,8 @@ export class TextPlugin extends BasePlugin {
 
             mesh.geometry = geometry;
 
+            // Update Metadata if needed (though clip ID shouldn't change)
+            mesh.userData.clipId = clip.id;
             mesh.userData.lastState = { ...data };
         }
 

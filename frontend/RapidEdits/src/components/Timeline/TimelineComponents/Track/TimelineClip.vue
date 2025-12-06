@@ -17,7 +17,6 @@ const props = defineProps<{
 const store = useProjectStore();
 
 const isDragging = ref(false);
-const dragOffsetX = ref(0);
 // Optimistic UI state during drag
 const tempStart = ref(props.clip.start);
 
@@ -73,7 +72,6 @@ const startDrag = (e: MouseEvent) => {
 
     // Calculate where we clicked relative to the clip start
     const { x } = editorEngine.getMousePosition();
-    const clipStartPx = props.clip.start * props.zoomLevel;
     // We need to account for the container's absolute positioning or just use delta
     // A safer way for absolute positioning:
     // Initial Mouse X - Initial Clip Start Pixel = Offset

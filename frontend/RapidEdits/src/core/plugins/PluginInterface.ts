@@ -1,10 +1,6 @@
 import type { Clip } from "../../types/Timeline";
 import * as THREE from "three";
-import type {
-    FilmstripConfig,
-    PluginId,
-    PluginPropertyDefinition,
-} from "./PluginTypes";
+import type { FilmstripConfig, PluginPropertyDefinition } from "./PluginTypes";
 
 export interface IPlugin {
     id: string; // Now we encourage using createPluginId helper, but string is fine for flexibility
@@ -55,8 +51,8 @@ export abstract class BasePlugin implements IPlugin {
     update(
         object: THREE.Object3D,
         clip: Clip,
-        time: number,
-        frameDuration: number,
+        _time: number,
+        _frameDuration: number,
     ): void {
         // Default update logic (can be overridden)
         if (clip.data?.position) {
@@ -82,7 +78,7 @@ export abstract class BasePlugin implements IPlugin {
         }
     }
 
-    getFilmstripConfig(clip: Clip): FilmstripConfig {
+    getFilmstripConfig(_clip: Clip): FilmstripConfig {
         return {};
     }
 }

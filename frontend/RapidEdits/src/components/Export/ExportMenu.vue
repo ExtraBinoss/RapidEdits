@@ -180,7 +180,7 @@ import { X as XIcon, Check as CheckIcon } from "lucide-vue-next";
 import { exportService } from "../../core/export/ExportService";
 import Select from "../UI/Input/Select.vue";
 
-const props = defineProps<{
+defineProps<{
     modelValue: boolean;
 }>();
 

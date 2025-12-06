@@ -23,7 +23,7 @@ const contextMenuX = ref(0);
 const contextMenuY = ref(0);
 const contextMenuTargets = ref<string[]>([]);
 
-const handleClipContextMenu = (e: MouseEvent, clipId: string) => {
+const handleClipContextMenu = (e: MouseEvent, _clipId: string) => {
     showContextMenu.value = true;
     contextMenuX.value = e.clientX;
     contextMenuY.value = e.clientY;
@@ -206,7 +206,7 @@ const handleSplit = () => {
     }
 };
 
-const handleRazorClick = (e: MouseEvent, trackId: number, time: number) => {
+const handleRazorClick = (_e: MouseEvent, trackId: number, time: number) => {
     if (activeTool.value !== "razor") return;
 
     // Find clip at time
