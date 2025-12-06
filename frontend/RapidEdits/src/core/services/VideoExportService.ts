@@ -60,165 +60,159 @@ export class VideoExportService {
             const frameCount = Math.ceil(totalDuration * config.fps);
             const dt = 1 / config.fps;
 
-            onProgress(0, "Rendering Frames...");
+            onProgress(0, "Initializing Encoder...");
+
+            // --- 2. WebCodecs Encoder Setup ---
+            const chunkBuffer: Uint8Array[] = [];
+            let bufferSize = 0;
+            const FLUSH_THRESHOLD = 5 * 1024 * 1024; // 5MB
+
+            const flushBuffer = async () => {
+                if (chunkBuffer.length === 0) return;
+
+                // Concatenate buffer
+                const totalLength = chunkBuffer.reduce(
+                    (acc, val) => acc + val.length,
+                    0,
+                );
+                const combined = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of chunkBuffer) {
+                    combined.set(chunk, offset);
+                    offset += chunk.length;
+                }
+
+                // Append to backend
+                await fetch(`${API_URL}/render/append/${sessionId}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/octet-stream" },
+                    body: combined,
+                });
+
+                // Clear
+                chunkBuffer.length = 0;
+                bufferSize = 0;
+            };
+
+            const encoder = new VideoEncoder({
+                output: (chunk, metadata) => {
+                    const buffer = new Uint8Array(chunk.byteLength);
+                    chunk.copyTo(buffer);
+                    chunkBuffer.push(buffer);
+                    bufferSize += buffer.byteLength;
+                },
+                error: (e) => {
+                    console.error("Encoder error", e);
+                    throw e;
+                },
+            });
+
+            // Configure Encoder (H.264 High Profile)
+            encoder.configure({
+                codec: "avc1.640034", // H.264 High Profile Level 5.2
+                width: config.width,
+                height: config.height,
+                bitrate: 10_000_000, // 10 Mbps
+                framerate: config.fps,
+                avc: { format: "annexb" }, // Stream format for easy concatenation
+            });
+
+            // --- 3. Render Loop ---
+            onProgress(0, "Rendering & Encoding...");
 
             for (let i = 0; i < frameCount; i++) {
                 if (this.shouldStop) throw new Error("Cancelled");
 
                 const time = i * dt;
 
-                // Sync renderer to this time
+                // A. Sync Renderer logic (same as before)
                 renderer.renderFrame(time, tracks);
 
-                // Wait for all active videos in the SHADOW renderer to seek
                 const activeVideos = renderer.getActiveVideoElements();
-
                 if (activeVideos.length > 0) {
                     await Promise.all(
-                        activeVideos.map(async (videoEl: HTMLVideoElement) => {
-                            const v = videoEl as any;
-                            if (!v) return;
-
-                            // Ensure video is in the DOM for rVFC to work reliably
-                            if (!v.parentNode) {
+                        activeVideos.map(async (v: any) => {
+                             if (!v) return;
+                             if (!v.parentNode) {
                                 container.appendChild(v);
-                                // Set styles to ensure it renders but is invisible
-                                v.style.position = "absolute";
-                                v.style.top = "0";
-                                v.style.left = "0";
-                                v.style.width = "1px";
-                                v.style.height = "1px";
                                 v.style.opacity = "0.01";
-                                v.style.pointerEvents = "none";
-                            }
-
-                            // Check readiness
-                            // Force wait for HAVE_CURRENT_DATA or higher
-                            if (v.readyState < 2) {
-                                await new Promise((r) => {
-                                    const onCanPlay = () => {
-                                        v.removeEventListener(
-                                            "canplay",
-                                            onCanPlay,
-                                        );
-                                        r(null);
-                                    };
-                                    v.addEventListener("canplay", onCanPlay);
-                                    // Timeout if it takes too long to load
-                                    setTimeout(() => {
-                                        v.removeEventListener(
-                                            "canplay",
-                                            onCanPlay,
-                                        );
-                                        r(null);
-                                    }, 10000);
+                                v.style.position = "absolute";
+                             }
+                             
+                             // 1. ReadyState
+                             if (v.readyState < 2) {
+                                await new Promise(r => {
+                                    const fn = () => { v.removeEventListener("canplay", fn); r(null); };
+                                    v.addEventListener("canplay", fn);
+                                    setTimeout(() => { v.removeEventListener("canplay", fn); r(null); }, 5000);
                                 });
-                            }
-
-                            // Check if seeking is done (basic check)
-                            if (v.seeking) {
-                                await new Promise((r) => {
-                                    const onSeeked = () => {
-                                        v.removeEventListener(
-                                            "seeked",
-                                            onSeeked,
-                                        );
-                                        r(null);
-                                    };
-                                    v.addEventListener("seeked", onSeeked);
-                                    setTimeout(() => {
-                                        v.removeEventListener(
-                                            "seeked",
-                                            onSeeked,
-                                        );
-                                        r(null);
-                                    }, 5000);
-                                });
-                            }
-
-                            // Precise Frame Verification using VideoFrame API (Chrome/WebCodecs)
-                            // This ensures we don't capture a stale frame (stutter).
-                            if (window.VideoFrame) {
-                                const expectedTimeUs =
-                                    v.currentTime * 1_000_000;
-                                // Tolerance: 1/2 frame at 60fps ~ 8333us. Let's be generous: 40ms = 40000us
-                                const tolerance = 40_000;
-
+                             }
+                             
+                             // 2. Seeking
+                             if (v.seeking) {
+                                 await new Promise(r => {
+                                     const fn = () => { v.removeEventListener("seeked", fn); r(null); };
+                                     v.addEventListener("seeked", fn);
+                                     setTimeout(() => { v.removeEventListener("seeked", fn); r(null); }, 2000);
+                                 });
+                             }
+                             
+                             // 3. VideoFrame Verification (Reuse from previous fix)
+                             if (window.VideoFrame) {
+                                const expected = v.currentTime * 1e6;
                                 let attempts = 0;
-                                while (attempts < 50) {
-                                    // Try for ~1 second (50 * 20ms)
-                                    let frame = null;
+                                while(attempts < 20) {
                                     try {
-                                        frame = new VideoFrame(v);
-                                        const diff = Math.abs(
-                                            frame.timestamp - expectedTimeUs,
-                                        );
-                                        if (diff < tolerance) {
-                                            frame.close();
-                                            break; // Good frame!
-                                        }
+                                        const frame = new VideoFrame(v);
+                                        const diff = Math.abs(frame.timestamp - expected);
                                         frame.close();
-                                    } catch (e) {
-                                        // VideoFrame construction might fail if readyState is low
-                                    }
-
-                                    await new Promise((r) => setTimeout(r, 20));
+                                        if (diff < 40000) break;
+                                    } catch(e) {}
+                                    await new Promise(r => setTimeout(r, 20));
                                     attempts++;
                                 }
-                            } else {
-                                // Fallback for envs without WebCodecs
-                                if (v.requestVideoFrameCallback) {
-                                    await new Promise((r) => {
-                                        const handle =
-                                            v.requestVideoFrameCallback(() =>
-                                                r(null),
-                                            );
-                                        setTimeout(() => {
-                                            if (v.cancelVideoFrameCallback)
-                                                v.cancelVideoFrameCallback(
-                                                    handle,
-                                                );
-                                            r(null);
-                                        }, 200);
-                                    });
-                                } else {
-                                    await new Promise((r) => setTimeout(r, 20));
-                                }
-                            }
-                        }),
+                             } else {
+                                 // Fallback
+                                 await new Promise(r => setTimeout(r, 20));
+                             }
+                        })
                     );
                 } else {
-                    // Start up wait for images
-                    if (i === 0) await new Promise((r) => setTimeout(r, 100));
+                     if (i === 0) await new Promise(r => setTimeout(r, 50));
                 }
-
-                // Final render to canvas with updated textures
+                
+                // Final Render
                 renderer.renderFrame(time, tracks);
 
+                // B. Capture Frame for Encoder
+                // ThreeJS Canvas -> VideoFrame
                 const canvas = renderer.renderer.domElement;
-
-                // Get Blob
-                const blob = await new Promise<Blob | null>((resolve) =>
-                    canvas.toBlob(resolve, "image/png"),
-                );
-
-                if (!blob) continue;
-
-                // Upload
-                const formData = new FormData();
-                formData.append("frame", blob);
-
-                await fetch(`${API_URL}/render/frame/${sessionId}/${i}`, {
-                    method: "POST",
-                    body: formData,
+                const frame = new VideoFrame(canvas, {
+                    timestamp: i * dt * 1_000_000, // microseconds
+                    duration: dt * 1_000_000
                 });
 
-                const percent = Math.round((i / frameCount) * 100);
-                onProgress(percent, `Rendering Frame ${i}/${frameCount}`);
-            }
+                // Encode
+                encoder.encode(frame, { keyFrame: i % 30 === 0 });
+                frame.close();
 
-            // 3. Finish
-            onProgress(100, "Encoding Video...");
+                // C. Flush Check
+                if (bufferSize > FLUSH_THRESHOLD) {
+                    await flushBuffer();
+                }
+
+                // Progress
+                const percent = Math.round((i / frameCount) * 100);
+                if (i % 10 === 0) onProgress(percent, `Encoded Frame ${i}/${frameCount}`);
+            } // End Loop
+
+            // Finals
+            await encoder.flush();
+            await flushBuffer();
+            encoder.close();
+
+            // 4. Finish Backend Process
+            onProgress(100, "Muxing Video...");
             await fetch(`${API_URL}/render/finish/${sessionId}`, {
                 method: "POST",
             });

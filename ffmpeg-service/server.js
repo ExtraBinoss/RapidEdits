@@ -74,21 +74,42 @@ app.post('/render/init', (req, res) => {
     const sessionDir = path.join(UPLOAD_DIR, sessionId);
     if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir);
 
-    console.log(`[${sessionId}] Session initialized`);
+    console.log(`[${sessionId}] Session Initialized`);
+    console.log(`[${sessionId}] Config: ${width}x${height} @ ${fps}fps, Format: ${format || 'mp4'}`);
     res.json({ sessionId });
 });
 
-// 2. Upload Frame
-app.post('/render/frame/:sessionId/:frameIndex', upload.single('frame'), (req, res) => {
-    const { sessionId, frameIndex } = req.params;
+// 2. Upload Chunk (Binary Append)
+app.post('/render/append/:sessionId', express.raw({ type: 'application/octet-stream', limit: '50mb' }), (req, res) => {
+    const { sessionId } = req.params;
     
     if (!sessions[sessionId]) {
         return res.status(404).json({ error: 'Session not found' });
     }
 
-    // Just acknowledge
-    sessions[sessionId].frameCount++;
-    res.json({ success: true });
+    const sessionDir = path.join(UPLOAD_DIR, sessionId);
+    if (!fs.existsSync(sessionDir)) {
+        fs.mkdirSync(sessionDir, { recursive: true });
+    }
+
+    const tempVideoPath = path.join(sessionDir, 'temp_video.raw');
+    const chunkSize = req.body.length;
+
+    // Append binary data to file
+    fs.appendFile(tempVideoPath, req.body, (err) => {
+        if (err) {
+            console.error(`[${sessionId}] Append error:`, err);
+            return res.status(500).json({ error: 'Failed to append data' });
+        }
+        
+        const session = sessions[sessionId];
+        session.progress += 1; // logical tick
+        if (!session.totalBytes) session.totalBytes = 0;
+        session.totalBytes += chunkSize;
+
+        console.log(`[${sessionId}] Received Chunk: ${(chunkSize / 1024).toFixed(2)} KB | Total: ${(session.totalBytes / 1024 / 1024).toFixed(2)} MB`);
+        res.json({ success: true });
+    });
 });
 
 // 3. Finish Upload & Start Render
@@ -99,40 +120,45 @@ app.post('/render/finish/:sessionId', (req, res) => {
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
     session.status = 'processing';
-    console.log(`[${sessionId}] Starting render...`);
-
-    const inputPattern = path.join(UPLOAD_DIR, sessionId, 'frame_%05d.png');
+    
     const outputFilename = `render_${sessionId}.${session.config.format}`;
     const outputPath = path.join(OUTPUT_DIR, outputFilename);
+    const sessionDir = path.join(UPLOAD_DIR, sessionId);
+    const tempVideoPath = path.join(sessionDir, 'temp_video.raw');
 
-    // Run FFmpeg
+    const inputFps = session.config.fps || 30;
+    const outputFps = session.config.fps || 30;
+    // For WebM we re-encode, for MP4 (if compatible) we might just copy, but here we default to copy for H.264 input.
+    // If format is webm, we must transcode.
+    const isWebM = session.config.format === 'webm';
+    const videoCodec = isWebM ? 'libvpx-vp9' : 'copy';
+    
+    const outputOptions = isWebM 
+        ? ['-deadline realtime', '-cpu-used 4', '-b:v 0', '-crf 30'] 
+        : []; // No options needed for copy
+
+    console.log(`[${sessionId}] Starting FFmpeg Mux/Transcode`);
+    console.log(`[${sessionId}] Input: Raw H.264 Stream (Annex B)`);
+    console.log(`[${sessionId}] Output: ${outputFilename} (${session.config.format})`);
+    console.log(`[${sessionId}] FPS: ${inputFps} -> ${outputFps}`);
+    console.log(`[${sessionId}] Codec: ${videoCodec}`);
+    console.log(`[${sessionId}] Options: ${JSON.stringify(outputOptions)}`);
+
+    // Assume input is H.264 raw stream if config says so, generally VideoEncoder produces AVC/H.264 annex B or similar
+    const inputOptions = ['-f h264'];
+
     ffmpeg()
-        .input(inputPattern)
-        .inputFPS(session.config.fps || 30)
-        .size(`${session.config.width}x${session.config.height}`)
+        .input(tempVideoPath)
+        .inputOptions(inputOptions)
+        .inputFPS(inputFps)
         .output(outputPath)
-        .outputFPS(session.config.fps || 30)
-        .videoCodec(session.config.format === 'webm' ? 'libvpx-vp9' : 'libx264')
-        .outputOptions(
-            session.config.format === 'webm' 
-                ? ['-deadline realtime', '-cpu-used 4', '-b:v 0', '-crf 30'] 
-                : ['-preset medium', '-crf 23', '-tune fastdecode']
-        )
-        .format(session.config.format)
-        .on('progress', (progress) => {
-            // Note: fluent-ffmpeg progress object is tricky with image sequences
-            // We might just fake it or use 'percent' if available
-            if (progress.percent) {
-                session.progress = Math.min(99, progress.percent);
-            }
-        })
+        .videoCodec(videoCodec)
+        .outputOptions(outputOptions)
         .on('end', () => {
              console.log(`[${sessionId}] Render complete`);
              session.status = 'done';
              session.progress = 100;
              session.outputFile = outputFilename;
-             
-             // Cleanup temp frames? Maybe later
         })
         .on('error', (err) => {
             console.error(`[${sessionId}] Error:`, err);
