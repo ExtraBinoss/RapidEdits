@@ -2,6 +2,7 @@
 import { onMounted, ref, onBeforeUnmount } from "vue";
 import { ThreeRenderer } from "../../core/renderer/ThreeRenderer";
 import { useProjectStore } from "../../stores/projectStore";
+import { editorEngine } from "../../core/EditorEngine";
 import OSD from "../UI/Overlay/OSD.vue";
 import Popover from "../UI/Overlay/Popover.vue";
 import AmbientLight from "../UI/AmbientLight.vue";
@@ -41,10 +42,12 @@ onMounted(async () => {
     // Initialize Custom Renderer
     renderer = new ThreeRenderer(canvasContainer.value);
     await renderer.init();
+    editorEngine.registerRenderer(renderer);
 });
 
 onBeforeUnmount(() => {
     if (renderer) renderer.destroy();
+    editorEngine.registerRenderer(null);
     renderer = null;
 });
 

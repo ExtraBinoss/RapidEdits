@@ -8,7 +8,7 @@ export class ThreeRenderer {
     private container: HTMLElement;
     private scene: THREE.Scene;
     private camera: THREE.OrthographicCamera;
-    private renderer: THREE.WebGLRenderer;
+    public renderer: THREE.WebGLRenderer;
 
     // Modules
     private allocator: TextureAllocator;
@@ -50,6 +50,7 @@ export class ThreeRenderer {
             antialias: true,
             alpha: false,
             powerPreference: "high-performance",
+            preserveDrawingBuffer: true,
         });
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.toneMapping = THREE.NoToneMapping;
@@ -80,7 +81,7 @@ export class ThreeRenderer {
         this.handleResize(); // Trigger re-layout
     }
 
-    private render() {
+    public render() {
         const currentTime = editorEngine.getCurrentTime();
         const tracks = editorEngine.getTracks();
 
@@ -100,9 +101,6 @@ export class ThreeRenderer {
         });
 
         const visibleClipIds = new Set(visibleClips.map((c) => c.id));
-
-        // Identify active assets to avoid pausing shared assets
-        const activeAssetIds = new Set(visibleClips.map((c) => c.assetId));
 
         for (const [clipId, mesh] of this.clipMeshes) {
             if (!visibleClipIds.has(clipId)) {
@@ -177,6 +175,20 @@ export class ThreeRenderer {
 
         this.placeholderMesh.visible = visibleClips.length === 0;
         this.renderer.render(this.scene, this.camera);
+    }
+
+    public getActiveVideoElements(): HTMLVideoElement[] {
+        const videos: HTMLVideoElement[] = [];
+        this.clipMeshes.forEach((mesh) => {
+            const mat = mesh.material as THREE.MeshBasicMaterial;
+            if (mat.map && mat.map instanceof THREE.VideoTexture) {
+                const video = mat.map.image;
+                if (video instanceof HTMLVideoElement) {
+                    videos.push(video);
+                }
+            }
+        });
+        return videos;
     }
 
     private syncVideoFrame(clip: Clip, mesh: THREE.Mesh, globalTime: number) {

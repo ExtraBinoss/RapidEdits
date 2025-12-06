@@ -18,6 +18,9 @@ export class EditorEngine {
     // Tools State
     private activeTool: "select" | "razor" = "select";
 
+    // Renderer Access
+    private _renderer: any = null; // Type: ThreeRenderer
+
     constructor() {
         this.assetSystem = new AssetSystem();
         this.timelineSystem = new TimelineSystem(this.assetSystem);
@@ -148,6 +151,14 @@ export class EditorEngine {
 
     public getMousePosition() {
         return this.inputSystem.getMousePosition();
+    }
+
+    public registerRenderer(renderer: any) {
+        this._renderer = renderer;
+    }
+
+    public getRenderer() {
+        return this._renderer;
     }
 }
 

@@ -39,5 +39,14 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: always
 
+  ffmpeg-service:
+    container_name: rapid_edits_ffmpeg
+    build:
+      context: ./ffmpeg-service
+      dockerfile: Dockerfile
+    ports:
+      - "4001:4001"
+    restart: always
+
 volumes:
   postgres_data:
