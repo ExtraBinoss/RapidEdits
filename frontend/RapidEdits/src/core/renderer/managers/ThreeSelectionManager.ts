@@ -137,9 +137,12 @@ export class ThreeSelectionManager {
             dashSize: 10,
             gapSize: 5,
             linewidth: 2,
+            depthTest: false,
+            depthWrite: false,
         });
 
         const line = new THREE.Line(geometry, material);
+        line.renderOrder = 9999; // Ensure it renders on top
         line.computeLineDistances();
         this.selectionHelper = line;
 
