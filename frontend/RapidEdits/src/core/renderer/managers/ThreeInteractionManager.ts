@@ -126,7 +126,7 @@ export class ThreeInteractionManager {
             while (obj) {
                 // Ignore gizmo
                 if (this.isGizmo(obj)) {
-                    return;
+                    break;
                 }
 
                 if (
