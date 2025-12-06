@@ -31,10 +31,19 @@ export class AudioManager {
             if (!asset) continue;
 
             try {
-                const element = await resourceManager.getElement(asset);
+                // Request 'audio' variant to ensure we get a separate element from the video renderer
+                // This prevents seeking conflicts if the same asset is used for video and audio tracks at different times
+                const element = await resourceManager.getElement(
+                    asset,
+                    "audio",
+                );
 
                 // Safety check
-                if (element instanceof HTMLVideoElement && element.readyState < 2) continue;
+                if (
+                    element instanceof HTMLVideoElement &&
+                    element.readyState < 2
+                )
+                    continue;
 
                 // Sync Volume
                 element.volume = masterVolume;
@@ -46,14 +55,16 @@ export class AudioManager {
                 // Sync Threshold
                 // If video, be very passive (let ThreeRenderer drive)
                 // If audio, be moderately strict
-                const threshold = asset.type === 'video' ? 0.5 : 0.3;
+                const threshold = asset.type === "video" ? 0.5 : 0.3;
 
                 // Sync Playback Time
                 const drift = Math.abs(element.currentTime - clipTime);
                 if (drift > threshold) {
                     // Only seek if significantly off
                     if (!element.seeking) {
-                        console.warn(`[Audio] Sync Seek: ${drift.toFixed(3)}s > ${threshold}s`);
+                        console.warn(
+                            `[Audio] Sync Seek: ${drift.toFixed(3)}s > ${threshold}s`,
+                        );
                         element.currentTime = clipTime;
                     }
                 }

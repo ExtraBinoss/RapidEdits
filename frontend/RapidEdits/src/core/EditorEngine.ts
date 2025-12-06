@@ -456,7 +456,9 @@ export class EditorEngine {
 
     public unlinkSelectedClips() {
         const selected = this.selectedClipIds;
-        this.tracks.forEach((track) => {
+        this.tracks.forEach((track, i) => {
+            // Use index
+            if (!track) return;
             let trackChanged = false;
             const newClips = track.clips.map((c) => {
                 if (selected.has(c.id)) {
@@ -470,11 +472,14 @@ export class EditorEngine {
                 return c;
             });
             if (trackChanged) {
-                track.clips = newClips; // New reference
+                // Create NEW Track object to ensure reactivity
+                this.tracks[i] = {
+                    ...track,
+                    clips: newClips,
+                } as Track;
             }
         });
 
-        // Clear selection or keep it? Keep it.
         globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
     }
 

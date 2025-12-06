@@ -167,6 +167,9 @@ export class ThreeRenderer {
         const video = material.map.image as HTMLVideoElement;
         if (!video) return;
 
+        // Ensure this 'visual' video element is always muted so it doesn't conflict with AudioManager
+        if (!video.muted) video.muted = true;
+
         const clipTime = globalTime - clip.start + clip.offset;
         // Looser threshold during playback to prevent stuttering seeks
         const threshold = editorEngine.getIsPlaying() ? 0.5 : 0.15;

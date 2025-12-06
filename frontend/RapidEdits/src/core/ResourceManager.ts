@@ -5,33 +5,38 @@ export class ResourceManager {
 
     public async getElement(
         asset: Asset,
+        variant?: string,
     ): Promise<HTMLVideoElement | HTMLAudioElement> {
-        if (this.cache.has(asset.id)) {
-            return this.cache.get(asset.id)!;
+        const cacheKey = variant ? `${asset.id}:${variant}` : asset.id;
+
+        if (this.cache.has(cacheKey)) {
+            return this.cache.get(cacheKey)!;
         }
 
         let element: HTMLVideoElement | HTMLAudioElement;
 
         if (asset.type === "video") {
+            // If we specifically want an audio variant of a video, try using Audio element first for efficiency?
+            // Some browsers support <audio src="video.mp4">.
+            // However, sticking to video element is safer for codec support.
             const videoElement = document.createElement("video");
-            // Important for PixiJS texture binding
             videoElement.crossOrigin = "anonymous";
             videoElement.playsInline = true;
-            // We control loop manually via Engine
             videoElement.loop = false;
             videoElement.src = asset.url;
-            // Preload - explicit load might conflict if Pixi also tries to load
-            // videoElement.load();
+
+            // If this is an audio variant, maybe we don't need to decode video tracks?
+            // Unfortunately HTMLMediaElement doesn't give granular control easily.
+
             element = videoElement;
         } else if (asset.type === "audio") {
             element = new Audio(asset.url);
             element.crossOrigin = "anonymous";
         } else {
-            // Image or other, not handled here for playback
             throw new Error("Unsupported asset type for ResourceManager");
         }
 
-        this.cache.set(asset.id, element);
+        this.cache.set(cacheKey, element);
         return element;
     }
 
