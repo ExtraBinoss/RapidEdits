@@ -34,6 +34,7 @@ export function usePluginFilmstrip(
     clipGetter: () => Clip,
     widthRef: { value: number },
 ) {
+    console.log("[DebounceDebug] Hook Mounted", clipGetter().id);
     const thumbnails = ref<{ id: number; url: string; loaded: boolean }[]>([]);
     const version = ref(0);
 
@@ -86,6 +87,15 @@ export function usePluginFilmstrip(
         async (newVal, oldVal, onCleanup) => {
             const [newWidth, newType, newVersion] = newVal;
             const [oldWidth, oldType, oldVersion] = oldVal || [];
+
+            // Prevent spurious triggers
+            if (
+                newWidth === oldWidth &&
+                newType === oldType &&
+                newVersion === oldVersion
+            ) {
+                return;
+            }
 
             console.log("[DebounceDebug] Watch Triggered", {
                 changes: {
@@ -250,7 +260,7 @@ export function usePluginFilmstrip(
 
             requestAnimationFrame(renderNext);
         },
-        { deep: true },
+        // Removed deep: true as we are watching primitives
     );
 
     return { thumbnails };
