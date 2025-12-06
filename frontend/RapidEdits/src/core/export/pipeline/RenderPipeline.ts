@@ -106,7 +106,7 @@ export class RenderPipeline {
             });
 
             await encoder.encodeFrame(frame, i % (fps * 2) === 0); // Keyframe every 2s
-            frame.close();
+            // frame.close(); // MOVED TO WORKER: Ownership transferred!
 
             // Progress
             if (i % 10 === 0) onProgress(Math.round((i / frameCount) * 100));

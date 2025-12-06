@@ -1,19 +1,9 @@
 import type { ExportBackend } from "../api/ExportBackend";
+import ExportWorker from "../workers/export.worker.ts?worker"; // Vite worker import
 
 export class WebCodecsEncoder {
-    private encoder: VideoEncoder;
-    private chunkBuffer: Uint8Array[] = [];
-    private bufferSize = 0;
-    private readonly FLUSH_THRESHOLD = 5 * 1024 * 1024; // 5MB
-
-    private backend: ExportBackend;
+    private worker: Worker;
     private sessionId: string;
-    private config: {
-        width: number;
-        height: number;
-        fps: number;
-        bitrate?: number;
-    };
 
     constructor(
         backend: ExportBackend,
@@ -25,93 +15,56 @@ export class WebCodecsEncoder {
             bitrate?: number;
         },
     ) {
-        this.backend = backend;
         this.sessionId = sessionId;
-        this.config = config;
 
-        this.encoder = new VideoEncoder({
-            output: (chunk) => {
-                console.log(
-                    "[ExportDebug] Encoder Output Chunk",
-                    chunk.byteLength,
-                    chunk.type,
-                    chunk.timestamp,
-                );
-                this.handleChunk(chunk);
-            },
-            error: (e) => {
-                console.error("[ExportDebug] Encoder error", e);
-                // We might want to rethrow or emit this
-            },
-        });
-
-        this.configure();
-    }
-
-    private configure() {
-        const isWebM = (this.config as any).format === "webm";
-
-        // Codec Strings
-        // H.264 Main Profile Level 4.2: avc1.4d002a
-        // VP9 Profile 0 Level 3.1: vp09.00.31.08 (standard for web)
-        const codec = isWebM ? "vp09.00.31.08" : "avc1.4d002a";
-
-        const config: VideoEncoderConfig = {
-            codec,
-            width: this.config.width,
-            height: this.config.height,
-            bitrate: this.config.bitrate || 15_000_000,
-            framerate: this.config.fps,
+        this.worker = new ExportWorker();
+        this.worker.onmessage = (e) => {
+            const { type, error } = e.data;
+            if (type === "error") {
+                console.error("[ExportWorker Error]", error);
+                // Can we bubble this up?
+            } else if (type === "progress") {
+                // optional: buble up bytes exported
+            }
         };
 
-        if (!isWebM) {
-            // AVC specific config
-            config.avc = { format: "annexb" };
-        }
-
-        this.encoder.configure(config);
-    }
-
-    private handleChunk(chunk: EncodedVideoChunk) {
-        const buffer = new Uint8Array(chunk.byteLength);
-        chunk.copyTo(buffer);
-        this.chunkBuffer.push(buffer);
-        this.bufferSize += buffer.byteLength;
+        // Init Worker
+        this.worker.postMessage({
+            type: "init",
+            payload: {
+                ...config,
+                sessionId: this.sessionId,
+                apiUrl: "http://localhost:4001", // Should ideally from backend config/env, hardcoded for now matching backend
+                format: (config as any).format,
+            },
+        });
     }
 
     public async encodeFrame(frame: VideoFrame, keyFrame: boolean) {
-        this.encoder.encode(frame, { keyFrame });
-
-        if (this.bufferSize > this.FLUSH_THRESHOLD) {
-            await this.flush();
-        }
-    }
-
-    public async flush() {
-        if (this.chunkBuffer.length === 0) return;
-
-        const totalLength = this.chunkBuffer.reduce(
-            (acc, val) => acc + val.length,
-            0,
+        // Transfer the frame to the worker
+        // We cannot await the result here easily without complex ID tracking,
+        // but encoding is fire-and-forget for the pipeline loop usually.
+        // The backpressure is handled by the worker queue implicitly (it won't block main thread).
+        this.worker.postMessage(
+            {
+                type: "encode",
+                payload: { frame, keyFrame },
+            },
+            [frame], // TRANSFER ownership
         );
-        const combined = new Uint8Array(totalLength);
-        let offset = 0;
-        for (const chunk of this.chunkBuffer) {
-            combined.set(chunk, offset);
-            offset += chunk.length;
-        }
-
-        // Upload
-        await this.backend.appendChunk(this.sessionId, combined);
-
-        // Reset
-        this.chunkBuffer = [];
-        this.bufferSize = 0;
     }
 
     public async close() {
-        await this.encoder.flush();
-        await this.flush(); // Upload remaining
-        this.encoder.close();
+        return new Promise<void>((resolve, reject) => {
+            this.worker.onmessage = (e) => {
+                if (e.data.type === "done") {
+                    this.worker.terminate();
+                    resolve();
+                } else if (e.data.type === "error") {
+                    reject(e.data.error);
+                }
+            };
+            this.worker.postMessage({ type: "close" });
+        });
     }
 }
