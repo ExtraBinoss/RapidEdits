@@ -65,9 +65,9 @@ export class ThreeRenderer {
         this.camera = new THREE.OrthographicCamera(
             -this.width / 2, this.width / 2,
             this.height / 2, -this.height / 2, 
-            0.1, 1000
+            0.1, 3000
         );
-        this.camera.position.z = 100;
+        this.camera.position.z = 2000;
 
         // 3. Init Renderer
         const rendererParams: THREE.WebGLRendererParameters = {
@@ -239,18 +239,30 @@ export class ThreeRenderer {
             if (plugin) {
                 if (!object) {
                     // Delegate to Plugin
-                    const newObj = plugin.render(clip);
-                    if (newObj) {
-                        this.scene.add(newObj);
-                        this.clipMeshes.set(clip.id, newObj);
-                        object = newObj;
+                    const contentMesh = plugin.render(clip);
+                    if (contentMesh) {
+                        // WRAPPER GROUP: Isolates Renderer's Z-layering from Plugin's local transforms
+                        const group = new THREE.Group();
+                        group.add(contentMesh);
+                        
+                        this.scene.add(group);
+                        this.clipMeshes.set(clip.id, group);
+                        object = group;
                     }
                 }
                 
                 // Update Plugin Object
                 if (object) {
-                    object.position.z = trackIndex;
-                    plugin.update(object, clip, currentTime - clip.start, 1/60);
+                    // Renderer controls World Z (Layering)
+                    // Layering Logic: Custom/Plugin tracks: Base Z = 500 + trackIndex
+                    // Video/Audio tracks don't enter this block
+                    object.position.z = 500 + trackIndex;
+                    
+                    // Plugin controls Local Transform (inside group)
+                    // We pass the child mesh to the plugin
+                    if (object.children.length > 0) {
+                        plugin.update(object.children[0], clip, currentTime - clip.start, 1/60);
+                    }
                 }
                 return; // Skip standard logic
             }
@@ -282,7 +294,16 @@ export class ThreeRenderer {
                 this.pendingLoads.add(promise);
             }
 
-            if (object) object.position.z = trackIndex;
+            // Layering Logic:
+            // Video/Audio tracks: Base Z = trackIndex (0..99)
+            // Custom/Plugin tracks: Base Z = 500 + trackIndex
+            // This ensures Text/Effects always render ON TOP of video.
+            // Note: We use the track type from the clip's track to determine this.
+            const track = tracks.find(t => t.id === clip.trackId);
+            const isOverlayTrack = track && (track.type !== 'video' && track.type !== 'audio');
+            const zLayer = isOverlayTrack ? 500 : 0;
+
+            if (object) object.position.z = zLayer + trackIndex;
 
             if (clip.type === "video" && object instanceof THREE.Mesh) {
                 this.syncVideoFrame(clip, object, currentTime);
