@@ -2,6 +2,7 @@ export const MediaType = {
     VIDEO: "video",
     AUDIO: "audio",
     IMAGE: "image",
+    TEXT: "text",
     UNKNOWN: "unknown",
 } as const;
 

@@ -3,7 +3,7 @@ import { computed } from "vue";
 import type { Component } from "vue";
 
 interface Props {
-    variant?: "primary" | "secondary" | "ghost" | "icon";
+    variant?: "primary" | "secondary" | "ghost" | "icon" | "danger";
     size?: "sm" | "md" | "lg";
     icon?: Component;
     label?: string;
@@ -29,6 +29,8 @@ const variantClasses = computed(() => {
             return "bg-canvas-lighter text-text-main border border-canvas-border hover:bg-canvas-border hover:text-text-main";
         case "ghost":
             return "bg-transparent text-text-muted hover:text-text-main hover:bg-canvas-light";
+        case "danger":
+            return "bg-red-500 text-white shadow-lg shadow-red-500/20 hover:brightness-110 border border-transparent";
         case "icon":
             return props.active
                 ? "bg-brand-primary/20 text-brand-accent"
