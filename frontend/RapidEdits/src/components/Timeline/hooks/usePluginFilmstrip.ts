@@ -38,10 +38,21 @@ export function usePluginFilmstrip(
     const version = ref(0);
 
     // Listen for property changes from the plugin properties panel
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     const handlePropertyChange = (payload: any) => {
         const currentClip = clipGetter();
         if (payload?.clipId === currentClip.id) {
-            version.value++;
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+            }
+            debounceTimer = setTimeout(() => {
+                // console.log('[DebounceDebug] Timer Fired - Version Incrementing');
+                version.value++;
+                debounceTimer = null;
+            }, 500);
+        } else {
+            // console.log('[DebounceDebug] Payload ID mismatch', payload?.clipId, currentClip.id);
         }
     };
 
@@ -58,17 +69,33 @@ export function usePluginFilmstrip(
 
     // Let's import onUnmounted
     onUnmounted(() => {
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
         globalEventBus.off("PLUGIN_PROPERTY_CHANGED", handlePropertyChange);
     });
 
     watch(
         () => [
-            clipGetter().data,
+            // We removed clipGetter().data from here to prevent immediate updates on every prop change.
+            // Updates are now driven by the debounced 'version' signal.
             widthRef.value,
             clipGetter().type,
             version.value,
         ],
-        async (_newVal, _oldVal, onCleanup) => {
+        async (newVal, oldVal, onCleanup) => {
+            const [newWidth, newType, newVersion] = newVal;
+            const [oldWidth, oldType, oldVersion] = oldVal || [];
+
+            console.log("[DebounceDebug] Watch Triggered", {
+                changes: {
+                    width: newWidth !== oldWidth,
+                    type: newType !== oldType,
+                    version: newVersion !== oldVersion,
+                },
+                newVal,
+                oldVal,
+            });
             const clip = clipGetter();
             const plugin = pluginRegistry.get(clip.type);
             if (!plugin) return;
