@@ -9,17 +9,21 @@ const coords = ref({ top: 0, left: 0 });
 const props = withDefaults(
     defineProps<{
         position?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+        trigger?: "click" | "hover" | "manual";
     }>(),
     {
         position: "bottom-right",
+        trigger: "click",
     },
 );
 
 const toggle = () => {
-    if (isOpen.value) {
-        close();
-    } else {
-        open();
+    if (props.trigger !== "manual") {
+        if (isOpen.value) {
+            close();
+        } else {
+            open();
+        }
     }
 };
 
@@ -38,15 +42,50 @@ const updatePosition = () => {
     const triggerRect = triggerRef.value.getBoundingClientRect();
     const contentRect = contentRef.value.getBoundingClientRect();
     const gap = 8;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
 
-    let top = triggerRect.bottom + gap;
-    let left = triggerRect.right - contentRect.width; // Default bottom-right alignment
+    // Default to bottom-left relative to trigger for track headers (usually better than right)
+    // But let's respect the prop first
 
-    if (props.position === "bottom-left") {
+    let top = 0;
+    let left = 0;
+
+    // Basic calculation based on prop
+    if (props.position === "bottom-right") {
+        top = triggerRect.bottom + gap;
+        left = triggerRect.right - contentRect.width;
+    } else if (props.position === "bottom-left") {
+        top = triggerRect.bottom + gap;
+        left = triggerRect.left;
+    } else if (props.position === "top-right") {
+        top = triggerRect.top - contentRect.height - gap;
+        left = triggerRect.right - contentRect.width;
+    } else if (props.position === "top-left") {
+        top = triggerRect.top - contentRect.height - gap;
         left = triggerRect.left;
     }
 
-    // Add more logic for collision detection if needed
+    // Smart adjustment: Vertical
+    // If it goes below viewport, flip to top
+    if (top + contentRect.height > viewportHeight) {
+        top = triggerRect.top - contentRect.height - gap;
+    }
+    // If it goes above viewport (after flipping or initially), flip to bottom (if there's space) or clamp
+    if (top < 0) {
+        top = triggerRect.bottom + gap;
+    }
+
+    // Smart adjustment: Horizontal
+    // If it goes off right edge
+    if (left + contentRect.width > viewportWidth) {
+        left = viewportWidth - contentRect.width - gap;
+    }
+    // If it goes off left edge
+    if (left < gap) {
+        left = gap; // Clamp to left edge
+    }
+
     coords.value = { top, left };
 };
 

@@ -8,7 +8,18 @@ export interface ContextMenuItem {
     disabled?: boolean;
     danger?: boolean;
     divider?: boolean;
+    slots?: {
+        submenu?: any;
+    };
 }
+
+const activeSubmenuIndex = ref<number | null>(null);
+const handleSubmenuEnter = (index: number) => {
+    activeSubmenuIndex.value = index;
+};
+const handleSubmenuLeave = () => {
+    activeSubmenuIndex.value = null;
+};
 
 const props = defineProps<{
     items: ContextMenuItem[];
@@ -100,7 +111,7 @@ onUnmounted(() => {
             <div
                 v-if="show"
                 ref="menuRef"
-                class="fixed z-[100] min-w-[160px] py-1 bg-canvas-lighter border border-canvas-border rounded-lg shadow-xl overflow-hidden"
+                class="fixed z-[100] min-w-[160px] py-1 bg-canvas-lighter border border-canvas-border rounded-lg shadow-xl"
                 :style="{
                     top: `${coords.y}px`,
                     left: `${coords.x}px`,
@@ -112,6 +123,49 @@ onUnmounted(() => {
                         v-if="item.divider"
                         class="h-px bg-canvas-border my-1 mx-2"
                     ></div>
+
+                    <!-- Submenu Item -->
+                    <div
+                        v-else-if="item.slots && item.slots.submenu"
+                        class="relative w-full group"
+                        @mouseenter="handleSubmenuEnter(index)"
+                        @mouseleave="handleSubmenuLeave"
+                    >
+                        <button
+                            class="w-full text-left px-3 py-1.5 text-sm flex items-center justify-between gap-2 hover:bg-brand-primary/10 transition-colors"
+                            :class="[
+                                item.disabled
+                                    ? 'opacity-50 cursor-not-allowed'
+                                    : 'cursor-pointer',
+                            ]"
+                            @click.stop="handleSubmenuEnter(index)"
+                        >
+                            <div class="flex items-center gap-2">
+                                <component
+                                    v-if="item.icon"
+                                    :is="item.icon"
+                                    :size="14"
+                                    class="opacity-70"
+                                />
+                                {{ item.label }}
+                            </div>
+                            <span class="text-xs opacity-50">▶</span>
+                        </button>
+
+                        <!-- Submenu Content -->
+                        <div
+                            v-if="activeSubmenuIndex === index"
+                            class="absolute left-full top-0 ml-1 min-w-[200px] bg-canvas-lighter border border-canvas-border rounded-lg shadow-xl overflow-hidden z-[110]"
+                            :style="{ top: '-4px' }"
+                        >
+                            <component
+                                :is="item.slots.submenu"
+                                :close="() => emit('close')"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Regular Item -->
                     <button
                         v-else
                         class="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-brand-primary/10 transition-colors"
@@ -132,6 +186,7 @@ onUnmounted(() => {
                                 }
                             }
                         "
+                        @mouseenter="handleSubmenuLeave"
                     >
                         <component
                             v-if="item.icon"
