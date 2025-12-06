@@ -11,7 +11,25 @@
 }
 
 :root {
+  /* Dark Mode (Default) */
+  --color-canvas-default: #0b0e14;
+  --color-canvas-light: #151b26;
+  --color-canvas-lighter: #1e2532;
+  --color-canvas-border: #2a3445;
+  --color-text-main: #e2e8f0;
+  --color-text-muted: #94a3b8;
   color-scheme: dark;
+}
+
+:root.light {
+  /* Light Mode */
+  --color-canvas-default: #f1f5f9;  /* Soft cool gray, less harsh than pure white */
+  --color-canvas-light: #ffffff;    /* Panels can be white */
+  --color-canvas-lighter: #e2e8f0;  /* Hover states */
+  --color-canvas-border: #cbd5e1;   /* distinct border */
+  --color-text-main: #1e293b;       /* Dark slate for text, high contrast */
+  --color-text-muted: #64748b;
+  color-scheme: light;
 }
 
 body {

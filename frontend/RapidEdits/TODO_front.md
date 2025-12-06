@@ -1,9 +1,8 @@
 UI
-- Context menu, aware of the current screen real estate it would take, adjust its position to fit the screen
-- Tooltip, aware of the current screen real estate it would take, adjust its position to fit the screen
-- Make an active state for stuff like the snapping button, we need to rework all the <button> elements with our own component for homogeneity
-- Drag media be more friendly for the user,
+- All button when clicking outside it resizes the tab panel so it suggets maybe it has an issue with styling like it translate a little bit the tab like it "grows"
+
 - drag and drop into the track should show a preview of the media, what it would look like in the track (not so much to not overload cpu)
+- Add ctrl +/- for zooming in and out of timeline and preview seperately
 
 - Avatar / Avatar Group for collaboration purposes
 - Make a chat for collaboration purposes
@@ -14,7 +13,6 @@ Engine :
 
 - Create the split functionnality for the timeline, make it possible to extend to events, for collab/backend sync
 - Split and also a razor tool, for like a razorblade in order to keep the "split mode" active, make it possible to extend to events, for collab/backend sync
-- Add ctrl +/- for zooming in and out of timeline and preview seperately
 
 - Start trying to export the project to a video file, using the timeline. Either frame by frame or using a video encoder. Having a preview of the video frame being rendered would be nice. If using GPU, its even better using Three.js to encode the video frame.
 

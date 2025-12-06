@@ -6,9 +6,13 @@ import Preview from "./components/Preview/Preview.vue";
 import Properties from "./components/Properties.vue";
 import { onMounted } from "vue";
 import { updateFavicon } from "./utils/faviconUtils";
+import { useThemeStore } from "./stores/themeStore";
+
+const themeStore = useThemeStore();
 
 onMounted(() => {
     updateFavicon("#3b82f6"); // Brand primary color
+    themeStore.initTheme();
 });
 </script>
 

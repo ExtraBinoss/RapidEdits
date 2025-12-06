@@ -26,13 +26,13 @@ const variantClasses = computed(() => {
         case "primary":
             return "bg-brand-gradient text-white shadow-lg shadow-brand-primary/20 hover:brightness-110 border border-transparent";
         case "secondary":
-            return "bg-canvas-lighter text-text-main border border-canvas-border hover:bg-canvas-border hover:text-white";
+            return "bg-canvas-lighter text-text-main border border-canvas-border hover:bg-canvas-border hover:text-text-main";
         case "ghost":
-            return "bg-transparent text-text-muted hover:text-white hover:bg-canvas-light";
+            return "bg-transparent text-text-muted hover:text-text-main hover:bg-canvas-light";
         case "icon":
             return props.active
                 ? "bg-brand-primary/20 text-brand-accent"
-                : "bg-transparent text-text-muted hover:text-white hover:bg-canvas-lighter";
+                : "bg-transparent text-text-muted hover:text-text-main hover:bg-canvas-lighter";
         default:
             return "";
     }

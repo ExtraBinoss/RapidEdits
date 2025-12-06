@@ -4,6 +4,7 @@ export default {
     "./index.html",
     "./src/**/*.{vue,js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
@@ -15,14 +16,14 @@ export default {
         },
         // Pro "Deep Night" Theme (Not dull gray)
         canvas: {
-          DEFAULT: '#0b0e14', // Main background (almost black, cool tone)
-          light: '#151b26',   // Secondary panels
-          lighter: '#1e2532', // Hover states / Cards
-          border: '#2a3445',  // Borders
+          DEFAULT: 'var(--color-canvas-default)',
+          light: 'var(--color-canvas-light)',
+          lighter: 'var(--color-canvas-lighter)',
+          border: 'var(--color-canvas-border)',
         },
         text: {
-          main: '#e2e8f0',    // Primary text
-          muted: '#94a3b8',   // Secondary text
+          main: 'var(--color-text-main)',
+          muted: 'var(--color-text-muted)',
         }
       },
       backgroundImage: {

@@ -38,7 +38,16 @@ const drawRuler = () => {
     ctx.clearRect(0, 0, logicalWidth, logicalHeight);
 
     // Styling
-    ctx.fillStyle = "#e2e8f0"; // text-main
+    // Use getComputedStyle to access CSS variables
+    const computedStyle = getComputedStyle(document.documentElement);
+    // Fallback to defaults if var not found, but we should match style.css
+    const textColor =
+        computedStyle.getPropertyValue("--color-text-main").trim() || "#e2e8f0";
+    const borderColor =
+        computedStyle.getPropertyValue("--color-canvas-border").trim() ||
+        "#2a3445";
+
+    ctx.fillStyle = textColor;
     ctx.font = "10px sans-serif"; // Slightly smaller standard font
     ctx.textAlign = "left";
     ctx.textBaseline = "bottom"; // Align to bottom for easier placement relative to ticks
@@ -74,7 +83,7 @@ const drawRuler = () => {
         // Major tick
         ctx.moveTo(x, logicalHeight);
         ctx.lineTo(x, logicalHeight - 10);
-        ctx.strokeStyle = "#2a3445"; // border color
+        ctx.strokeStyle = borderColor; // border color
         ctx.lineWidth = 1;
         ctx.stroke();
 
@@ -105,8 +114,17 @@ watch(
 
 onMounted(() => {
     drawRuler();
-    // Re-draw on resize in case dpr changes (e.g. moving windows between screens)
+    // Re-draw on resize in case dpr changes
     window.addEventListener("resize", drawRuler);
+
+    // Watch for theme changes (class updates on html)
+    const observer = new MutationObserver(() => {
+        drawRuler();
+    });
+    observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+    });
 });
 </script>
 

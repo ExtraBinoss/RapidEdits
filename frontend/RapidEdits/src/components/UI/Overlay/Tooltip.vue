@@ -121,7 +121,7 @@ const hide = () => {
                 <div
                     v-if="isVisible"
                     ref="tooltipRef"
-                    class="fixed z-50 px-2 py-1 text-xs font-medium text-white bg-canvas-lighter border border-canvas-border rounded shadow-xl pointer-events-none whitespace-nowrap"
+                    class="fixed z-50 px-2 py-1 text-xs font-medium text-text-main bg-canvas-lighter border border-canvas-border rounded shadow-xl pointer-events-none whitespace-nowrap"
                     :style="{
                         top: `${coords.top}px`,
                         left: `${coords.left}px`,
