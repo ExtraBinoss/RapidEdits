@@ -128,19 +128,27 @@ app.post('/render/finish/:sessionId', (req, res) => {
 
     const inputFps = session.config.fps || 30;
     const outputFps = session.config.fps || 30;
-    // For WebM we re-encode, for MP4 (if compatible) we might just copy, but here we default to copy for H.264 input.
-    // If format is webm, we must transcode.
+    const bitrate = session.config.bitrate ? session.config.bitrate + '' : '5000000'; // default 5mbps
+
+    // For WebM we re-encode, for MP4 we ALSO re-encode now to respect the target bitrate 
+    // (since browser H.264 output bitrate control is loose).
     const isWebM = session.config.format === 'webm';
-    const videoCodec = isWebM ? 'libvpx-vp9' : 'copy';
+    const videoCodec = isWebM ? 'libvpx-vp9' : 'libx264';
     
+    const commonOptions = [
+        `-r ${outputFps}`, // Enforce CFR
+        `-b:v ${bitrate}`  // Enforce Target Bitrate
+    ];
+
     const outputOptions = isWebM 
-        ? ['-deadline realtime', '-cpu-used 4', '-b:v 0', '-crf 30'] 
-        : ['-r ' + outputFps]; // Enforce Constant Frame Rate
+        ? [...commonOptions, '-deadline realtime', '-cpu-used 4'] 
+        : [...commonOptions, '-preset fast', '-pix_fmt yuv420p'];
 
     console.log(`[${sessionId}] Starting FFmpeg Mux/Transcode`);
     console.log(`[${sessionId}] Input: Raw H.264 Stream (Annex B)`);
     console.log(`[${sessionId}] Output: ${outputFilename} (${session.config.format})`);
     console.log(`[${sessionId}] FPS: ${inputFps} -> ${outputFps}`);
+    console.log(`[${sessionId}] Bitrate: ${bitrate}`);
     console.log(`[${sessionId}] Codec: ${videoCodec}`);
     console.log(`[${sessionId}] Options: ${JSON.stringify(outputOptions)}`);
 

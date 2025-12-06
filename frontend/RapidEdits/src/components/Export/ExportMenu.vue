@@ -175,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from "vue";
+import { ref, reactive } from "vue";
 import { X as XIcon, Check as CheckIcon } from "lucide-vue-next";
 import { exportService } from "../../core/export/ExportService";
 import Select from "../UI/Input/Select.vue";
