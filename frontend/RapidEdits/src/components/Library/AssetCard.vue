@@ -5,6 +5,7 @@ import type { Asset } from "../../types/Media";
 import { MediaType } from "../../types/Media";
 import AssetPreview from "./AssetPreview.vue";
 import Button from "../UI/Button.vue";
+import { formatDuration } from "../../utils/time";
 
 const props = defineProps<{
     asset: Asset;
@@ -39,13 +40,6 @@ const typeColor = computed(() => {
             return "bg-gray-600";
     }
 });
-
-const formatDuration = (seconds?: number) => {
-    if (!seconds) return "";
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, "0")}`;
-};
 
 const onDragStart = (e: DragEvent) => {
     if (e.dataTransfer) {

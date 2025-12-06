@@ -1,19 +1,7 @@
 <script setup lang="ts">
-import {
-    Play,
-    Pause,
-    SkipBack,
-    SkipForward,
-    ZoomIn,
-    ZoomOut,
-    Scissors,
-    Magnet,
-    Trash2,
-    Unlink,
-} from "lucide-vue-next";
+import { Trash2, Unlink } from "lucide-vue-next";
 import { useProjectStore } from "../stores/projectStore";
 import { useDragDrop } from "../composables/useDragDrop";
-import Button from "./UI/Button.vue";
 import DynamicTrack from "./Timeline/DynamicTrack.vue";
 import TimeRuler from "./Timeline/TimeRuler.vue";
 import ContextMenu from "./UI/ContextMenu.vue";
@@ -63,16 +51,6 @@ watch(currentTime, (time) => {
         el.scrollLeft = playheadX - 100;
     }
 });
-
-const formatTime = (seconds: number) => {
-    const date = new Date(seconds * 1000);
-    const mm = date.getUTCMinutes().toString().padStart(2, "0");
-    const ss = date.getUTCSeconds().toString().padStart(2, "0");
-    const ms = Math.floor(date.getUTCMilliseconds() / 10)
-        .toString()
-        .padStart(2, "0");
-    return `${mm}:${ss}:${ms}`;
-};
 
 const {} = useDragDrop(() => {
     // Handle File Drop directly onto track (upload + add)
@@ -127,11 +105,20 @@ import { editorEngine } from "../core/EditorEngine";
 
 // ...
 
+import TimelineToolbar from "./Timeline/TimelineToolbar.vue";
+
+// ...
+
 const isScrubbing = ref(false);
 let scrubRafId: number | null = null;
 
+// Local reactive state for snapping
+const isSnappingEnabled = ref(editorEngine.getIsSnappingEnabled());
+
 const toggleSnapping = () => {
     editorEngine.toggleSnapping();
+    // Manually sync local state whenever we toggle
+    isSnappingEnabled.value = editorEngine.getIsSnappingEnabled();
 };
 
 const startScrubbing = (e: MouseEvent) => {
@@ -224,71 +211,17 @@ const handleTimelineClick = () => {
             />
         </Teleport>
         <!-- Timeline Toolbar -->
-        <div
-            class="h-10 border-b border-canvas-border flex items-center justify-between px-4 bg-canvas-light shrink-0"
-        >
-            <div class="flex items-center gap-2">
-                <Button
-                    variant="icon"
-                    size="sm"
-                    :icon="SkipBack"
-                    @click="store.seek(0)"
-                />
-                <Button variant="icon" size="sm" :icon="SkipForward" />
-                <div class="h-4 w-[1px] bg-canvas-border mx-2"></div>
-
-                <Button
-                    variant="icon"
-                    size="sm"
-                    :icon="Magnet"
-                    :active="editorEngine.getIsSnappingEnabled()"
-                    @click="toggleSnapping"
-                />
-
-                <Button variant="ghost" size="sm" :icon="Scissors"
-                    >Split</Button
-                >
-            </div>
-
-            <div class="flex items-center gap-4">
-                <span class="font-mono text-sm text-brand-accent">{{
-                    formatTime(currentTime)
-                }}</span>
-                <Button
-                    variant="secondary"
-                    class="rounded-full w-8 h-8 flex items-center justify-center"
-                    @click="store.togglePlayback"
-                >
-                    <component
-                        :is="isPlaying ? Pause : Play"
-                        :size="14"
-                        fill="currentColor"
-                    />
-                </Button>
-            </div>
-
-            <div class="flex items-center gap-2">
-                <Button
-                    variant="icon"
-                    size="sm"
-                    :icon="ZoomOut"
-                    @click="zoomLevel = Math.max(5, zoomLevel - 5)"
-                />
-                <input
-                    type="range"
-                    v-model="zoomLevel"
-                    min="5"
-                    max="100"
-                    class="w-20 h-1 bg-canvas-border rounded-lg appearance-none cursor-pointer accent-brand-primary"
-                />
-                <Button
-                    variant="icon"
-                    size="sm"
-                    :icon="ZoomIn"
-                    @click="zoomLevel = Math.min(100, zoomLevel + 5)"
-                />
-            </div>
-        </div>
+        <TimelineToolbar
+            :is-playing="isPlaying"
+            :is-snapping="isSnappingEnabled"
+            :current-time="currentTime"
+            :duration="store.duration"
+            v-model:zoom-level="zoomLevel"
+            @seek="store.seek"
+            @toggle-playback="store.togglePlayback"
+            @toggle-snapping="toggleSnapping"
+            @split="() => {} /* TODO: Implement split */"
+        />
 
         <!-- Timeline Area -->
         <div class="flex-1 flex min-h-0 overflow-hidden bg-canvas relative">

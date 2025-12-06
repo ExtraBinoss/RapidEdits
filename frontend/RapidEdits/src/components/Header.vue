@@ -38,7 +38,11 @@ import AppLogo from "./AppLogo.vue";
 
             <Popover position="bottom-right">
                 <template #trigger>
-                    <Button variant="primary" :icon="Download">Export</Button>
+                    <Tooltip text="Export Project" position="bottom">
+                        <Button variant="primary" :icon="Download"
+                            >Export</Button
+                        >
+                    </Tooltip>
                 </template>
 
                 <template #content="{ close }">

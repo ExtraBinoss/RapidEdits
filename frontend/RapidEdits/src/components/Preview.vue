@@ -6,6 +6,7 @@ import OSD from "./UI/OSD.vue";
 import Popover from "./UI/Popover.vue";
 import AmbientLight from "./UI/AmbientLight.vue";
 import Button from "./UI/Button.vue";
+import Tooltip from "./UI/Tooltip.vue";
 
 const canvasContainer = ref<HTMLElement | null>(null);
 const store = useProjectStore();
@@ -100,30 +101,32 @@ const handleDrop = (e: DragEvent) => {
             <div class="absolute top-4 left-4 z-20">
                 <Popover position="bottom-left">
                     <template #trigger="{ isOpen }">
-                        <Button
-                            variant="ghost"
-                            class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 border border-white/10 bg-black/40 backdrop-blur-md shadow-lg hover:bg-black/60 hover:border-white/20 h-auto"
-                            :class="
-                                isOpen
-                                    ? 'text-brand-primary border-brand-primary/30'
-                                    : 'text-gray-200'
-                            "
-                        >
-                            <span>{{ currentLabel }}</span>
-                            <svg
-                                class="w-3 h-3 opacity-50"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
+                        <Tooltip text="Zoom Level" position="bottom">
+                            <Button
+                                variant="ghost"
+                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 border border-white/10 bg-black/40 backdrop-blur-md shadow-lg hover:bg-black/60 hover:border-white/20 h-auto"
+                                :class="
+                                    isOpen
+                                        ? 'text-brand-primary border-brand-primary/30'
+                                        : 'text-gray-200'
+                                "
                             >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M19 9l-7 7-7-7"
-                                />
-                            </svg>
-                        </Button>
+                                <span>{{ currentLabel }}</span>
+                                <svg
+                                    class="w-3 h-3 opacity-50"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M19 9l-7 7-7-7"
+                                    />
+                                </svg>
+                            </Button>
+                        </Tooltip>
                     </template>
                     <template #content="{ close }">
                         <div
