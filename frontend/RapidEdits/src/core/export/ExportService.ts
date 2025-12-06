@@ -15,14 +15,16 @@ export interface ExportConfig {
 export class ExportService {
     private baseUrl = "http://localhost:4001";
     private abortController: AbortController | null = null;
-    private pendingUploads: Promise<void>[] = [];
+    private uploadQueue: Promise<void> = Promise.resolve();
+    private activeUploadCount = 0;
 
     async exportVideo(
         config: ExportConfig,
         onProgress: (progress: number, status: string) => void
     ) {
         this.abortController = new AbortController();
-        this.pendingUploads = [];
+        this.uploadQueue = Promise.resolve();
+        this.activeUploadCount = 0;
 
         // 1. Setup Isolated Environment
         const exportResourceManager = new ResourceManager();
@@ -63,9 +65,10 @@ export class ExportService {
             for (let i = 0; i < totalFrames; i++) {
                 if (this.abortController.signal.aborted) throw new Error("Export Cancelled");
 
-                // Seek 10% into the frame to avoid floating-point boundary jitter (preventing previous/next frame snapping)
+                // Seek to the CENTER of the frame (50% offset) to ensure we are safely within the frame boundary
+                // This prevents sampling the previous frame due to floating point jitter.
                 const time = i * frameDuration;
-                const renderTime = time + (frameDuration * 0.1);
+                const renderTime = time + (frameDuration * 0.5);
                 
                 // Initial Render to load textures/create meshes
                 renderer.renderFrame(renderTime, tracks);
@@ -93,24 +96,23 @@ export class ExportService {
                 });
 
                 // Encode
-                // Force KeyFrame interval (every second) for better seeking/scrubbing in output
                 const keyFrame = i % config.fps === 0;
                 encoder.encode(frame, { keyFrame });
                 frame.close();
 
                 onProgress(Math.round((i / totalFrames) * 100), `Rendering Frame ${i}/${totalFrames}`);
                 
-                // Backpressure
-                if (this.pendingUploads.length > 5) {
-                    await Promise.all(this.pendingUploads);
-                    this.pendingUploads = [];
+                // Backpressure: Check active uploads to prevent memory exhaustion
+                // If we have more than 10 chunks pending upload, wait for the entire queue to drain/catch up.
+                if (this.activeUploadCount > 10) {
+                    await this.uploadQueue;
                 }
             }
 
             // 5. Finalize
             onProgress(100, "Finalizing Encoding...");
             await encoder.flush();
-            await Promise.all(this.pendingUploads);
+            await this.uploadQueue; // Wait for all uploads to finish
             
             onProgress(100, "Muxing on Server...");
             await this.finishSession(sessionId!);
@@ -128,13 +130,14 @@ export class ExportService {
             // Cleanup
             renderer.destroy();
             exportResourceManager.cleanup();
-            // allocator is destroyed by renderer.destroy()
         }
     }
 
     cancel() {
         this.abortController?.abort();
     }
+
+    // ... (helper methods unchanged) ...
 
     private async waitForRender(sessionId: string, onProgress: (p: number, s: string) => void) {
         let attempts = 0;
@@ -177,7 +180,6 @@ export class ExportService {
                     video.removeEventListener('seeked', onSeeked);
                     resolve();
                 };
-                // Safety timeout in case seek doesn't fire (rare but possible)
                 setTimeout(() => {
                     video.removeEventListener('seeked', onSeeked);
                     resolve();
@@ -205,16 +207,21 @@ export class ExportService {
                 const buffer = new ArrayBuffer(chunk.byteLength);
                 chunk.copyTo(buffer);
                 
-                const p = this.uploadChunk(sessionId, buffer);
-                this.pendingUploads.push(p);
+                // STRICT ORDERING: Chain the upload to the queue
+                this.activeUploadCount++;
+                this.uploadQueue = this.uploadQueue.then(async () => {
+                    try {
+                        await this.uploadChunk(sessionId, buffer);
+                    } finally {
+                        this.activeUploadCount--;
+                    }
+                });
             },
             error: (e) => {
                 console.error("Encoder Error", e);
             }
         });
 
-        // Always use H.264 (AVC) for the upload stream
-        // The server will transcode to WebM/VP9 if needed.
         const codec = "avc1.4d002a"; 
         
         const encoderConfig: any = {
@@ -223,6 +230,7 @@ export class ExportService {
             height: config.height,
             bitrate: config.bitrate,
             framerate: config.fps,
+            latencyMode: "quality", // Prioritize quality/smoothness
             avc: { format: "annexb" }
         };
 
