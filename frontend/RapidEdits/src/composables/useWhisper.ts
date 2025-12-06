@@ -81,15 +81,56 @@ export function useWhisper() {
         result.value = null;
         error.value = null;
 
-        // Convert Blob/File to generic AudioContext compatible format or just pass URL?
-        // transformers.js pipelines usually accept URLs or AudioArrays.
-        // Easiest is to create a URL.
-        const url = URL.createObjectURL(audioBlob);
+        try {
+            // Decode audio on main thread using AudioContext
+            const arrayBuffer = await audioBlob.arrayBuffer();
+            const audioContext = new (
+                window.AudioContext || (window as any).webkitAudioContext
+            )({
+                sampleRate: 16000, // Force 16k sample rate context if possible, but decoding will match file
+            });
 
-        worker.value?.postMessage({
-            type: "transcribe",
-            data: { audio: url },
-        });
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+            // We need 16kHz execution
+            // If the decoded audio is not 16k, we need to resample or trust the worker pipeline handle raw data if properly tagged
+            // However, transformers.js typically expects 16k input float32 array
+
+            let audioData: Float32Array;
+
+            if (audioBuffer.sampleRate === 16000) {
+                audioData = audioBuffer.getChannelData(0); // Use first channel
+            } else {
+                // Resample to 16000
+                const offlineContext = new OfflineAudioContext(
+                    1,
+                    audioBuffer.duration * 16000,
+                    16000,
+                );
+                const source = offlineContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(offlineContext.destination);
+                source.start(0);
+                const resampledBuffer = await offlineContext.startRendering();
+                audioData = resampledBuffer.getChannelData(0);
+            }
+
+            worker.value?.postMessage(
+                {
+                    type: "transcribe",
+                    data: { audio: audioData },
+                },
+                [audioData.buffer],
+            ); // Transferable
+
+            // Close context to release resources
+            if (audioContext.state !== "closed") {
+                audioContext.close();
+            }
+        } catch (e: any) {
+            error.value = "Audio decoding failed: " + e.message;
+            isTranscribing.value = false;
+        }
     };
 
     const clearResult = () => {
