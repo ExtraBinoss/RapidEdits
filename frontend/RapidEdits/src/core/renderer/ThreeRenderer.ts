@@ -26,10 +26,16 @@ export class ThreeRenderer {
     private samplingCanvas: OffscreenCanvas;
     private samplingCtx: OffscreenCanvasRenderingContext2D;
     private lastSampleTime: number = 0;
+    private isCaptureMode: boolean = false;
 
-    constructor(container: HTMLElement, allocator?: TextureAllocator) {
+    constructor(
+        container: HTMLElement,
+        allocator?: TextureAllocator,
+        options: { isCaptureMode?: boolean } = {},
+    ) {
         this.container = container;
         this.allocator = allocator || new TextureAllocator();
+        this.isCaptureMode = options.isCaptureMode || false;
 
         // Ambient Sampler Init
         this.samplingCanvas = new OffscreenCanvas(1, 1);
@@ -73,7 +79,9 @@ export class ThreeRenderer {
         this.resizeObserver = new ResizeObserver(() => this.handleResize());
         this.resizeObserver.observe(this.container);
         this.handleResize();
-        this.renderer.setAnimationLoop(this.render.bind(this));
+        if (!this.isCaptureMode) {
+            this.renderer.setAnimationLoop(this.render.bind(this));
+        }
     }
 
     public setScaleMode(mode: "fit" | "fill" | number) {
@@ -212,6 +220,15 @@ export class ThreeRenderer {
         const clipTime = globalTime - clip.start + clip.offset;
         // Looser threshold during playback to prevent stuttering seeks
         const threshold = editorEngine.getIsPlaying() ? 0.5 : 0.15;
+
+        // IN CAPTURE MODE: Always seek precisely and pause
+        if (this.isCaptureMode) {
+            if (Math.abs(video.currentTime - clipTime) > 0.01) {
+                video.currentTime = clipTime;
+            }
+            if (!video.paused) video.pause();
+            return; // Skip the rest of the logic
+        }
 
         const drift = Math.abs(video.currentTime - clipTime);
         if (drift > threshold) {

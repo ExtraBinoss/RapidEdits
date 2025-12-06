@@ -1,10 +1,16 @@
 import * as THREE from "three";
 import { resourceManager } from "../../ResourceManager";
+import { ResourceManager } from "../../ResourceManager";
 import type { Asset } from "../../../types/Media";
 
 export class TextureAllocator {
     private textureCache: Map<string, THREE.Texture> = new Map();
     private textureLoader = new THREE.TextureLoader();
+    private resourceManager: ResourceManager;
+
+    constructor(manager?: ResourceManager) {
+        this.resourceManager = manager || resourceManager;
+    }
 
     public async getTexture(asset: Asset): Promise<THREE.Texture | null> {
         // 1. Check Cache
@@ -46,7 +52,7 @@ export class TextureAllocator {
     private async createVideoTexture(
         asset: Asset,
     ): Promise<THREE.Texture | null> {
-        const video = (await resourceManager.getElement(
+        const video = (await this.resourceManager.getElement(
             asset,
         )) as HTMLVideoElement;
 

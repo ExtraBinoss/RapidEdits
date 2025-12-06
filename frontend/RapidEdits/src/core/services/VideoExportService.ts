@@ -1,6 +1,7 @@
 import { editorEngine } from "../EditorEngine";
 import { ThreeRenderer } from "../renderer/ThreeRenderer";
 import { TextureAllocator } from "../renderer/textures/TextureAllocator";
+import { ResourceManager } from "../ResourceManager";
 
 const API_URL = "http://localhost:4001";
 
@@ -26,8 +27,11 @@ export class VideoExportService {
         document.body.appendChild(container);
 
         // Isolated modules
-        const allocator = new TextureAllocator();
-        const renderer = new ThreeRenderer(container, allocator);
+        const exportResourceManager = new ResourceManager();
+        const allocator = new TextureAllocator(exportResourceManager);
+        const renderer = new ThreeRenderer(container, allocator, {
+            isCaptureMode: true,
+        });
 
         try {
             await renderer.init();
@@ -75,10 +79,22 @@ export class VideoExportService {
                             const v = videoEl as any;
                             if (!v) return;
 
-                            // Force update if needed?
-                            // Since we are NOT in main loop, we need to ensure the video elements are updated
+                            // Ensure video is in the DOM for rVFC to work reliably
+                            if (!v.parentNode) {
+                                container.appendChild(v);
+                                // Set styles to ensure it renders but is invisible
+                                v.style.position = "absolute";
+                                v.style.top = "0";
+                                v.style.left = "0";
+                                v.style.width = "1px";
+                                v.style.height = "1px";
+                                v.style.opacity = "0.01";
+                                v.style.pointerEvents = "none";
+                            }
 
                             // Check readiness
+                            // For export, we might need to wait up to 10s or more if loading
+                            // If readyState is 0 (HAVE_NOTHING), we MUST wait.
                             if (v.readyState < 2) {
                                 await new Promise((r) => {
                                     const onCanPlay = () => {
@@ -89,15 +105,53 @@ export class VideoExportService {
                                         r(null);
                                     };
                                     v.addEventListener("canplay", onCanPlay);
-                                    setTimeout(r, 2000);
+                                    setTimeout(() => {
+                                        v.removeEventListener(
+                                            "canplay",
+                                            onCanPlay,
+                                        );
+                                        r(null);
+                                    }, 5000);
+                                });
+                            }
+
+                            // Check if seeking is done
+                            if (v.seeking) {
+                                await new Promise((r) => {
+                                    const onSeeked = () => {
+                                        v.removeEventListener(
+                                            "seeked",
+                                            onSeeked,
+                                        );
+                                        r(null);
+                                    };
+                                    v.addEventListener("seeked", onSeeked);
+                                    setTimeout(() => {
+                                        v.removeEventListener(
+                                            "seeked",
+                                            onSeeked,
+                                        );
+                                        r(null);
+                                    }, 2000);
                                 });
                             }
 
                             // Robust waiting for frame
                             if (v.requestVideoFrameCallback) {
-                                await new Promise((r) =>
-                                    v.requestVideoFrameCallback(r),
-                                );
+                                await new Promise((r) => {
+                                    const handle = v.requestVideoFrameCallback(
+                                        () => {
+                                            r(null);
+                                        },
+                                    );
+                                    // Timeout fallback
+                                    setTimeout(() => {
+                                        if (v.cancelVideoFrameCallback) {
+                                            v.cancelVideoFrameCallback(handle);
+                                        }
+                                        r(null);
+                                    }, 200); // 200ms timeout for frame callback
+                                });
                             } else {
                                 // Fallback
                                 await new Promise((r) => setTimeout(r, 20)); // basic drift wait
@@ -168,6 +222,7 @@ export class VideoExportService {
             renderer.destroy();
             // Allocator destroy is handled by renderer destroy? No, separate modules.
             allocator.destroy();
+            exportResourceManager.cleanup();
 
             if (document.body.contains(container)) {
                 document.body.removeChild(container);
