@@ -1,4 +1,6 @@
 import { editorEngine } from "../EditorEngine";
+import { ThreeRenderer } from "../renderer/ThreeRenderer";
+import { TextureAllocator } from "../renderer/textures/TextureAllocator";
 
 const API_URL = "http://localhost:4001";
 
@@ -14,9 +16,22 @@ export class VideoExportService {
         this.isExporting = true;
         this.shouldStop = false;
 
+        // Container for shadow renderer
+        const container = document.createElement("div");
+        container.style.position = "fixed";
+        container.style.top = "-9999px"; // Offscreen
+        container.style.width = `${config.width}px`;
+        container.style.height = `${config.height}px`;
+        container.style.visibility = "hidden";
+        document.body.appendChild(container);
+
+        // Isolated modules
+        const allocator = new TextureAllocator();
+        const renderer = new ThreeRenderer(container, allocator);
+
         try {
-            const renderer = editorEngine.getRenderer();
-            if (!renderer) throw new Error("Renderer not found");
+            await renderer.init();
+            renderer.setScaleMode("fill"); // Ensure full coverage
 
             // 1. Init Session
             onProgress(0, "Initializing...");
@@ -41,28 +56,27 @@ export class VideoExportService {
             const frameCount = Math.ceil(totalDuration * config.fps);
             const dt = 1 / config.fps;
 
-            // Pause playback
-            if (editorEngine.getIsPlaying()) editorEngine.togglePlayback();
-
             onProgress(0, "Rendering Frames...");
 
             for (let i = 0; i < frameCount; i++) {
                 if (this.shouldStop) throw new Error("Cancelled");
 
                 const time = i * dt;
-                editorEngine.seek(time);
 
-                // Wait for renderer to update
-                // 1. Force a "render/sync" cycle on the engine/renderer to update internal video time
-                (renderer as any).render();
+                // Sync renderer to this time
+                renderer.renderFrame(time, tracks);
 
-                // 2. Wait for all active videos to seek to the target time
-                const activeVideos = (renderer as any).getActiveVideoElements();
+                // Wait for all active videos in the SHADOW renderer to seek
+                const activeVideos = renderer.getActiveVideoElements();
+
                 if (activeVideos.length > 0) {
                     await Promise.all(
                         activeVideos.map(async (videoEl: HTMLVideoElement) => {
-                            const v = videoEl as any; // Cast to any to avoid TS issues with requestVideoFrameCallback
+                            const v = videoEl as any;
                             if (!v) return;
+
+                            // Force update if needed?
+                            // Since we are NOT in main loop, we need to ensure the video elements are updated
 
                             // Check readiness
                             if (v.readyState < 2) {
@@ -75,41 +89,30 @@ export class VideoExportService {
                                         r(null);
                                     };
                                     v.addEventListener("canplay", onCanPlay);
-                                    setTimeout(r, 1000);
+                                    setTimeout(r, 2000);
                                 });
                             }
 
+                            // Robust waiting for frame
                             if (v.requestVideoFrameCallback) {
                                 await new Promise((r) =>
                                     v.requestVideoFrameCallback(r),
                                 );
                             } else {
-                                if (v.seeking) {
-                                    await new Promise((r) => {
-                                        const onSeeked = () => {
-                                            v.removeEventListener(
-                                                "seeked",
-                                                onSeeked,
-                                            );
-                                            r(null);
-                                        };
-                                        v.addEventListener("seeked", onSeeked);
-                                        setTimeout(r, 500);
-                                    });
-                                }
-                                await new Promise((r) => setTimeout(r, 20));
+                                // Fallback
+                                await new Promise((r) => setTimeout(r, 20)); // basic drift wait
                             }
                         }),
                     );
                 } else {
-                    // No videos, just wait a tick for images/canvas
-                    await new Promise((r) => requestAnimationFrame(r));
+                    // Start up wait for images
+                    if (i === 0) await new Promise((r) => setTimeout(r, 100));
                 }
 
                 // Final render to canvas with updated textures
-                (renderer as any).render();
+                renderer.renderFrame(time, tracks);
 
-                const canvas = renderer.renderer.domElement; // Access internal threejs renderer dom
+                const canvas = renderer.renderer.domElement;
 
                 // Get Blob
                 const blob = await new Promise<Blob | null>((resolve) =>
@@ -160,6 +163,15 @@ export class VideoExportService {
             throw e;
         } finally {
             this.isExporting = false;
+
+            // CLEANUP
+            renderer.destroy();
+            // Allocator destroy is handled by renderer destroy? No, separate modules.
+            allocator.destroy();
+
+            if (document.body.contains(container)) {
+                document.body.removeChild(container);
+            }
         }
     }
 

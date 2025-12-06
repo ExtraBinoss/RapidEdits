@@ -115,8 +115,8 @@ app.post('/render/finish/:sessionId', (req, res) => {
         .videoCodec(session.config.format === 'webm' ? 'libvpx-vp9' : 'libx264')
         .outputOptions(
             session.config.format === 'webm' 
-                ? ['-deadline realtime', '-cpu-used 4'] 
-                : ['-preset ultrafast', '-tune fastdecode']
+                ? ['-deadline realtime', '-cpu-used 4', '-b:v 0', '-crf 30'] 
+                : ['-preset medium', '-crf 23', '-tune fastdecode']
         )
         .format(session.config.format)
         .on('progress', (progress) => {

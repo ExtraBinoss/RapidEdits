@@ -27,9 +27,9 @@ export class ThreeRenderer {
     private samplingCtx: OffscreenCanvasRenderingContext2D;
     private lastSampleTime: number = 0;
 
-    constructor(container: HTMLElement) {
+    constructor(container: HTMLElement, allocator?: TextureAllocator) {
         this.container = container;
-        this.allocator = new TextureAllocator();
+        this.allocator = allocator || new TextureAllocator();
 
         // Ambient Sampler Init
         this.samplingCanvas = new OffscreenCanvas(1, 1);
@@ -84,7 +84,10 @@ export class ThreeRenderer {
     public render() {
         const currentTime = editorEngine.getCurrentTime();
         const tracks = editorEngine.getTracks();
+        this.renderFrame(currentTime, tracks);
+    }
 
+    public renderFrame(currentTime: number, tracks: Track[]) {
         const visibleClips: Clip[] = [];
         tracks.forEach((track: Track) => {
             if (
@@ -144,6 +147,10 @@ export class ThreeRenderer {
                 this.clipMeshes.set(clip.id, newMesh);
                 mesh = newMesh;
 
+                // We need to access asset from engine or somewhere.
+                // Since this might be running isolated, we assume editorEngine.getAsset works OR pass access.
+                // But editorEngine.getAsset() is just looking up in store.
+                // The store is global so it's fine.
                 this.allocator
                     .getTexture(editorEngine.getAsset(clip.assetId)!)
                     .then((texture) => {
