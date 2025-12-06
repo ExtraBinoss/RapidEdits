@@ -60,3 +60,22 @@ export interface FilmstripConfig {
      */
     fixedSceneWidth?: number;
 }
+
+export type PluginPropertyType =
+    | "text"
+    | "number"
+    | "color"
+    | "boolean"
+    | "vector3"
+    | "select"
+    | "long-text";
+
+export interface PluginPropertyDefinition {
+    label: string;
+    key: string; // path to data e.g. "fontSize" or "position" (for vector3 it takes the object)
+    type: PluginPropertyType;
+    defaultValue?: any;
+    props?: Record<string, any>; // HTML props like min, max, step, placeholder
+    options?: { label: string; value: any }[]; // For select type
+    showIf?: (data: any) => boolean; // Conditional rendering
+}

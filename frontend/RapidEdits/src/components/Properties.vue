@@ -4,6 +4,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import { pluginRegistry } from "../core/plugins/PluginRegistry";
+import PluginPropertiesRenderer from "./Plugins/PluginPropertiesRenderer.vue";
 
 const store = useProjectStore();
 const { selectedClipIds, tracks } = storeToRefs(store);
@@ -12,16 +13,15 @@ const selectedClip = computed(() => {
     if (selectedClipIds.value.length !== 1) return null;
     const id = selectedClipIds.value[0];
     for (const track of tracks.value) {
-        const clip = track.clips.find(c => c.id === id);
+        const clip = track.clips.find((c) => c.id === id);
         if (clip) return clip;
     }
     return null;
 });
 
-const pluginComponent = computed(() => {
+const plugin = computed(() => {
     if (!selectedClip.value) return null;
-    const plugin = pluginRegistry.get(selectedClip.value.type);
-    return plugin ? plugin.propertiesComponent : null;
+    return pluginRegistry.get(selectedClip.value.type);
 });
 </script>
 
@@ -39,13 +39,22 @@ const pluginComponent = computed(() => {
         </div>
 
         <div v-if="selectedClip" class="p-4 space-y-4">
-             <div class="text-xs text-gray-500 font-mono mb-2">{{ selectedClip.name }}</div>
+            <div class="text-xs text-gray-500 font-mono mb-2">
+                {{ selectedClip.name }}
+            </div>
 
             <!-- Plugin Specific Properties -->
-            <component 
-                v-if="pluginComponent" 
-                :is="pluginComponent" 
-                :clip="selectedClip" 
+            <!-- Plugin Specific Properties -->
+            <PluginPropertiesRenderer
+                v-if="plugin && plugin.properties"
+                :clip="selectedClip"
+                :properties="plugin.properties"
+            />
+
+            <component
+                v-else-if="plugin && plugin.propertiesComponent"
+                :is="plugin.propertiesComponent"
+                :clip="selectedClip"
             />
 
             <!-- Fallback / Default Properties (for video/images) -->
@@ -59,4 +68,3 @@ const pluginComponent = computed(() => {
         </div>
     </div>
 </template>
-

@@ -1,6 +1,10 @@
 import type { Clip } from "../../types/Timeline";
 import * as THREE from "three";
-import type { FilmstripConfig, PluginId } from "./PluginTypes";
+import type {
+    FilmstripConfig,
+    PluginId,
+    PluginPropertyDefinition,
+} from "./PluginTypes";
 
 export interface IPlugin {
     id: string; // Now we encourage using createPluginId helper, but string is fine for flexibility
@@ -28,15 +32,19 @@ export interface IPlugin {
     // Get configuration for the filmstrip thumbnail generation
     getFilmstripConfig?(clip: Clip): FilmstripConfig;
 
-    // Vue component for the properties panel
-    propertiesComponent: any;
+    // Vue component for the properties panel (Optional if properties is defined)
+    propertiesComponent?: any;
+
+    // Data-driven properties definition
+    properties?: PluginPropertyDefinition[];
 }
 
 export abstract class BasePlugin implements IPlugin {
     abstract id: string;
     abstract name: string;
     abstract type: "object" | "effect" | "transition";
-    abstract propertiesComponent: any;
+    propertiesComponent?: any;
+    properties?: PluginPropertyDefinition[];
 
     async init(): Promise<void> {}
 

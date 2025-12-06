@@ -6,12 +6,13 @@ import {
     FontLoader,
     type Font,
 } from "three/examples/jsm/loaders/FontLoader.js";
-import TextProperties from "../../../components/Plugins/TextProperties.vue";
+
 import {
     createPluginId,
     PluginCategory,
     PluginType,
     type FilmstripConfig,
+    type PluginPropertyDefinition,
 } from "../PluginTypes";
 
 export class TextPlugin extends BasePlugin {
@@ -19,7 +20,49 @@ export class TextPlugin extends BasePlugin {
     name = "Text 3D";
     type = "object" as const; // Satisfies IPlugin 'type'
     // Subtype information is encoded in ID or can be added if needed
-    propertiesComponent = TextProperties;
+    // propertiesComponent = null; // No longer used, using schema below
+
+    properties: PluginPropertyDefinition[] = [
+        {
+            label: "Content",
+            key: "text",
+            type: "long-text",
+            props: { rows: 2 },
+        },
+        {
+            label: "Size",
+            key: "fontSize",
+            type: "number",
+            props: { step: 0.1 },
+        },
+        {
+            label: "Color",
+            key: "color",
+            type: "color",
+        },
+        {
+            label: "Position",
+            key: "position",
+            type: "vector3",
+        },
+        {
+            label: "3D Extrusion",
+            key: "is3D",
+            type: "boolean",
+        },
+        {
+            label: "Depth",
+            key: "depth",
+            type: "number",
+            props: { step: 1 },
+            showIf: (data: any) => data.is3D,
+        },
+        {
+            label: "Filmstrip Auto-Fit",
+            key: "autoFit",
+            type: "boolean",
+        },
+    ];
 
     private font: Font | null = null;
     private loader = new FontLoader();
