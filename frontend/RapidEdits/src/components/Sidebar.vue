@@ -148,6 +148,12 @@ const addToTimeline = () => {
                     text: result.transcript,
                     color: "#ffffff",
                     fontSize: 24,
+                    position: { x: 0, y: 0, z: 0 },
+                    rotation: { x: 0, y: 0, z: 0 },
+                    scale: { x: 1, y: 1, z: 1 },
+                    is3D: false,
+                    depth: 5,
+                    autoFit: false,
                 },
                 duration: duration,
             });
