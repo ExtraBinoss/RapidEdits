@@ -40,7 +40,7 @@ onMounted(async () => {
     if (!canvasContainer.value) return;
 
     // Initialize Custom Renderer
-    renderer = new ThreeRenderer(canvasContainer.value);
+    renderer = new ThreeRenderer({ container: canvasContainer.value });
     await renderer.init();
     editorEngine.registerRenderer(renderer);
 });

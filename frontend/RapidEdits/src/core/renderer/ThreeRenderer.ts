@@ -4,11 +4,24 @@ import { globalEventBus } from "../events/EventBus";
 import { TextureAllocator } from "./textures/TextureAllocator";
 import type { Clip, Track } from "../../types/Timeline";
 
+export interface ThreeRendererOptions {
+    container?: HTMLElement;
+    width?: number;
+    height?: number;
+    canvas?: HTMLCanvasElement | OffscreenCanvas;
+    allocator?: TextureAllocator;
+    isCaptureMode?: boolean;
+}
+
 export class ThreeRenderer {
-    private container: HTMLElement;
+    private container: HTMLElement | null = null;
     private scene: THREE.Scene;
     public camera: THREE.OrthographicCamera;
     public renderer: THREE.WebGLRenderer;
+
+    // State
+    public width: number = 1920;
+    public height: number = 1080;
 
     // Modules
     private allocator: TextureAllocator;
@@ -29,13 +42,12 @@ export class ThreeRenderer {
     private isCaptureMode: boolean = false;
     private pendingLoads: Set<Promise<any>> = new Set();
 
-    constructor(
-        container: HTMLElement,
-        allocator?: TextureAllocator,
-        options: { isCaptureMode?: boolean } = {},
-    ) {
-        this.container = container;
-        this.allocator = allocator || new TextureAllocator();
+    constructor(options: ThreeRendererOptions) {
+        this.container = options.container || null;
+        this.width = options.width || (this.container ? this.container.clientWidth : 1920);
+        this.height = options.height || (this.container ? this.container.clientHeight : 1080);
+        
+        this.allocator = options.allocator || new TextureAllocator();
         this.isCaptureMode = options.isCaptureMode || false;
 
         // Ambient Sampler Init
@@ -49,20 +61,36 @@ export class ThreeRenderer {
         this.scene.background = new THREE.Color(0x0b0e14);
 
         // 2. Init Camera
-        this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+        this.camera = new THREE.OrthographicCamera(
+            -this.width / 2, this.width / 2,
+            this.height / 2, -this.height / 2, 
+            0.1, 1000
+        );
         this.camera.position.z = 100;
 
         // 3. Init Renderer
-        this.renderer = new THREE.WebGLRenderer({
+        const rendererParams: THREE.WebGLRendererParameters = {
             antialias: true,
             alpha: false,
             powerPreference: "high-performance",
             preserveDrawingBuffer: true,
-        });
+        };
+
+        if (options.canvas) {
+            rendererParams.canvas = options.canvas;
+        }
+
+        this.renderer = new THREE.WebGLRenderer(rendererParams);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.toneMapping = THREE.NoToneMapping;
-        this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // Linear for performance on Mac/Chrome
-        container.appendChild(this.renderer.domElement);
+        this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+        
+        // Only append if we have a container (and no explicit canvas was passed, or even if it was, usually we append)
+        if (this.container && !options.canvas) {
+            this.container.appendChild(this.renderer.domElement);
+        }
+
+        this.renderer.setSize(this.width, this.height, false); // false = do not update style if offscreen? Actually default is true.
 
         // 4. Geometry
         this.planeGeometry = new THREE.PlaneGeometry(1, 1);
@@ -73,6 +101,8 @@ export class ThreeRenderer {
             new THREE.MeshBasicMaterial({ color: 0x000000 }),
         );
         this.placeholderMesh.position.z = -10;
+        // Scale placeholder to cover screen
+        this.placeholderMesh.scale.set(this.width, this.height, 1);
         this.scene.add(this.placeholderMesh);
     }
 
@@ -80,10 +110,33 @@ export class ThreeRenderer {
         this.isCaptureMode = isCapture;
     }
 
+    public setSize(width: number, height: number) {
+        this.width = width;
+        this.height = height;
+        
+        this.camera.left = -width / 2;
+        this.camera.right = width / 2;
+        this.camera.top = height / 2;
+        this.camera.bottom = -height / 2;
+        this.camera.updateProjectionMatrix();
+        
+        this.renderer.setSize(width, height, false);
+        this.placeholderMesh.scale.set(width, height, 1);
+        
+        // Re-fit meshes
+        this.clipMeshes.forEach((mesh) => {
+            const mat = mesh.material as THREE.MeshBasicMaterial;
+            if (mat.map) this.fitMeshToScreen(mesh, mat.map);
+        });
+    }
+
     public async init() {
-        this.resizeObserver = new ResizeObserver(() => this.handleResize());
-        this.resizeObserver.observe(this.container);
-        this.handleResize();
+        if (this.container) {
+            this.resizeObserver = new ResizeObserver(() => this.handleResize());
+            this.resizeObserver.observe(this.container);
+            this.handleResize();
+        }
+        
         if (!this.isCaptureMode) {
             this.renderer.setAnimationLoop(this.render.bind(this));
         }
@@ -100,7 +153,13 @@ export class ThreeRenderer {
 
     public setScaleMode(mode: "fit" | "fill" | number) {
         this.scaleMode = mode;
-        this.handleResize(); // Trigger re-layout
+        if (this.container) this.handleResize();
+        else {
+             this.clipMeshes.forEach((mesh) => {
+                const mat = mesh.material as THREE.MeshBasicMaterial;
+                if (mat.map) this.fitMeshToScreen(mesh, mat.map);
+            });
+        }
     }
 
     public render() {
@@ -127,11 +186,7 @@ export class ThreeRenderer {
 
         const visibleClipIds = new Set(visibleClips.map((c) => c.id));
         if (this.isCaptureMode) {
-            // console.log(`[Renderer] Frame @ ${currentTime}: ${visibleClips.length} clips`);
-            // Uncomment if needed, but might be spammy.
-            // Actually, the user complained about black video.
             if (visibleClips.length > 0) {
-                // Force update video textures
                 visibleClips.forEach((c) => {
                     const mesh = this.clipMeshes.get(c.id);
                     if (mesh) {
@@ -144,17 +199,10 @@ export class ThreeRenderer {
 
         for (const [clipId, mesh] of this.clipMeshes) {
             if (!visibleClipIds.has(clipId)) {
-                // Cleanup: Check if we should pause the video
-                // We must find which asset was used for this clipId.
-                // Since mess map doesn't store asset, we rely on the material map being a VideoTexture
+                // Cleanup
                 const mat = mesh.material as THREE.MeshBasicMaterial;
                 if (mat.map && mat.map instanceof THREE.VideoTexture) {
                     const video = mat.map.image;
-                    // Only pause if no other currently visible clip uses this asset?
-                    // This is hard to check perfectly without reverse mapping,
-                    // BUT: if we pause it here, and it IS needed, the syncVideoFrame for the other clip will play it again immediately.
-                    // The only risk is a stutter.
-                    // Safer: Pause it. The active loop will re-play it 1ms later if needed.
                     if (video && !video.paused) {
                         video.pause();
                     }
@@ -184,11 +232,6 @@ export class ThreeRenderer {
                 this.clipMeshes.set(clip.id, newMesh);
                 mesh = newMesh;
 
-                // We need to access asset from engine or somewhere.
-                // Since this might be running isolated, we assume editorEngine.getAsset works OR pass access.
-                // But editorEngine.getAsset() is just looking up in store.
-                // The store is global so it's fine.
-                // track the promise
                 const promise = this.allocator
                     .getTexture(editorEngine.getAsset(clip.assetId)!)
                     .then((texture) => {
@@ -212,10 +255,6 @@ export class ThreeRenderer {
 
             if (clip.type === "video" && mesh) {
                 this.syncVideoFrame(clip, mesh, currentTime);
-            } else if (clip.type === "image" && mesh) {
-                // Images are static, but we might want to sample them for ambient color if they are top-most
-                // For now, simpler: do nothing as texture is static.
-                // We could implement an updateAmbientColor(image) if desired.
             }
         });
 
@@ -245,20 +284,17 @@ export class ThreeRenderer {
         const video = material.map.image as HTMLVideoElement;
         if (!video) return;
 
-        // Ensure this 'visual' video element is always muted so it doesn't conflict with AudioManager
         if (!video.muted) video.muted = true;
 
         const clipTime = globalTime - clip.start + clip.offset;
-        // Looser threshold during playback to prevent stuttering seeks
         const threshold = editorEngine.getIsPlaying() ? 0.5 : 0.15;
 
-        // IN CAPTURE MODE: Always seek precisely and pause
         if (this.isCaptureMode) {
             if (Math.abs(video.currentTime - clipTime) > 0.01) {
                 video.currentTime = clipTime;
             }
             if (!video.paused) video.pause();
-            return; // Skip the rest of the logic
+            return;
         }
 
         const drift = Math.abs(video.currentTime - clipTime);
@@ -279,11 +315,8 @@ export class ThreeRenderer {
             if (!video.paused) video.pause();
         }
 
-        // Update Ambient Color
-        // Sample the topmost/active video
-        // Throttle to every 100ms
         const now = performance.now();
-        if (now - this.lastSampleTime > 100) {
+        if (!this.isCaptureMode && now - this.lastSampleTime > 100) {
             this.updateAmbientColor(video);
             this.lastSampleTime = now;
         }
@@ -294,41 +327,27 @@ export class ThreeRenderer {
             globalEventBus.emit({
                 type: "AMBIENT_COLOR_UPDATE",
                 payload: "#00000000",
-            }); // Transparent/Reset
+            });
             return;
         }
-
-        // Skip if video data isn't ready enough to avoid stalling
         if (video.readyState < 3) return;
-
         try {
             this.samplingCtx.drawImage(video, 0, 0, 1, 1);
             const [r, g, b] = this.samplingCtx.getImageData(0, 0, 1, 1).data;
-            const color = `rgba(${r},${g},${b}, 0.6)`; // 0.6 opacity for glow
+            const color = `rgba(${r},${g},${b}, 0.6)`; 
             globalEventBus.emit({
                 type: "AMBIENT_COLOR_UPDATE",
                 payload: color,
             });
-        } catch (e) {
-            // Ignore CORS or not ready
-        }
+        } catch (e) {}
     }
 
     private handleResize() {
         if (!this.container) return;
+        // When container exists, sync internal size with container
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
-        this.camera.left = -width / 2;
-        this.camera.right = width / 2;
-        this.camera.top = height / 2;
-        this.camera.bottom = -height / 2;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(width, height);
-        this.placeholderMesh.scale.set(width, height, 1);
-        this.clipMeshes.forEach((mesh) => {
-            const mat = mesh.material as THREE.MeshBasicMaterial;
-            if (mat.map) this.fitMeshToScreen(mesh, mat.map);
-        });
+        this.setSize(width, height);
     }
 
     private fitMeshToScreen(mesh: THREE.Mesh, texture: THREE.Texture) {
@@ -344,8 +363,10 @@ export class ThreeRenderer {
             imgH = image.height;
         }
         if (imgW === 0 || imgH === 0) return;
-        const screenW = this.container.clientWidth;
-        const screenH = this.container.clientHeight;
+
+        // Use internal width/height which handles both offscreen and onscreen
+        const screenW = this.width; 
+        const screenH = this.height;
 
         let scale = 1;
         if (this.scaleMode === "fill") {
@@ -353,18 +374,6 @@ export class ThreeRenderer {
         } else if (this.scaleMode === "fit") {
             scale = Math.min(screenW / imgW, screenH / imgH);
         } else if (typeof this.scaleMode === "number") {
-            // Percentage based (1.0 = 100% of video resolution)
-            // Note: ThreeJS planes are 1x1 by default, scaled by imgW/imgH in fitMeshToScreen base.
-            // If we want 1:1 pixel mapping:
-            // The camera is Ortho with height = screenHeight (since top=h/2, bottom=-h/2).
-            // A plane of height H will take up H pixels on screen if camera zoom is 1.
-
-            // Wait, fitMeshToScreen logic:
-            // mesh.scale.set(imgW * scale, imgH * scale, 1);
-            // If scale = 1, then mesh is imgW x imgH world units.
-            // Camera frustum height is screenH units.
-            // So mesh height imgH takes up imgH pixels on screen.
-            // This means scale = 1 gives 1:1 pixel mapping.
             scale = this.scaleMode;
         }
 

@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { editorEngine } from "../EditorEngine";
 import { ThreeRenderer } from "../renderer/ThreeRenderer";
+import { ResourceManager } from "../ResourceManager";
+import { TextureAllocator } from "../renderer/textures/TextureAllocator";
 
 export interface ExportConfig {
     width: number;
@@ -22,22 +24,21 @@ export class ExportService {
         this.abortController = new AbortController();
         this.pendingUploads = [];
 
-        const renderer = editorEngine.getRenderer() as ThreeRenderer;
-        if (!renderer) throw new Error("Renderer not initialized");
-
-        // 1. Save State & Setup
-        const originalSize = new THREE.Vector2();
-        renderer.renderer.getSize(originalSize);
-        const originalIsPlaying = editorEngine.getIsPlaying();
-        if (originalIsPlaying) editorEngine.togglePlayback(); // Pause
+        // 1. Setup Isolated Environment
+        const exportResourceManager = new ResourceManager();
+        const exportAllocator = new TextureAllocator(exportResourceManager);
+        const exportCanvas = document.createElement('canvas');
         
-        // Enable precision mode
-        if(typeof renderer.setCaptureMode === 'function') {
-            renderer.setCaptureMode(true);
-        }
+        // Create Offscreen Renderer
+        const renderer = new ThreeRenderer({
+            canvas: exportCanvas,
+            width: config.width,
+            height: config.height,
+            allocator: exportAllocator,
+            isCaptureMode: true
+        });
 
-        // Resize for Export
-        this.resizeRenderer(renderer, config.width, config.height);
+        await renderer.init();
 
         let sessionId: string | null = null;
 
@@ -57,26 +58,28 @@ export class ExportService {
 
             // 4. Render Loop
             onProgress(0, "Starting Rendering...");
+            const tracks = editorEngine.getTracks();
             
             for (let i = 0; i < totalFrames; i++) {
                 if (this.abortController.signal.aborted) throw new Error("Export Cancelled");
 
                 const time = i * frameDuration;
                 
-                // Seek
-                editorEngine.seek(time);
+                // Initial Render to load textures/create meshes
+                renderer.renderFrame(time, tracks);
+
+                // Wait for textures to load (if any new ones appeared)
+                await renderer.waitForPendingLoads();
                 
-                // Render to sync videos
-                renderer.renderFrame(time, editorEngine.getTracks());
-                
-                // Wait for video seek
+                // Wait for video seek (syncVideoFrame triggered seek in renderFrame)
                 await this.waitForSeek(renderer);
                 
-                // Re-render
-                renderer.renderFrame(time, editorEngine.getTracks());
+                // Final Render for this frame
+                renderer.renderFrame(time, tracks);
                 
-                // Create Frame
-                const frame = new VideoFrame(renderer.renderer.domElement, {
+                // Create Frame from Canvas
+                // Note: We use the raw canvas element. 
+                const frame = new VideoFrame(exportCanvas, {
                     timestamp: i * 1000000 / config.fps // microseconds
                 });
 
@@ -112,19 +115,16 @@ export class ExportService {
             console.error("Export Failed", e);
             throw e;
         } finally {
-            // Restore State
-            if(typeof renderer.setCaptureMode === 'function') {
-                renderer.setCaptureMode(false);
-            }
-            this.resizeRenderer(renderer, originalSize.x, originalSize.y);
+            // Cleanup
+            renderer.destroy();
+            exportResourceManager.cleanup();
+            // allocator is destroyed by renderer.destroy()
         }
     }
 
     cancel() {
         this.abortController?.abort();
     }
-
-    // ... (helper methods)
 
     private async waitForRender(sessionId: string, onProgress: (p: number, s: string) => void) {
         let attempts = 0;
@@ -146,18 +146,6 @@ export class ExportService {
         throw new Error("Render timed out");
     }
 
-    private resizeRenderer(renderer: ThreeRenderer, width: number, height: number) {
-        renderer.renderer.setSize(width, height);
-        const cam = renderer.camera;
-        if (cam) {
-            cam.left = -width / 2;
-            cam.right = width / 2;
-            cam.top = height / 2;
-            cam.bottom = -height / 2;
-            cam.updateProjectionMatrix();
-        }
-    }
-
     private getProjectDuration(): number {
         const tracks = editorEngine.getTracks();
         let maxTime = 0;
@@ -173,13 +161,17 @@ export class ExportService {
     private async waitForSeek(renderer: ThreeRenderer): Promise<void> {
         const videos = renderer.getActiveVideoElements();
         const promises = videos.map(video => {
-            if (video.readyState >= 2 && !video.seeking) return Promise.resolve(); // readyState 2 (HAVE_CURRENT_DATA) is enough for frame
+            if (video.readyState >= 2 && !video.seeking) return Promise.resolve();
             return new Promise<void>(resolve => {
                 const onSeeked = () => {
                     video.removeEventListener('seeked', onSeeked);
                     resolve();
                 };
-                setTimeout(onSeeked, 1000); 
+                // Safety timeout in case seek doesn't fire (rare but possible)
+                setTimeout(() => {
+                    video.removeEventListener('seeked', onSeeked);
+                    resolve();
+                }, 1000); 
                 video.addEventListener('seeked', onSeeked, { once: true });
             });
         });
