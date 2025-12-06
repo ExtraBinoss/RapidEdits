@@ -290,9 +290,9 @@ const startExport = async () => {
                 height,
                 fps: config.fps,
                 bitrate: config.bitrate,
-                format: config.format,
+                format: config.format as "mp4" | "webm",
             },
-            (p, status) => {
+            (p: number, status: string) => {
                 progress.value = p;
                 statusText.value = status;
 

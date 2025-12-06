@@ -210,7 +210,9 @@ export class ExportService {
             }
         });
 
-        const codec = config.format === "webm" ? "vp09.00.10.08" : "avc1.4d002a"; 
+        // Always use H.264 (AVC) for the upload stream
+        // The server will transcode to WebM/VP9 if needed.
+        const codec = "avc1.4d002a"; 
         
         const encoderConfig: any = {
             codec,
@@ -218,11 +220,8 @@ export class ExportService {
             height: config.height,
             bitrate: config.bitrate,
             framerate: config.fps,
+            avc: { format: "annexb" }
         };
-        
-        if (config.format === 'mp4') {
-            encoderConfig.avc = { format: "annexb" };
-        }
 
         encoder.configure(encoderConfig);
 
