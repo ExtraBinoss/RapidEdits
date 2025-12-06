@@ -11,11 +11,10 @@ class WhisperWorker {
     static async getInstance(progress_callback: Function) {
         if (this.instance === null) {
             try {
-                // Use "openai/whisper-tiny" for faster download/inference in browser.
-                // "Xenova/whisper-tiny" is the quantized version typically used.
+                // Use "Xenova/whisper-base" for better accuracy and multi-language support.
                 this.instance = await pipeline(
                     "automatic-speech-recognition",
-                    "Xenova/whisper-tiny",
+                    "Xenova/whisper-base",
                     {
                         progress_callback,
                     },
@@ -58,7 +57,9 @@ self.addEventListener("message", async (event) => {
         WhisperWorker.processing = true;
 
         try {
+            console.log("Worker: Starting transcription...");
             const transcriber = await WhisperWorker.getInstance(() => {});
+            console.log("Worker: Transcriber instance ready.");
 
             // output: { text: "...", chunks: [...] }
             const result = await transcriber(audio, {
@@ -66,22 +67,51 @@ self.addEventListener("message", async (event) => {
                 chunk_length_s: 30,
                 stride_length_s: 5,
                 return_timestamps: true,
+                temperature: 0,
+                repetition_penalty: 1.2,
+                no_repeat_ngram_size: 3,
+                condition_on_previous_text: false, // Helps prevent loop propagation
                 callback_function: (item: any) => {
-                    // item is the chunk { text, timestamp: [start, end] }
-                    if (item && item.timestamp) {
+                    // console.log("Worker: callback_function item:", item);
+                    // item might be an array or object. It often contains Tensors which are not clonable.
+
+                    let bestBeam;
+                    if (Array.isArray(item)) {
+                        bestBeam = item[0];
+                    } else {
+                        bestBeam = item;
+                    }
+
+                    if (bestBeam && bestBeam.timestamp) {
+                        // Only send serializable data
+                        const debugData = {
+                            text: bestBeam.text,
+                            timestamp: bestBeam.timestamp,
+                        };
+
+                        self.postMessage({
+                            status: "transcribing-debug",
+                            data: debugData,
+                        });
+
                         self.postMessage({
                             status: "transcribing-progress",
                             data: {
-                                timestamp: item.timestamp,
-                                text: item.text,
+                                timestamp: bestBeam.timestamp,
+                                text: bestBeam.text,
                             },
                         });
                     }
                 },
             });
 
+            console.log("Worker: Transcription complete", result);
+
+            // Result might also contain tensors, we should sanitize it or trust the pipeline returns plain objects for the final result
+            // Usually pipeline result is plain JS object/array.
             self.postMessage({ status: "complete", result });
         } catch (err: any) {
+            console.error("Worker: Transcription error", err);
             self.postMessage({ status: "error", message: err.message });
         } finally {
             WhisperWorker.processing = false;

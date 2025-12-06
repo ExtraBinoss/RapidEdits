@@ -65,6 +65,8 @@ export function useWhisper() {
                         );
                         statusMessage.value = `Transcribing... ${transcriptionProgress.value}%`;
                     }
+                } else if (status === "transcribing-debug") {
+                    console.log("Worker DEBUG:", event.data.data);
                 } else if (status === "error") {
                     error.value = message;
                     isModelLoading.value = false;
@@ -111,22 +113,31 @@ export function useWhisper() {
 
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
             totalDuration = audioBuffer.duration; // Store duration
-            console.log("totalDuration", totalDuration);
-            statusMessage.value = "Transcribing...";
+            console.log("Decoded audio details:", {
+                channels: audioBuffer.numberOfChannels,
+                length: audioBuffer.length,
+                sampleRate: audioBuffer.sampleRate,
+                duration: audioBuffer.duration,
+            });
 
-            // We need 16kHz execution
-            // If the decoded audio is not 16k, we need to resample or trust the worker pipeline handle raw data if properly tagged
-            // However, transformers.js typically expects 16k input float32 array
+            // Check if source buffer has data
+            const sourceData = audioBuffer.getChannelData(0);
+            const sourceNonZeros = sourceData.some((x) => x !== 0);
+            console.log("Source buffer has data:", sourceNonZeros);
 
             let audioData: Float32Array;
 
             if (audioBuffer.sampleRate === 16000) {
+                console.log("Using direct decoded buffer (16kHz)");
                 audioData = audioBuffer.getChannelData(0); // Use first channel
             } else {
+                console.log(
+                    "Resampling from " + audioBuffer.sampleRate + " to 16000",
+                );
                 // Resample to 16000
                 const offlineContext = new OfflineAudioContext(
                     1,
-                    audioBuffer.duration * 16000,
+                    Math.ceil(audioBuffer.duration * 16000), // ceil to ensure we fit
                     16000,
                 );
                 const source = offlineContext.createBufferSource();
@@ -135,7 +146,18 @@ export function useWhisper() {
                 source.start(0);
                 const resampledBuffer = await offlineContext.startRendering();
                 audioData = resampledBuffer.getChannelData(0);
+                console.log(
+                    "Resampling complete. New length:",
+                    audioData.length,
+                );
             }
+
+            const hasData = audioData.some((x) => x !== 0);
+            console.log("Final audioData has data:", hasData);
+            if (!hasData && sourceNonZeros) {
+                console.error("Data lost during resampling!");
+            }
+
             console.log("audioData", audioData);
             worker.value?.postMessage({
                 type: "transcribe",
@@ -144,7 +166,7 @@ export function useWhisper() {
                     language: language.split("-")[0], // Whisper expects 'en', 'fr', etc. not 'en-US'
                 },
             }); // Removed transferables to be safe for now, copying is fine for <100MB
-
+            console.log("Transcribing...");
             // Close context to release resources
             if (audioContext.state !== "closed") {
                 audioContext.close();
