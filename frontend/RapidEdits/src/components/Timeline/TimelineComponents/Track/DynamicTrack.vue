@@ -40,6 +40,14 @@ const handleContainerClick = (e: MouseEvent) => {
 <template>
     <div
         class="h-24 border-canvas-border/30 relative bg-canvas/20 transition-colors"
+        :style="
+            track.color
+                ? {
+                      backgroundColor: `${track.color}10`,
+                      borderColor: `${track.color}30`,
+                  }
+                : {}
+        "
         @dragover.prevent
         @drop="handleDrop"
         @click="handleContainerClick"

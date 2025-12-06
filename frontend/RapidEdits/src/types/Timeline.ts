@@ -20,5 +20,6 @@ export interface Track {
     type: "video" | "audio" | "text" | "image" | "custom";
     isMuted: boolean;
     isLocked: boolean;
+    color?: string; // Track color hex code
     clips: Clip[];
 }

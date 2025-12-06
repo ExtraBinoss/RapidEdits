@@ -21,13 +21,15 @@ export class TimelineSystem {
         return this.tracks;
     }
 
-    public addTrack(type: "video" | "audio" | "text" | "image" | "custom"): Track {
+    public addTrack(
+        type: "video" | "audio" | "text" | "image" | "custom",
+    ): Track {
         const id =
             this.tracks.length > 0
                 ? Math.max(...this.tracks.map((t) => t.id)) + 1
                 : 1;
         const count = this.tracks.filter((t) => t.type === type).length + 1;
-        
+
         let name = "";
         if (type === "video") name = `Video ${count}`;
         else if (type === "audio") name = `Audio ${count}`;
@@ -127,8 +129,18 @@ export class TimelineSystem {
                 audioTrack.clips.sort((a, b) => a.start - b.start);
             }
         }
-
         globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
+    }
+
+    public removeTrack(trackId: number) {
+        const index = this.tracks.findIndex((t) => t.id === trackId);
+        if (index !== -1) {
+            this.tracks.splice(index, 1);
+            globalEventBus.emit({
+                type: "TIMELINE_UPDATED",
+                payload: undefined,
+            });
+        }
     }
 
     private createClipObject(
@@ -359,6 +371,20 @@ export class TimelineSystem {
         }
     }
 
+    public updateTrack(trackId: number, updates: Partial<Track>) {
+        const trackIndex = this.tracks.findIndex((t) => t.id === trackId);
+        if (trackIndex !== -1) {
+            this.tracks[trackIndex] = {
+                ...this.tracks[trackIndex],
+                ...updates,
+            } as Track;
+            globalEventBus.emit({
+                type: "TIMELINE_UPDATED",
+                payload: undefined,
+            });
+        }
+    }
+
     // Snapping
     private isSnappingEnabled: boolean = true;
 
@@ -424,8 +450,8 @@ export class TimelineSystem {
         const initialCount = this.tracks.length;
         // Keep tracks that are NOT custom OR have clips
         // We usually want to keep at least one video/audio track, but for custom ones, we can be aggressive.
-        this.tracks = this.tracks.filter(t => {
-            const isCustom = t.type !== 'video' && t.type !== 'audio';
+        this.tracks = this.tracks.filter((t) => {
+            const isCustom = t.type !== "video" && t.type !== "audio";
             if (isCustom && t.clips.length === 0) {
                 return false; // Remove empty custom track
             }
@@ -433,7 +459,10 @@ export class TimelineSystem {
         });
 
         if (this.tracks.length !== initialCount) {
-            globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
+            globalEventBus.emit({
+                type: "TIMELINE_UPDATED",
+                payload: undefined,
+            });
         }
     }
 }

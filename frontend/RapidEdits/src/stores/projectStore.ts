@@ -100,6 +100,9 @@ export const useProjectStore = defineStore("project", () => {
         addTrack,
         updateClip: (id: string, updates: Partial<Clip>) =>
             editorEngine.updateClip(id, updates),
+        updateTrack: (id: number, updates: Partial<Track>) =>
+            editorEngine.updateTrack(id, updates),
+        removeTrack: (id: number) => editorEngine.removeTrack(id),
         // Selection Actions
         selectClip: (id: string, toggle: boolean) =>
             editorEngine.selectClip(id, toggle),

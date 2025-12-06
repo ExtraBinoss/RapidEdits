@@ -8,11 +8,51 @@ import ContextMenu from "../UI/ContextMenu/ContextMenu.vue";
 import type { ContextMenuItem } from "../UI/ContextMenu/ContextMenu.vue";
 import { editorEngine } from "../../core/EditorEngine";
 import TimelineToolbar from "./TimelineComponents/Toolbar/TimelineToolbar.vue";
+import TrackHeader from "./TimelineComponents/Track/TrackHeader.vue";
 import { ref, watch, computed } from "vue";
 import { storeToRefs } from "pinia";
 
 const store = useProjectStore();
 const { tracks, currentTime, isPlaying } = storeToRefs(store);
+
+// ... (other imports)
+
+// Context menu logic (for Clips)
+const showContextMenu = ref(false);
+const contextMenuX = ref(0);
+const contextMenuY = ref(0);
+const contextMenuTargets = ref<string[]>([]);
+
+const handleClipContextMenu = (e: MouseEvent, clipId: string) => {
+    showContextMenu.value = true;
+    contextMenuX.value = e.clientX;
+    contextMenuY.value = e.clientY;
+    contextMenuTargets.value = store.getSelectedClipIds();
+};
+
+const contextMenuItems = computed<ContextMenuItem[]>(() => [
+    {
+        label: `Selected: ${contextMenuTargets.value.length} items`,
+        disabled: true,
+    },
+    { divider: true },
+    {
+        label: "Unlink Clips",
+        icon: Unlink,
+        action: () => store.unlinkSelectedClips(),
+    },
+    {
+        label: "Delete",
+        icon: Trash2,
+        danger: true,
+        action: () => store.deleteSelectedClips(),
+    },
+    { divider: true },
+    {
+        label: "Speed (Coming Soon)",
+        disabled: true,
+    },
+]);
 
 const videoTracks = computed(() => {
     return tracks.value.filter((t) => t.type === "video");
@@ -218,43 +258,6 @@ const startScrubbing = (e: MouseEvent) => {
     window.addEventListener("mouseup", stopScrubbing);
 };
 
-// Context menu logic
-const showContextMenu = ref(false);
-const contextMenuX = ref(0);
-const contextMenuY = ref(0);
-const contextMenuTargets = ref<string[]>([]);
-
-const handleClipContextMenu = (e: MouseEvent, clipId: string) => {
-    showContextMenu.value = true;
-    contextMenuX.value = e.clientX;
-    contextMenuY.value = e.clientY;
-    contextMenuTargets.value = store.getSelectedClipIds();
-};
-
-const contextMenuItems = computed<ContextMenuItem[]>(() => [
-    {
-        label: `Selected: ${contextMenuTargets.value.length} items`,
-        disabled: true,
-    },
-    { divider: true },
-    {
-        label: "Unlink Clips",
-        icon: Unlink,
-        action: () => store.unlinkSelectedClips(),
-    },
-    {
-        label: "Delete",
-        icon: Trash2,
-        danger: true,
-        action: () => store.deleteSelectedClips(),
-    },
-    { divider: true },
-    {
-        label: "Speed (Coming Soon)",
-        disabled: true,
-    },
-]);
-
 const handleTimelineClick = () => {
     store.selectClip("", false); // Deselect all when clicking empty space
 };
@@ -262,7 +265,7 @@ const handleTimelineClick = () => {
 
 <template>
     <div class="flex flex-col h-full select-none" @click="handleTimelineClick">
-        <!-- Context Menu -->
+        <!-- Clip Context Menu -->
         <Teleport to="body">
             <ContextMenu
                 :show="showContextMenu"
@@ -272,6 +275,7 @@ const handleTimelineClick = () => {
                 :items="contextMenuItems"
             />
         </Teleport>
+
         <!-- Timeline Toolbar -->
         <TimelineToolbar
             :is-playing="isPlaying"
@@ -295,67 +299,40 @@ const handleTimelineClick = () => {
                 class="w-32 flex-shrink-0 border-r border-canvas-border bg-canvas-light z-20 flex flex-col pt-8 shadow-lg overflow-hidden"
             >
                 <!-- Custom/Overlay Tracks Header -->
-                <div
+                <TrackHeader
                     v-for="track in customTracks"
                     :key="track.id"
-                    class="h-24 border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
-                >
-                    <span class="font-medium text-text-main mb-1">{{
-                        track.name
-                    }}</span>
-                    <div
-                        class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                        <!-- Track controls placeholder -->
-                    </div>
-                </div>
+                    :track="track"
+                />
 
                 <div
                     v-if="customTracks.length > 0"
-                    class="h-4 bg-canvas-darker border-y border-canvas-border flex items-center justify-center flex-shrink-0"
+                    class="h-4 bg-canvas-darker flex items-center justify-center flex-shrink-0"
                 ></div>
 
                 <!-- Video Tracks Header -->
-                <div
+                <TrackHeader
                     v-for="track in videoTracks"
                     :key="track.id"
-                    class="h-24 border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
-                >
-                    <span class="font-medium text-text-main mb-1">{{
-                        track.name
-                    }}</span>
-                    <div
-                        class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                        <!-- Track controls placeholder -->
-                    </div>
-                </div>
+                    :track="track"
+                />
 
                 <!-- Spacer for Video Drop Zone -->
                 <div class="h-24 flex-shrink-0"></div>
 
                 <!-- Divider -->
                 <div
-                    class="h-4 bg-canvas-darker border-y border-canvas-border flex items-center justify-center flex-shrink-0"
+                    class="h-4 bg-canvas-darker flex items-center justify-center flex-shrink-0"
                 >
                     <!-- Optional: Icon or Label -->
                 </div>
 
                 <!-- Audio Tracks Header -->
-                <div
+                <TrackHeader
                     v-for="track in audioTracks"
                     :key="track.id"
-                    class="h-24 border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
-                >
-                    <span class="font-medium text-text-main mb-1">{{
-                        track.name
-                    }}</span>
-                    <div
-                        class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                        <!-- Track controls placeholder -->
-                    </div>
-                </div>
+                    :track="track"
+                />
 
                 <!-- Spacer for Audio Drop Zone -->
                 <div class="h-24 flex-shrink-0"></div>

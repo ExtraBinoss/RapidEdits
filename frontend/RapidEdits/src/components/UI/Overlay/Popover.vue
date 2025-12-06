@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, nextTick } from "vue";
 
 const isOpen = ref(false);
 const triggerRef = ref<HTMLElement | null>(null);
@@ -23,9 +23,10 @@ const toggle = () => {
     }
 };
 
-const open = () => {
+const open = async () => {
     isOpen.value = true;
-    setTimeout(updatePosition, 0);
+    await nextTick();
+    updatePosition();
 };
 
 const close = () => {
@@ -69,6 +70,12 @@ onMounted(() => {
 onUnmounted(() => {
     document.removeEventListener("click", handleClickOutside);
     window.removeEventListener("resize", updatePosition);
+});
+
+defineExpose({
+    open,
+    close,
+    toggle,
 });
 </script>
 

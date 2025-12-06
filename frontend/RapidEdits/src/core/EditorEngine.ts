@@ -43,7 +43,9 @@ export class EditorEngine {
         return this.timelineSystem.getTracks();
     }
 
-    public addTrack(type: "video" | "audio" | "text" | "image" | "custom"): Track {
+    public addTrack(
+        type: "video" | "audio" | "text" | "image" | "custom",
+    ): Track {
         return this.timelineSystem.addTrack(type);
     }
 
@@ -57,6 +59,14 @@ export class EditorEngine {
 
     public splitClip(clipId: string, time: number) {
         this.timelineSystem.splitClip(clipId, time);
+    }
+
+    public updateTrack(trackId: number, updates: Partial<Track>) {
+        this.timelineSystem.updateTrack(trackId, updates);
+    }
+
+    public removeTrack(trackId: number) {
+        this.timelineSystem.removeTrack(trackId);
     }
 
     // Snapping
