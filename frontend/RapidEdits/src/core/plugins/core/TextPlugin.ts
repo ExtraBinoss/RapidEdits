@@ -7,11 +7,18 @@ import {
     type Font,
 } from "three/examples/jsm/loaders/FontLoader.js";
 import TextProperties from "../../../components/Plugins/TextProperties.vue";
+import {
+    createPluginId,
+    PluginCategory,
+    PluginType,
+    type FilmstripConfig,
+} from "../PluginTypes";
 
 export class TextPlugin extends BasePlugin {
-    id = "core.text";
+    id = createPluginId(PluginCategory.Core, "text");
     name = "Text 3D";
-    type = "object" as const;
+    type = "object" as const; // Satisfies IPlugin 'type'
+    // Subtype information is encoded in ID or can be added if needed
     propertiesComponent = TextProperties;
 
     private font: Font | null = null;
@@ -149,9 +156,17 @@ export class TextPlugin extends BasePlugin {
         this.updateTransform(mesh, data);
     }
 
-    private updateTransform(mesh: THREE.Object3D, data: any) {
+    updateTransform(mesh: THREE.Object3D, data: any) {
         mesh.position.set(data.position.x, data.position.y, data.position.z);
         // mesh.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z); // TODO: Convert deg to rad if needed
         mesh.scale.set(data.scale.x, data.scale.y, data.scale.z);
+    }
+
+    getFilmstripConfig(clip: Clip): FilmstripConfig {
+        console.log("filmstrip", clip);
+        return {
+            backgroundColor: "#1e293b", // Slate-800 to contrast with white text
+            cameraPadding: 1.5, // slightly more padding for text
+        };
     }
 }
