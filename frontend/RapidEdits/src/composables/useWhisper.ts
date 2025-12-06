@@ -8,6 +8,8 @@ export interface WhisperResult {
     }[];
 }
 
+import WhisperWorker from "../workers/whisper.worker?worker";
+
 export function useWhisper() {
     const worker = ref<Worker | null>(null);
     const isModelLoading = ref(false);
@@ -20,12 +22,7 @@ export function useWhisper() {
 
     const initWorker = () => {
         if (!worker.value) {
-            worker.value = new Worker(
-                new URL("../workers/whisper.worker.ts", import.meta.url),
-                {
-                    type: "module",
-                },
-            );
+            worker.value = new WhisperWorker();
 
             worker.value.onmessage = (event) => {
                 const {
