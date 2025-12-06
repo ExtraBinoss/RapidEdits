@@ -5,6 +5,7 @@ import { useProjectStore } from "../stores/projectStore";
 import OSD from "./UI/OSD.vue";
 import Popover from "./UI/Popover.vue";
 import AmbientLight from "./UI/AmbientLight.vue";
+import Button from "./UI/Button.vue";
 
 const canvasContainer = ref<HTMLElement | null>(null);
 const store = useProjectStore();
@@ -99,8 +100,9 @@ const handleDrop = (e: DragEvent) => {
             <div class="absolute top-4 left-4 z-20">
                 <Popover position="bottom-left">
                     <template #trigger="{ isOpen }">
-                        <button
-                            class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 border border-white/10 bg-black/40 backdrop-blur-md shadow-lg hover:bg-black/60 hover:border-white/20"
+                        <Button
+                            variant="ghost"
+                            class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 border border-white/10 bg-black/40 backdrop-blur-md shadow-lg hover:bg-black/60 hover:border-white/20 h-auto"
                             :class="
                                 isOpen
                                     ? 'text-brand-primary border-brand-primary/30'
@@ -121,7 +123,7 @@ const handleDrop = (e: DragEvent) => {
                                     d="M19 9l-7 7-7-7"
                                 />
                             </svg>
-                        </button>
+                        </Button>
                     </template>
                     <template #content="{ close }">
                         <div
@@ -132,11 +134,12 @@ const handleDrop = (e: DragEvent) => {
                             >
                                 Zoom Level
                             </div>
-                            <button
+                            <Button
+                                variant="ghost"
                                 v-for="opt in zoomOptions"
                                 :key="opt.label"
                                 @click="setZoom(opt, close)"
-                                class="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary transition-colors flex items-center justify-between group"
+                                class="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary transition-colors flex items-center justify-between group h-auto"
                             >
                                 {{ opt.label }}
                                 <span
@@ -157,7 +160,7 @@ const handleDrop = (e: DragEvent) => {
                                         />
                                     </svg>
                                 </span>
-                            </button>
+                            </Button>
                         </div>
                     </template>
                 </Popover>

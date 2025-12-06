@@ -4,6 +4,7 @@ import { Video, Music, Image as ImageIcon, Trash2 } from "lucide-vue-next";
 import type { Asset } from "../../types/Media";
 import { MediaType } from "../../types/Media";
 import AssetPreview from "./AssetPreview.vue";
+import Button from "../UI/Button.vue";
 
 const props = defineProps<{
     asset: Asset;
@@ -76,11 +77,11 @@ const onDragStart = (e: DragEvent) => {
         >
             <Music :size="32" class="text-text-muted opacity-50" />
         </div>
-        
+
         <!-- Video Preview Scrubbing -->
-        <AssetPreview 
-            v-else-if="asset.type === MediaType.VIDEO" 
-            :asset="asset" 
+        <AssetPreview
+            v-else-if="asset.type === MediaType.VIDEO"
+            :asset="asset"
         />
 
         <!-- Static Image -->
@@ -95,12 +96,14 @@ const onDragStart = (e: DragEvent) => {
         <div
             class="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto"
         >
-            <button
+            <Button
+                variant="ghost"
+                size="sm"
                 @click.stop="emit('delete', asset.id)"
-                class="p-1 rounded bg-black/60 text-white hover:bg-red-500/80 transition-colors"
+                class="p-1 rounded bg-black/60 text-white hover:bg-red-500/80 transition-colors h-auto w-auto"
             >
                 <Trash2 :size="12" />
-            </button>
+            </Button>
         </div>
 
         <!-- Metadata Overlay -->

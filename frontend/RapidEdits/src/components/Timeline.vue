@@ -8,13 +8,16 @@ import {
     ZoomOut,
     Scissors,
     Magnet,
+    Trash2,
+    Unlink,
 } from "lucide-vue-next";
 import { useProjectStore } from "../stores/projectStore";
 import { useDragDrop } from "../composables/useDragDrop";
 import Button from "./UI/Button.vue";
 import DynamicTrack from "./Timeline/DynamicTrack.vue";
 import TimeRuler from "./Timeline/TimeRuler.vue";
-import ContextMenu from "./Timeline/ContextMenu.vue";
+import ContextMenu from "./UI/ContextMenu.vue";
+import type { ContextMenuItem } from "./UI/ContextMenu.vue";
 import { ref, watch, computed } from "vue";
 import { storeToRefs } from "pinia";
 
@@ -179,6 +182,30 @@ const handleClipContextMenu = (e: MouseEvent, clipId: string) => {
     contextMenuTargets.value = store.getSelectedClipIds();
 };
 
+const contextMenuItems = computed<ContextMenuItem[]>(() => [
+    {
+        label: `Selected: ${contextMenuTargets.value.length} items`,
+        disabled: true,
+    },
+    { divider: true },
+    {
+        label: "Unlink Clips",
+        icon: Unlink,
+        action: () => store.unlinkSelectedClips(),
+    },
+    {
+        label: "Delete",
+        icon: Trash2,
+        danger: true,
+        action: () => store.deleteSelectedClips(),
+    },
+    { divider: true },
+    {
+        label: "Speed (Coming Soon)",
+        disabled: true,
+    },
+]);
+
 const handleTimelineClick = () => {
     store.selectClip("", false); // Deselect all when clicking empty space
 };
@@ -189,11 +216,11 @@ const handleTimelineClick = () => {
         <!-- Context Menu -->
         <Teleport to="body">
             <ContextMenu
-                v-if="showContextMenu"
-                v-model="showContextMenu"
+                :show="showContextMenu"
+                @close="showContextMenu = false"
                 :x="contextMenuX"
                 :y="contextMenuY"
-                :target-clip-ids="contextMenuTargets"
+                :items="contextMenuItems"
             />
         </Teleport>
         <!-- Timeline Toolbar -->
@@ -214,11 +241,7 @@ const handleTimelineClick = () => {
                     variant="icon"
                     size="sm"
                     :icon="Magnet"
-                    :class="{
-                        'text-brand-primary':
-                            editorEngine.getIsSnappingEnabled(),
-                        'text-text-muted': !editorEngine.getIsSnappingEnabled(),
-                    }"
+                    :active="editorEngine.getIsSnappingEnabled()"
                     @click="toggleSnapping"
                 />
 

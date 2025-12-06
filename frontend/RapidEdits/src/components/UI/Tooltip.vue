@@ -17,38 +17,81 @@ const updatePosition = () => {
     const triggerRect = triggerRef.value.getBoundingClientRect();
     const tooltipRect = tooltipRef.value.getBoundingClientRect();
     const gap = 8;
+    const padding = 8; // Minimum distance from screen edge
 
-    let top = 0;
-    let left = 0;
+    let pos = props.position || "bottom";
 
-    switch (props.position) {
-        case "top":
-            top = triggerRect.top - tooltipRect.height - gap;
-            left =
-                triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
-            break;
-        case "bottom":
-            top = triggerRect.bottom + gap;
-            left =
-                triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
-            break;
-        case "left":
-            top =
-                triggerRect.top + (triggerRect.height - tooltipRect.height) / 2;
-            left = triggerRect.left - tooltipRect.width - gap;
-            break;
-        case "right":
-            top =
-                triggerRect.top + (triggerRect.height - tooltipRect.height) / 2;
-            left = triggerRect.right + gap;
-            break;
-        default: // default bottom
-            top = triggerRect.bottom + gap;
-            left =
-                triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
+    // Helper to calculate position based on a given direction
+    const calculateCoords = (
+        direction: "top" | "bottom" | "left" | "right",
+    ) => {
+        let t = 0;
+        let l = 0;
+        switch (direction) {
+            case "top":
+                t = triggerRect.top - tooltipRect.height - gap;
+                l =
+                    triggerRect.left +
+                    (triggerRect.width - tooltipRect.width) / 2;
+                break;
+            case "bottom":
+                t = triggerRect.bottom + gap;
+                l =
+                    triggerRect.left +
+                    (triggerRect.width - tooltipRect.width) / 2;
+                break;
+            case "left":
+                t =
+                    triggerRect.top +
+                    (triggerRect.height - tooltipRect.height) / 2;
+                l = triggerRect.left - tooltipRect.width - gap;
+                break;
+            case "right":
+                t =
+                    triggerRect.top +
+                    (triggerRect.height - tooltipRect.height) / 2;
+                l = triggerRect.right + gap;
+                break;
+        }
+        return { t, l };
+    };
+
+    // Initial calculation
+    let { t, l } = calculateCoords(pos);
+
+    // Check boundary collisions
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    const overlapsTop = t < padding;
+    const overlapsBottom = t + tooltipRect.height > viewportHeight - padding;
+    const overlapsLeft = l < padding;
+    const overlapsRight = l + tooltipRect.width > viewportWidth - padding;
+
+    // Smart flipping logic
+    if (pos === "top" && overlapsTop) pos = "bottom";
+    else if (pos === "bottom" && overlapsBottom) pos = "top";
+    else if (pos === "left" && overlapsLeft) pos = "right";
+    else if (pos === "right" && overlapsRight) pos = "left";
+
+    // Recalculate based on new pos (if flipped)
+    ({ t, l } = calculateCoords(pos));
+
+    // Clamp to viewport for secondary axis (e.g. if top/bottom, clamp left/right)
+    if (pos === "top" || pos === "bottom") {
+        l = Math.max(
+            padding,
+            Math.min(l, viewportWidth - tooltipRect.width - padding),
+        );
+    } else {
+        // left or right
+        t = Math.max(
+            padding,
+            Math.min(t, viewportHeight - tooltipRect.height - padding),
+        );
     }
 
-    coords.value = { top, left };
+    coords.value = { top: t, left: l };
 };
 
 const show = () => {

@@ -49,40 +49,43 @@ import AppLogo from "./AppLogo.vue";
                             Export Options
                         </div>
 
-                        <button
-                            class="flex items-center gap-2 px-3 py-2 text-sm text-text-main hover:bg-canvas-lighter rounded transition-colors text-left"
+                        <Button
+                            variant="ghost"
+                            class="w-full justify-start px-3 py-2 text-sm text-text-main hover:bg-canvas-lighter"
                         >
                             <FileVideo :size="16" class="text-brand-accent" />
-                            <div class="flex flex-col">
+                            <div class="flex flex-col items-start">
                                 <span>Video (MP4)</span>
                                 <span class="text-[10px] text-text-muted"
                                     >High Quality • H.264</span
                                 >
                             </div>
-                        </button>
-                        <button
-                            class="flex items-center gap-2 px-3 py-2 text-sm text-text-main hover:bg-canvas-lighter rounded transition-colors text-left"
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            class="w-full justify-start px-3 py-2 text-sm text-text-main hover:bg-canvas-lighter"
                         >
                             <FileVideo
                                 :size="16"
                                 class="text-brand-secondary"
                             />
-                            <div class="flex flex-col">
+                            <div class="flex flex-col items-start">
                                 <span>WebM</span>
                                 <span class="text-[10px] text-text-muted"
                                     >Efficient • VP9</span
                                 >
                             </div>
-                        </button>
+                        </Button>
 
                         <div class="h-[1px] bg-canvas-border my-1"></div>
 
-                        <button
+                        <Button
+                            variant="ghost"
                             @click="close"
-                            class="flex items-center gap-2 px-3 py-2 text-xs text-text-muted hover:text-text-main hover:bg-canvas-lighter rounded transition-colors text-left"
+                            class="w-full justify-start px-3 py-2 text-xs text-text-muted hover:text-text-main hover:bg-canvas-lighter"
                         >
                             Cancel
-                        </button>
+                        </Button>
                     </div>
                 </template>
             </Popover>
