@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { ChevronRight } from "lucide-vue-next";
 
 export interface ContextMenuItem {
     label?: string;
@@ -13,12 +14,28 @@ export interface ContextMenuItem {
     };
 }
 
+const submenuTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
 const activeSubmenuIndex = ref<number | null>(null);
+
 const handleSubmenuEnter = (index: number) => {
+    if (submenuTimeout.value) {
+        clearTimeout(submenuTimeout.value);
+        submenuTimeout.value = null;
+    }
     activeSubmenuIndex.value = index;
 };
+
 const handleSubmenuLeave = () => {
-    activeSubmenuIndex.value = null;
+    submenuTimeout.value = setTimeout(() => {
+        activeSubmenuIndex.value = null;
+    }, 150); // 150ms grace period
+};
+
+const handleSubmenuContentEnter = () => {
+    if (submenuTimeout.value) {
+        clearTimeout(submenuTimeout.value);
+        submenuTimeout.value = null;
+    }
 };
 
 const props = defineProps<{
@@ -149,20 +166,39 @@ onUnmounted(() => {
                                 />
                                 {{ item.label }}
                             </div>
-                            <span class="text-xs opacity-50">▶</span>
+                            <span
+                                class="text-[10px] opacity-50 flex items-center"
+                                ><ChevronRight :size="14" class="opacity-50"
+                            /></span>
                         </button>
 
                         <!-- Submenu Content -->
-                        <div
-                            v-if="activeSubmenuIndex === index"
-                            class="absolute left-full top-0 ml-1 min-w-[200px] bg-canvas-lighter border border-canvas-border rounded-lg shadow-xl overflow-hidden z-[110]"
-                            :style="{ top: '-4px' }"
+                        <Transition
+                            enter-active-class="transition duration-100 ease-out"
+                            enter-from-class="transform scale-95 opacity-0"
+                            enter-to-class="transform scale-100 opacity-100"
+                            leave-active-class="transition duration-75 ease-in"
+                            leave-from-class="transform scale-100 opacity-100"
+                            leave-to-class="transform scale-95 opacity-0"
                         >
-                            <component
-                                :is="item.slots.submenu"
-                                :close="() => emit('close')"
-                            />
-                        </div>
+                            <div
+                                v-if="activeSubmenuIndex === index"
+                                class="absolute left-full top-0 min-w-[200px] bg-canvas-lighter border border-canvas-border rounded-lg shadow-xl overflow-hidden z-[110] origin-top-left"
+                                :style="{ top: '-4px' }"
+                                @mouseenter="handleSubmenuContentEnter"
+                                @mouseleave="handleSubmenuLeave"
+                            >
+                                <!-- Invisible bridge to prevent closing when moving mouse across gap -->
+                                <div
+                                    class="absolute -left-4 top-0 bottom-0 w-4 bg-transparent"
+                                ></div>
+
+                                <component
+                                    :is="item.slots.submenu"
+                                    :close="() => emit('close')"
+                                />
+                            </div>
+                        </Transition>
                     </div>
 
                     <!-- Regular Item -->

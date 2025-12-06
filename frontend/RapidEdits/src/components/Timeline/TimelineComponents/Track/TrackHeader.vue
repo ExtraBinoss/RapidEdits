@@ -72,7 +72,7 @@ const ColorPickerSubmenu = {
                             style: { backgroundColor: color },
                             onClick: () => {
                                 handleColorUpdate(color);
-                                if (props.close) props.close();
+                                // if (props.close) props.close(); // Keep open as requested
                             },
                         }),
                     ),
