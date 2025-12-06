@@ -7,7 +7,7 @@ import type { Clip, Track } from "../../types/Timeline";
 export class ThreeRenderer {
     private container: HTMLElement;
     private scene: THREE.Scene;
-    private camera: THREE.OrthographicCamera;
+    public camera: THREE.OrthographicCamera;
     public renderer: THREE.WebGLRenderer;
 
     // Modules
@@ -74,6 +74,10 @@ export class ThreeRenderer {
         );
         this.placeholderMesh.position.z = -10;
         this.scene.add(this.placeholderMesh);
+    }
+
+    public setCaptureMode(isCapture: boolean) {
+        this.isCaptureMode = isCapture;
     }
 
     public async init() {
