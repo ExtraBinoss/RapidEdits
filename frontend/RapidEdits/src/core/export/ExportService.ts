@@ -82,6 +82,7 @@ export class ExportService {
                 renderer.renderFrame(time, tracks);
                 
                 // Create Frame from Canvas
+                // Use microsecond precision for timestamps
                 const frameTimestamp = Math.round(i * 1000000 / config.fps);
                 const frameDurationVal = Math.round(1000000 / config.fps);
 
@@ -91,7 +92,8 @@ export class ExportService {
                 });
 
                 // Encode
-                const keyFrame = i % (config.fps * 2) === 0;
+                // Force KeyFrame interval (every second) for better seeking/scrubbing in output
+                const keyFrame = i % config.fps === 0;
                 encoder.encode(frame, { keyFrame });
                 frame.close();
 
