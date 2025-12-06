@@ -1,52 +1,67 @@
-import { v4 as uuidv4 } from "uuid";
-import { globalEventBus } from "./EventBus";
-import { MediaType, type Asset, type MediaTypeValue } from "../types/Media";
+import { AssetSystem } from "./systems/AssetSystem";
+import { TimelineSystem } from "./systems/TimelineSystem";
+import { SelectionSystem } from "./systems/SelectionSystem";
+import { PlaybackSystem } from "./systems/PlaybackSystem";
+import { InputSystem } from "./systems/InputSystem";
+import type { Asset } from "../types/Media";
 import type { Track, Clip } from "../types/Timeline";
-import { audioManager } from "./AudioManager";
 
 export class EditorEngine {
-    private assets: Map<string, Asset> = new Map();
-    private tracks: Track[] = [];
+    // Public Systems
+    public assetSystem: AssetSystem;
+    public timelineSystem: TimelineSystem;
+    public selectionSystem: SelectionSystem;
+    public playbackSystem: PlaybackSystem;
+    public inputSystem: InputSystem;
 
-    // State
-    private currentTime: number = 0;
-    private isPlaying: boolean = false;
-    private animationFrameId: number | null = null;
-    private masterVolume: number = 1.0; // 0 to 1
-    private isSnappingEnabled: boolean = true;
+    constructor() {
+        this.assetSystem = new AssetSystem();
+        this.timelineSystem = new TimelineSystem(this.assetSystem);
+        this.selectionSystem = new SelectionSystem(this.timelineSystem);
+        this.playbackSystem = new PlaybackSystem();
+        this.inputSystem = new InputSystem();
 
-    // ... mouse tracking ...
+        // Bind Input System
+        this.inputSystem.bindSystems(
+            this.playbackSystem,
+            this.timelineSystem,
+            this.selectionSystem,
+        );
+    }
 
+    // --- Facade Methods (Delegation) ---
+
+    // Timeline
+    public getTracks(): Track[] {
+        return this.timelineSystem.getTracks();
+    }
+
+    public addTrack(type: "video" | "audio"): Track {
+        return this.timelineSystem.addTrack(type);
+    }
+
+    public addClip(assetId: string, targetTrackId: number, startTime: number) {
+        this.timelineSystem.addClip(assetId, targetTrackId, startTime);
+    }
+
+    public updateClip(id: string, updates: Partial<Clip>) {
+        this.timelineSystem.updateClip(id, updates);
+    }
+
+    // Snapping
     public toggleSnapping() {
-        this.isSnappingEnabled = !this.isSnappingEnabled;
-        globalEventBus.emit({
-            type: "SHOW_FEEDBACK",
-            payload: {
-                icon: "Magnet",
-                text: this.isSnappingEnabled ? "Snapping On" : "Snapping Off",
-            },
-        });
-        return this.isSnappingEnabled;
+        return this.timelineSystem.toggleSnapping();
     }
 
     public getIsSnappingEnabled() {
-        return this.isSnappingEnabled;
+        return this.timelineSystem.getIsSnappingEnabled();
     }
 
     public getSnapPoints(excludeClipId?: string): number[] {
-        const points = new Set<number>();
-        points.add(0);
-        points.add(this.currentTime);
-
-        this.tracks.forEach((track) => {
-            track.clips.forEach((clip) => {
-                if (clip.id === excludeClipId) return;
-                points.add(clip.start);
-                points.add(clip.start + clip.duration);
-            });
-        });
-
-        return Array.from(points).sort((a, b) => a - b);
+        return this.timelineSystem.getSnapPoints(
+            this.getCurrentTime(),
+            excludeClipId,
+        );
     }
 
     public getClosestSnapPoint(
@@ -54,554 +69,67 @@ export class EditorEngine {
         thresholdSeconds: number,
         excludeClipId?: string,
     ): number | null {
-        if (!this.isSnappingEnabled) return null;
-
-        const points = this.getSnapPoints(excludeClipId);
-        let closest = null;
-        let minDiff = thresholdSeconds;
-
-        for (const point of points) {
-            const diff = Math.abs(point - time);
-            if (diff < minDiff) {
-                minDiff = diff;
-                closest = point;
-            }
-        }
-
-        return closest;
-    }
-
-    private mouseX: number = 0;
-    private mouseY: number = 0;
-
-    constructor() {
-        this.initializeTracks();
-        this.setupShortcuts();
-        this.setupGlobalMouseTracking();
-    }
-
-    private setupGlobalMouseTracking() {
-        const updatePos = (e: MouseEvent) => {
-            this.mouseX = e.clientX;
-            this.mouseY = e.clientY;
-        };
-
-        window.addEventListener("mousemove", updatePos, { passive: true });
-        window.addEventListener("mousedown", updatePos, {
-            passive: true,
-            capture: true,
-        });
-    }
-
-    public getMousePosition() {
-        return { x: this.mouseX, y: this.mouseY };
-    }
-
-    private initializeTracks() {
-        this.tracks = [];
-    }
-
-    private setupShortcuts() {
-        window.addEventListener("keydown", (e) => {
-            // Ignore if input focused
-            if (
-                e.target instanceof HTMLInputElement ||
-                e.target instanceof HTMLTextAreaElement
-            )
-                return;
-
-            switch (e.code) {
-                case "Space":
-                    e.preventDefault();
-                    this.togglePlayback();
-                    globalEventBus.emit({
-                        type: "SHOW_FEEDBACK",
-                        payload: { icon: this.isPlaying ? "Play" : "Pause" },
-                    });
-                    break;
-                case "ArrowUp":
-                    e.preventDefault();
-                    this.setVolume(Math.min(1, this.masterVolume + 0.1));
-                    break;
-                case "ArrowDown":
-                    e.preventDefault();
-                    this.setVolume(Math.max(0, this.masterVolume - 0.1));
-                    break;
-            }
-        });
-    }
-
-    // --- Asset Management ---
-
-    public async addAsset(file: File): Promise<Asset> {
-        const type = this.determineMediaType(file.type);
-        const url = URL.createObjectURL(file);
-
-        let duration = 0;
-        if (type === MediaType.VIDEO || type === MediaType.AUDIO) {
-            duration = await this.getMediaDuration(url);
-        } else {
-            duration = 5;
-        }
-
-        const asset: Asset = {
-            id: uuidv4(),
-            file,
-            url,
-            name: file.name,
-            type,
-            size: file.size,
-            duration,
-            createdAt: Date.now(),
-        };
-
-        this.assets.set(asset.id, asset);
-        globalEventBus.emit({ type: "ASSET_ADDED", payload: asset });
-        return asset;
-    }
-
-    public removeAsset(id: string) {
-        if (this.assets.has(id)) {
-            const asset = this.assets.get(id);
-            if (asset?.url) URL.revokeObjectURL(asset.url);
-            this.assets.delete(id);
-            globalEventBus.emit({ type: "ASSET_REMOVED", payload: id });
-        }
-    }
-
-    public getAsset(id: string): Asset | undefined {
-        return this.assets.get(id);
-    }
-
-    // --- Timeline Management ---
-
-    public getTracks(): Track[] {
-        return this.tracks;
-    }
-
-    public addTrack(type: "video" | "audio"): Track {
-        const id =
-            this.tracks.length > 0
-                ? Math.max(...this.tracks.map((t) => t.id)) + 1
-                : 1;
-        const count = this.tracks.filter((t) => t.type === type).length + 1;
-        const name = type === "video" ? `Video ${count}` : `Audio ${count}`;
-
-        const newTrack: Track = {
-            id,
-            name,
-            type,
-            isMuted: false,
-            isLocked: false,
-            clips: [],
-        };
-
-        this.tracks.push(newTrack);
-        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
-        return newTrack;
-    }
-
-    private selectedClipIds: Set<string> = new Set();
-
-    public addClip(assetId: string, targetTrackId: number, startTime: number) {
-        const asset = this.assets.get(assetId);
-        if (!asset) return;
-
-        let targetTrack = this.tracks.find((t) => t.id === targetTrackId);
-        if (!targetTrack) return;
-
-        // Force correct track type
-        // If trying to put Audio on Video track -> Switch to Audio track
-        if (targetTrack.type === "video" && asset.type === MediaType.AUDIO) {
-            // Find or create audio track
-            let audioTrack = this.tracks.find((t) => t.type === "audio");
-            if (!audioTrack) {
-                audioTrack = this.addTrack("audio");
-            }
-            targetTrack = audioTrack;
-        }
-        // If trying to put Video on Audio track -> Switch to Video track
-        else if (
-            targetTrack.type === "audio" &&
-            asset.type === MediaType.VIDEO
-        ) {
-            let videoTrack = this.tracks.find((t) => t.type === "video");
-            if (!videoTrack) {
-                videoTrack = this.addTrack("video");
-            }
-            targetTrack = videoTrack;
-        }
-
-        // Generate Group ID if this is a video with audio
-        const groupId = asset.type === MediaType.VIDEO ? uuidv4() : undefined;
-
-        // 1. Add Main Clip
-        const mainClip = this.createClipObject(
-            asset,
-            targetTrack.id,
-            startTime,
+        return this.timelineSystem.getClosestSnapPoint(
+            time,
+            thresholdSeconds,
+            this.getCurrentTime(),
+            excludeClipId,
         );
-        mainClip.groupId = groupId; // Set Group ID
-        targetTrack.clips.push(mainClip);
-        targetTrack.clips.sort((a, b) => a.start - b.start);
-
-        // 2. If Video, try to add Audio part to an Audio track
-        // Only if we haven't just redirected (i.e. if we are indeed handling a Video asset)
-        if (asset.type === MediaType.VIDEO) {
-            // Find an audio track that has space at the given time
-            // Or if we just created a new video track (by checking if targetTrack has only 1 clip),
-            // maybe we prefer a new audio track for symmetry?
-
-            // Heuristic: Try to find ANY audio track where this clip fits
-            let audioTrack = this.tracks
-                .filter((t) => t.type === "audio")
-                .find((track) => {
-                    // Check for collision
-                    // Simple collision check: does any clip overlap with [start, start + duration]
-                    const hasCollision = track.clips.some((clip) => {
-                        const cStart = clip.start;
-                        const cEnd = clip.start + clip.duration;
-                        const newStart = startTime;
-                        const newEnd = startTime + asset.duration!;
-
-                        return cStart < newEnd && cEnd > newStart;
-                    });
-                    return !hasCollision;
-                });
-
-            // If no suitable track found, create one
-            if (!audioTrack) {
-                audioTrack = this.addTrack("audio");
-            }
-
-            if (audioTrack) {
-                const audioClip = this.createClipObject(
-                    asset,
-                    audioTrack.id,
-                    startTime,
-                    "audio", // Force type audio for the separated track
-                );
-                audioClip.groupId = groupId; // Link via same Group ID
-                audioTrack.clips.push(audioClip);
-                audioTrack.clips.sort((a, b) => a.start - b.start);
-            }
-        }
-
-        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
     }
 
-    private createClipObject(
-        asset: Asset,
-        trackId: number,
-        start: number,
-        typeOverride?: MediaTypeValue,
-    ): Clip {
-        return {
-            id: uuidv4(),
-            assetId: asset.id,
-            trackId,
-            name: asset.name,
-            start,
-            duration: asset.duration || 5,
-            offset: 0,
-            type: typeOverride || asset.type,
-        };
-    }
-
-    public updateClip(id: string, updates: Partial<Clip>) {
-        // Find Primary
-        let groupId: string | undefined = undefined;
-        let deltaStart = 0;
-        let originalStart = 0;
-
-        for (const track of this.tracks) {
-            const clip = track.clips.find((c) => c.id === id);
-            if (clip) {
-                groupId = clip.groupId; // Get group ID
-                originalStart = clip.start;
-                break;
-            }
-        }
-
-        if (updates.start !== undefined) {
-            deltaStart = updates.start - originalStart;
-        }
-
-        // Identify clips to update: Primary + Same Group
-        // OR if GroupId is undefined, just the primary.
-        const clipsToUpdate = new Set<string>();
-        clipsToUpdate.add(id);
-
-        if (groupId && deltaStart !== 0) {
-            this.tracks.forEach((t) => {
-                t.clips.forEach((c) => {
-                    if (c.groupId === groupId && c.id !== id) {
-                        clipsToUpdate.add(c.id);
-                    }
-                });
-            });
-        }
-
-        let anythingChanged = false;
-
-        for (let i = 0; i < this.tracks.length; i++) {
-            const track = this.tracks[i];
-            if (!track) continue;
-
-            const indexesToUpdate = track.clips
-                .map((c, idx) => (clipsToUpdate.has(c.id) ? idx : -1))
-                .filter((idx) => idx !== -1);
-
-            if (indexesToUpdate.length === 0) continue;
-
-            const newClips = [...track.clips];
-
-            indexesToUpdate.forEach((idx) => {
-                const clip = newClips[idx];
-                if (!clip) return;
-
-                let specificUpdates = {};
-                if (clip.id === id) {
-                    specificUpdates = updates;
-                } else {
-                    // Linked clip
-                    specificUpdates = {
-                        start: clip.start + deltaStart,
-                    };
-                }
-
-                newClips[idx] = { ...clip, ...specificUpdates } as Clip;
-            });
-
-            if (updates.start !== undefined || deltaStart !== 0) {
-                newClips.sort((a, b) => a.start - b.start);
-            }
-
-            const updatedTrack: Track = { ...track, clips: newClips } as Track;
-            this.tracks[i] = updatedTrack;
-            anythingChanged = true;
-        }
-
-        if (anythingChanged) {
-            globalEventBus.emit({
-                type: "TIMELINE_UPDATED",
-                payload: undefined,
-            });
-        }
-    }
-
-    // Selection API
+    // Selection
     public selectClip(id: string, toggle: boolean = false) {
-        if (!toggle) {
-            this.selectedClipIds.clear();
-        }
-
-        // Find if this clip has a group
-        let groupId: string | undefined;
-        for (const track of this.tracks) {
-            const c = track.clips.find((clip) => clip.id === id);
-            if (c) {
-                groupId = c.groupId;
-                break;
-            }
-        }
-
-        if (groupId) {
-            // Select all in group
-            this.tracks.forEach((track) => {
-                track.clips.forEach((c) => {
-                    if (c.groupId === groupId) {
-                        if (this.selectedClipIds.has(c.id) && toggle) {
-                            this.selectedClipIds.delete(c.id);
-                        } else {
-                            this.selectedClipIds.add(c.id);
-                        }
-                    }
-                });
-            });
-        } else {
-            // Single
-            if (this.selectedClipIds.has(id) && toggle) {
-                this.selectedClipIds.delete(id);
-            } else {
-                this.selectedClipIds.add(id);
-            }
-        }
-
-        globalEventBus.emit({
-            type: "SELECTION_CHANGED",
-            payload: Array.from(this.selectedClipIds),
-        });
+        this.selectionSystem.selectClip(id, toggle);
     }
 
     public getSelectedClipIds() {
-        return Array.from(this.selectedClipIds);
+        return this.selectionSystem.getSelectedClipIds();
     }
 
     public deleteSelectedClips() {
-        const selected = this.selectedClipIds;
-        this.tracks.forEach((track) => {
-            const initialLen = track.clips.length;
-            track.clips = track.clips.filter((c) => !selected.has(c.id));
-            if (track.clips.length !== initialLen) {
-                // Track modified
-                this.tracks = [...this.tracks]; // Trigger track list update? Or just emit
-            }
-        });
-
-        this.selectedClipIds.clear();
-        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
-        globalEventBus.emit({ type: "SELECTION_CHANGED", payload: [] });
+        this.selectionSystem.deleteSelectedClips();
     }
 
     public unlinkSelectedClips() {
-        const selected = this.selectedClipIds;
-        this.tracks.forEach((track, i) => {
-            // Use index
-            if (!track) return;
-            let trackChanged = false;
-            const newClips = track.clips.map((c) => {
-                if (selected.has(c.id)) {
-                    if (c.groupId) {
-                        trackChanged = true;
-                        // Return copy without groupId
-                        const { groupId, ...rest } = c;
-                        return rest as Clip;
-                    }
-                }
-                return c;
-            });
-            if (trackChanged) {
-                // Create NEW Track object to ensure reactivity
-                this.tracks[i] = {
-                    ...track,
-                    clips: newClips,
-                } as Track;
-            }
-        });
-
-        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
+        this.selectionSystem.unlinkSelectedClips();
     }
 
-    // --- Playback Controls ---
-
+    // Playback
     public togglePlayback() {
-        this.isPlaying = !this.isPlaying;
-        globalEventBus.emit({
-            type: "PLAYBACK_TOGGLED",
-            payload: this.isPlaying,
-        });
-
-        if (this.isPlaying) {
-            let lastTime = performance.now();
-
-            const tick = () => {
-                if (!this.isPlaying) return;
-
-                const now = performance.now();
-                const delta = (now - lastTime) / 1000;
-                lastTime = now;
-
-                this.currentTime += delta;
-                globalEventBus.emit({
-                    type: "PLAYBACK_TIME_UPDATED",
-                    payload: this.currentTime,
-                });
-
-                // Sync Audio Loop
-                audioManager.sync(
-                    this.currentTime,
-                    this.isPlaying,
-                    this.masterVolume,
-                );
-
-                this.animationFrameId = requestAnimationFrame(tick);
-            };
-
-            this.animationFrameId = requestAnimationFrame(tick);
-        } else {
-            if (this.animationFrameId) {
-                cancelAnimationFrame(this.animationFrameId);
-                this.animationFrameId = null;
-            }
-            // Force one sync to pause everything
-            audioManager.sync(this.currentTime, false, this.masterVolume);
-        }
+        this.playbackSystem.togglePlayback();
     }
 
     public seek(time: number) {
-        this.currentTime = Math.max(0, time);
-        globalEventBus.emit({
-            type: "PLAYBACK_TIME_UPDATED",
-            payload: this.currentTime,
-        });
-        // Sync immediately to scrub sound? Maybe debounce this
-        audioManager.sync(this.currentTime, this.isPlaying, this.masterVolume);
+        this.playbackSystem.seek(time);
     }
 
     public setVolume(vol: number) {
-        this.masterVolume = Math.max(0, Math.min(1, vol));
-        globalEventBus.emit({
-            type: "VOLUME_CHANGED",
-            payload: this.masterVolume,
-        });
-        globalEventBus.emit({
-            type: "SHOW_FEEDBACK",
-            payload: {
-                icon: "Volume",
-                text: `${Math.round(this.masterVolume * 100)}%`,
-            },
-        });
+        this.playbackSystem.setVolume(vol);
     }
 
     public getCurrentTime(): number {
-        return this.currentTime;
+        return this.playbackSystem.getCurrentTime();
     }
 
     public getIsPlaying(): boolean {
-        return this.isPlaying;
+        return this.playbackSystem.getIsPlaying();
     }
 
-    // --- Helpers ---
-
-    private determineMediaType(mimeType: string): MediaTypeValue {
-        if (mimeType.startsWith("video/")) return MediaType.VIDEO;
-        if (mimeType.startsWith("audio/")) return MediaType.AUDIO;
-        if (mimeType.startsWith("image/")) return MediaType.IMAGE;
-        return MediaType.UNKNOWN;
+    // Asset
+    public async addAsset(file: File): Promise<Asset> {
+        return this.assetSystem.addAsset(file);
     }
 
-    private getMediaDuration(url: string): Promise<number> {
-        return new Promise((resolve) => {
-            const element = document.createElement("video");
-            element.preload = "metadata";
+    public removeAsset(id: string) {
+        this.assetSystem.removeAsset(id);
+    }
 
-            const timeout = setTimeout(() => {
-                console.warn("Metadata load timed out for:", url);
-                resolve(0);
-                element.remove();
-            }, 3000);
+    public getAsset(id: string): Asset | undefined {
+        return this.assetSystem.getAsset(id);
+    }
 
-            element.onloadedmetadata = () => {
-                clearTimeout(timeout);
-                if (element.duration === Infinity) {
-                    console.warn("Duration is Infinity for:", url);
-                    resolve(0);
-                } else {
-                    resolve(element.duration);
-                }
-                element.remove();
-            };
-
-            element.onerror = () => {
-                clearTimeout(timeout);
-                console.error("Failed to load metadata:", element.error, url);
-                resolve(0);
-                element.remove();
-            };
-
-            element.src = url;
-        });
+    public getMousePosition() {
+        return this.inputSystem.getMousePosition();
     }
 }
 
