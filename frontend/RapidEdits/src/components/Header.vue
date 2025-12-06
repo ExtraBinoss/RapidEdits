@@ -3,7 +3,7 @@ import { Download, Settings } from "lucide-vue-next";
 import Button from "./UI/Button/Button.vue";
 import Tooltip from "./UI/Overlay/Tooltip.vue";
 import AppLogo from "./UI/Logo/AppLogo.vue";
-import ExportModal from "./UI/Modal/ExportModal.vue";
+import ExportMenu from "./Export/ExportMenu.vue";
 import { ref } from "vue";
 
 const showExportModal = ref(false);
@@ -13,7 +13,7 @@ const showExportModal = ref(false);
     <header
         class="h-14 bg-canvas-light border-b border-canvas-border flex items-center justify-between px-4 shrink-0 z-20"
     >
-        <ExportModal v-if="showExportModal" @close="showExportModal = false" />
+        <ExportMenu v-if="showExportModal" v-model="showExportModal" />
 
         <!-- Logo Area -->
         <div class="flex items-center gap-3">
