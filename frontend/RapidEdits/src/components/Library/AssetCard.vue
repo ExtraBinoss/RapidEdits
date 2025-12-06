@@ -4,7 +4,7 @@ import { Video, Music, Image as ImageIcon, Trash2 } from "lucide-vue-next";
 import type { Asset } from "../../types/Media";
 import { MediaType } from "../../types/Media";
 import AssetPreview from "./AssetPreview.vue";
-import Button from "../UI/Button.vue";
+import Button from "../UI/Button/Button.vue";
 import { formatDuration } from "../../utils/time";
 
 const props = defineProps<{

@@ -9,10 +9,10 @@ import {
     Scissors,
     Magnet,
 } from "lucide-vue-next";
-import Button from "../UI/Button.vue";
-import Tooltip from "../UI/Tooltip.vue";
-import Divider from "../UI/Divider.vue";
-import { formatTime } from "../../utils/time";
+import Button from "../../../UI/Button/Button.vue";
+import Tooltip from "../../../UI/Overlay/Tooltip.vue";
+import Divider from "../../../UI/Divider/Divider.vue";
+import { formatTime } from "../../../../utils/time";
 
 const props = defineProps<{
     currentTime: number;

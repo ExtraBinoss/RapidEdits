@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import Header from "./components/Header.vue";
 import Sidebar from "./components/Sidebar.vue";
-import Timeline from "./components/Timeline.vue";
-import Preview from "./components/Preview.vue";
+import Timeline from "./components/Timeline/Timeline.vue";
+import Preview from "./components/Preview/Preview.vue";
 import Properties from "./components/Properties.vue";
 import { onMounted } from "vue";
 import { updateFavicon } from "./utils/faviconUtils";

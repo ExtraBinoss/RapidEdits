@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from "vue";
-import { waveformGenerator } from "../../core/generators/WaveformGenerator";
-import { globalEventBus } from "../../core/events/EventBus";
-import type { Clip } from "../../types/Timeline";
-import { editorEngine } from "../../core/EditorEngine";
+import { waveformGenerator } from "../../../../core/generators/WaveformGenerator";
+import { globalEventBus } from "../../../../core/events/EventBus";
+import type { Clip } from "../../../../types/Timeline";
+import { editorEngine } from "../../../../core/EditorEngine";
 
 const props = defineProps<{
     clip: Clip;

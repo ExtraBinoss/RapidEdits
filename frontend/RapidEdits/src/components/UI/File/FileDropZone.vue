@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useProjectStore } from "../../stores/projectStore";
-import { useDragDrop } from "../../composables/useDragDrop";
+import { useProjectStore } from "../../../stores/projectStore";
+import { useDragDrop } from "../../../composables/useDragDrop";
 import { UploadCloud } from "lucide-vue-next";
 
 const store = useProjectStore();

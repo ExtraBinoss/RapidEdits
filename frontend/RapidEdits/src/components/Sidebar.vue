@@ -10,9 +10,9 @@ import {
     Sticker,
     SplitSquareHorizontal,
 } from "lucide-vue-next";
-import Button from "./UI/Button.vue";
-import Tooltip from "./UI/Tooltip.vue";
-import FileDropZone from "./UI/FileDropZone.vue";
+import Button from "./UI/Button/Button.vue";
+import Tooltip from "./UI/Overlay/Tooltip.vue";
+import FileDropZone from "./UI/File/FileDropZone.vue";
 import AssetCard from "./Library/AssetCard.vue";
 
 const activeTab = ref("media");

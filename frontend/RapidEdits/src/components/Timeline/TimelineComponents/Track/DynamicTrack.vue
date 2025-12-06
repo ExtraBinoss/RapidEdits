@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { Track } from "../../types/Timeline";
-import TimelineClip from "./TimelineClip.vue";
+import type { Track } from "../../../../types/Timeline";
+import TimelineClip from "../Track/TimelineClip.vue";
 // import { useProjectStore } from "../../stores/projectStore";
 
 const props = defineProps<{

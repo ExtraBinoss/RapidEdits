@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { Trash2, Unlink } from "lucide-vue-next";
-import { useProjectStore } from "../stores/projectStore";
-import { useDragDrop } from "../composables/useDragDrop";
-import DynamicTrack from "./Timeline/DynamicTrack.vue";
-import TimeRuler from "./Timeline/TimeRuler.vue";
-import ContextMenu from "./UI/ContextMenu.vue";
-import type { ContextMenuItem } from "./UI/ContextMenu.vue";
+import { useProjectStore } from "../../stores/projectStore";
+import { useDragDrop } from "../../composables/useDragDrop";
+import DynamicTrack from "./TimelineComponents/Track/DynamicTrack.vue";
+import TimeRuler from "./TimelineComponents/TimeRuler/TimeRuler.vue";
+import ContextMenu from "../UI/ContextMenu/ContextMenu.vue";
+import type { ContextMenuItem } from "../UI/ContextMenu/ContextMenu.vue";
+import { editorEngine } from "../../core/EditorEngine";
+import TimelineToolbar from "./TimelineComponents/Toolbar/TimelineToolbar.vue";
 import { ref, watch, computed } from "vue";
 import { storeToRefs } from "pinia";
 
@@ -100,14 +102,6 @@ const handleNewTrackDrop = (e: DragEvent, type: "video" | "audio") => {
         }
     }
 };
-
-import { editorEngine } from "../core/EditorEngine";
-
-// ...
-
-import TimelineToolbar from "./Timeline/TimelineToolbar.vue";
-
-// ...
 
 const isScrubbing = ref(false);
 let scrubRafId: number | null = null;

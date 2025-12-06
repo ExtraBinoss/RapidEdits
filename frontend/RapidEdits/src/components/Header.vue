@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Download, Settings, FileVideo } from "lucide-vue-next";
-import Button from "./UI/Button.vue";
-import Tooltip from "./UI/Tooltip.vue";
-import Popover from "./UI/Popover.vue";
-import AppLogo from "./AppLogo.vue";
+import Button from "./UI/Button/Button.vue";
+import Tooltip from "./UI/Overlay/Tooltip.vue";
+import Popover from "./UI/Overlay/Popover.vue";
+import AppLogo from "./UI/Logo/AppLogo.vue";
 </script>
 
 <template>

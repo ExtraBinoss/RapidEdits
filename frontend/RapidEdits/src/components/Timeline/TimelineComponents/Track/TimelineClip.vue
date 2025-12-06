@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import type { Clip, Track } from "../../types/Timeline";
-import Filmstrip from "./Filmstrip.vue";
-import AudioWaveform from "./AudioWaveform.vue";
-import { editorEngine } from "../../core/EditorEngine";
-import { useProjectStore } from "../../stores/projectStore";
+import type { Clip, Track } from "../../../../types/Timeline";
+import Filmstrip from "../Media/Filmstrip.vue";
+import AudioWaveform from "../Media/AudioWaveform.vue";
+import { editorEngine } from "../../../../core/EditorEngine";
+import { useProjectStore } from "../../../../stores/projectStore";
 
 const props = defineProps<{
     clip: Clip;
