@@ -5,6 +5,7 @@ import Filmstrip from "../Media/Filmstrip.vue";
 import AudioWaveform from "../Media/AudioWaveform.vue";
 import { editorEngine } from "../../../../core/EditorEngine";
 import { useProjectStore } from "../../../../stores/projectStore";
+import { pluginRegistry } from "../../../../core/plugins/PluginRegistry";
 
 const props = defineProps<{
     clip: Clip;
@@ -198,7 +199,11 @@ const stopDrag = () => {
         <!-- Content -->
         <!-- GPU Preview for Video Clips -->
         <Filmstrip
-            v-if="clip.type === 'video' || clip.type === 'image'"
+            v-if="
+                clip.type === 'video' ||
+                clip.type === 'image' ||
+                pluginRegistry.get(clip.type)
+            "
             :clip="clip"
         />
 
