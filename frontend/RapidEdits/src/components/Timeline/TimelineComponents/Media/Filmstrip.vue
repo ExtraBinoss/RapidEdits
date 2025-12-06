@@ -20,10 +20,12 @@ const isPlugin = computed(() => {
 });
 
 // Only run filmstrip logic if NOT a plugin and has valid asset
-const shouldLoadFilmstrip = computed(() => !isPlugin.value && asset?.url && asset.type === 'video');
+const shouldLoadFilmstrip = computed(
+    () => !isPlugin.value && asset?.url && asset.type === "video",
+);
 
 const { thumbnails: videoThumbnails } = useFilmstrip(
-    shouldLoadFilmstrip.value ? (asset?.url || "") : "",
+    shouldLoadFilmstrip.value ? asset?.url || "" : "",
     asset?.type || "video",
     props.clip.offset,
     props.clip.duration,
@@ -31,11 +33,13 @@ const { thumbnails: videoThumbnails } = useFilmstrip(
 );
 
 const { thumbnails: pluginThumbnails } = usePluginFilmstrip(
-    props.clip,
-    width
+    () => props.clip,
+    width,
 );
 
-const displayThumbnails = computed(() => isPlugin.value ? pluginThumbnails.value : videoThumbnails.value);
+const displayThumbnails = computed(() =>
+    isPlugin.value ? pluginThumbnails.value : videoThumbnails.value,
+);
 
 // Update width on mount and resize
 onMounted(() => {

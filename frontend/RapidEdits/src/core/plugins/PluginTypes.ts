@@ -46,4 +46,17 @@ export interface FilmstripConfig {
      * If true, uses a perspective camera instead of orthographic
      */
     usePerspective?: boolean;
+
+    /**
+     * If true, disable auto-fitting the camera to the object.
+     * Use with fixedSceneWidth to show relative scale.
+     */
+    disableAutoFit?: boolean;
+
+    /**
+     * The width of the scene in world units to capture.
+     * Required if disableAutoFit is true.
+     * Default might be 1920.
+     */
+    fixedSceneWidth?: number;
 }

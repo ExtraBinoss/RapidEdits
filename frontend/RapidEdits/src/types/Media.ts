@@ -51,4 +51,5 @@ export type EditorEvent =
               trackId: number;
           };
       }
-    | { type: "TOOL_CHANGED"; payload: "select" | "razor" };
+    | { type: "TOOL_CHANGED"; payload: "select" | "razor" }
+    | { type: "PLUGIN_PROPERTY_CHANGED"; payload: { clipId: string } };

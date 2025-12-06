@@ -1,7 +1,8 @@
-import { ref, watch } from "vue";
+import { ref, watch, onUnmounted } from "vue";
 import * as THREE from "three";
 import { pluginRegistry } from "../../../core/plugins/PluginRegistry";
 import type { Clip } from "../../../types/Timeline";
+import { globalEventBus } from "../../../core/events/EventBus";
 
 // Shared renderer pool to avoid WebGL context limits
 // We use a singleton approach for the thumbnail renderer
@@ -29,11 +30,46 @@ function getSharedResources() {
     };
 }
 
-export function usePluginFilmstrip(clip: Clip, widthRef: { value: number }) {
+export function usePluginFilmstrip(
+    clipGetter: () => Clip,
+    widthRef: { value: number },
+) {
     const thumbnails = ref<{ id: number; url: string; loaded: boolean }[]>([]);
+    const version = ref(0);
+
+    // Listen for property changes from the plugin properties panel
+    const handlePropertyChange = (payload: any) => {
+        const currentClip = clipGetter();
+        if (payload?.clipId === currentClip.id) {
+            version.value++;
+        }
+    };
+
+    globalEventBus.on("PLUGIN_PROPERTY_CHANGED", handlePropertyChange);
+
+    // Cleanup listener when the component using this hook is unmounted
+    // Since this is a composable, we rely on the watcher's cleanup or onUnmounted if we were in a component
+    // But specific to this watch scope:
+
+    // Actually, we should register the listener outside the watch, and clean it up when the scope is disposed.
+    // Vue's onScopeDispose or onUnmounted is better, but let's use the watch cleanup for simplicity if possible?
+    // No, watch cleanup is for the specific side effect.
+    // We'll use onUnmounted or onScopeDispose if we can import it.
+
+    // Let's import onUnmounted
+    onUnmounted(() => {
+        globalEventBus.off("PLUGIN_PROPERTY_CHANGED", handlePropertyChange);
+    });
+
     watch(
-        () => [clip.data, widthRef.value, clip.type],
+        () => [
+            clipGetter().data,
+            widthRef.value,
+            clipGetter().type,
+            version.value,
+        ],
         async (_newVal, _oldVal, onCleanup) => {
+            const clip = clipGetter();
             const plugin = pluginRegistry.get(clip.type);
             if (!plugin) return;
 
@@ -93,29 +129,46 @@ export function usePluginFilmstrip(clip: Clip, widthRef: { value: number }) {
 
             scene.add(object);
 
-            // Auto-Fit Camera to Object
-            const box = new THREE.Box3().setFromObject(object);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            const center = new THREE.Vector3();
-            box.getCenter(center);
+            if (config.disableAutoFit && config.fixedSceneWidth) {
+                // Fixed camera view
+                const width = config.fixedSceneWidth;
+                const height = width / 1.777; // 16:9 aspect ratio
 
-            if (size.lengthSq() === 0) {
-                size.set(100, 100, 100);
+                camera.left = -width / 2;
+                camera.right = width / 2;
+                camera.top = height / 2;
+                camera.bottom = -height / 2;
+
+                // Center camera at origin (or configurable offset?)
+                // Assuming objects are centered at (0,0) or placed relative to (0,0)
+                camera.position.set(0, 0, 500);
+                camera.lookAt(0, 0, 0);
+                camera.updateProjectionMatrix();
+            } else {
+                // Auto-Fit Camera to Object
+                const box = new THREE.Box3().setFromObject(object);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                const center = new THREE.Vector3();
+                box.getCenter(center);
+
+                if (size.lengthSq() === 0) {
+                    size.set(100, 100, 100);
+                }
+
+                const padding = config.cameraPadding || 1.2;
+                const camWidth = Math.max(size.x, size.y * 1.77) * padding;
+                const camHeight = camWidth / 1.77;
+
+                camera.left = -camWidth / 2;
+                camera.right = camWidth / 2;
+                camera.top = camHeight / 2;
+                camera.bottom = -camHeight / 2;
+
+                camera.position.set(center.x, center.y, box.max.z + 500);
+                camera.lookAt(center.x, center.y, center.z);
+                camera.updateProjectionMatrix();
             }
-
-            const padding = config.cameraPadding || 1.2;
-            const camWidth = Math.max(size.x, size.y * 1.77) * padding;
-            const camHeight = camWidth / 1.77;
-
-            camera.left = -camWidth / 2;
-            camera.right = camWidth / 2;
-            camera.top = camHeight / 2;
-            camera.bottom = -camHeight / 2;
-
-            camera.position.set(center.x, center.y, box.max.z + 500);
-            camera.lookAt(center.x, center.y, center.z);
-            camera.updateProjectionMatrix();
 
             // Lighting for 3D visibility
             const ambient = new THREE.AmbientLight(0xffffff, 1.2);

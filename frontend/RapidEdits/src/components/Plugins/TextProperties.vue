@@ -112,6 +112,21 @@
                 />
             </div>
         </div>
+
+        <!-- Filmstrip Options -->
+        <div
+            class="flex items-center justify-between pt-2 border-t border-gray-700"
+        >
+            <label class="text-xs font-medium text-gray-400"
+                >Filmstrip Auto-Fit</label
+            >
+            <input
+                type="checkbox"
+                v-model="clipData.autoFit"
+                class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-800"
+                @change="update"
+            />
+        </div>
     </div>
 </template>
 
@@ -119,6 +134,7 @@
 import { computed } from "vue";
 import type { Clip } from "../../types/Timeline";
 import { editorEngine } from "../../core/EditorEngine";
+import { globalEventBus } from "../../core/events/EventBus";
 
 const props = defineProps<{
     clip: Clip;
@@ -130,8 +146,12 @@ const clipData = computed(() => props.clip.data!);
 
 const update = () => {
     // Trigger an update in the engine to refresh the renderer
-    // We can do a shallow update or just emit an event
-    // For now, let's force a property update notification
     editorEngine.updateClip(props.clip.id, { data: { ...clipData.value } });
+
+    // Notify the filmstrip generator
+    globalEventBus.emit({
+        type: "PLUGIN_PROPERTY_CHANGED",
+        payload: { clipId: props.clip.id },
+    });
 };
 </script>

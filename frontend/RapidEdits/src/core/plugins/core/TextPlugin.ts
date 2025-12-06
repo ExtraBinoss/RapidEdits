@@ -48,6 +48,7 @@ export class TextPlugin extends BasePlugin {
             scale: { x: 1, y: 1, z: 1 },
             is3D: false,
             depth: 5,
+            autoFit: false,
         };
     }
 
@@ -163,10 +164,11 @@ export class TextPlugin extends BasePlugin {
     }
 
     getFilmstripConfig(clip: Clip): FilmstripConfig {
-        console.log("filmstrip", clip);
+        const data = clip.data || this.createData();
         return {
             backgroundColor: "#1e293b", // Slate-800 to contrast with white text
-            cameraPadding: 1.5, // slightly more padding for text
+            disableAutoFit: !data.autoFit,
+            fixedSceneWidth: 1920, // Full HD reference canvas
         };
     }
 }
