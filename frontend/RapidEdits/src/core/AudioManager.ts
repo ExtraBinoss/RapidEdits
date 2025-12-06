@@ -7,14 +7,17 @@ export class AudioManager {
         // Optional: could listen to events to optimize, but loop is safer for sync
     }
 
+    private lastActiveAssetIds: Set<string> = new Set();
+
     public async sync(
         currentTime: number,
         isPlaying: boolean,
         masterVolume: number,
     ) {
         const tracks = editorEngine.getTracks();
-
         const activeClips: Clip[] = [];
+        const currentActiveAssetIds = new Set<string>();
+
         tracks.forEach((track) => {
             if (track.type !== "audio" || track.isMuted) return;
 
@@ -23,8 +26,27 @@ export class AudioManager {
                     currentTime >= c.start &&
                     currentTime < c.start + c.duration,
             );
-            if (clip) activeClips.push(clip);
+            if (clip) {
+                activeClips.push(clip);
+                currentActiveAssetIds.add(clip.assetId);
+            }
         });
+
+        // 1. cleanup stale audio
+        for (const assetId of this.lastActiveAssetIds) {
+            if (!currentActiveAssetIds.has(assetId)) {
+                // Was playing, now isn't -> Ensure paused
+                const asset = editorEngine.getAsset(assetId);
+                if (asset) {
+                    // We don't await because good chance it's cached.
+                    // If strictly not cached, it wasn't playing anyway.
+                    resourceManager.getElement(asset, "audio").then((el) => {
+                        el.pause();
+                    });
+                }
+            }
+        }
+        this.lastActiveAssetIds = currentActiveAssetIds;
 
         for (const clip of activeClips) {
             const asset = editorEngine.getAsset(clip.assetId);
@@ -62,9 +84,11 @@ export class AudioManager {
                 if (drift > threshold) {
                     // Only seek if significantly off
                     if (!element.seeking) {
+                        /*
                         console.warn(
                             `[Audio] Sync Seek: ${drift.toFixed(3)}s > ${threshold}s`,
                         );
+                        */
                         element.currentTime = clipTime;
                     }
                 }

@@ -113,6 +113,73 @@ const toggleSnapping = () => {
     editorEngine.toggleSnapping();
     // Manually sync local state whenever we toggle
     isSnappingEnabled.value = editorEngine.getIsSnappingEnabled();
+    isSnappingEnabled.value = editorEngine.getIsSnappingEnabled();
+};
+
+// Tools
+const activeTool = ref<"select" | "razor">("select");
+
+const setActiveTool = (tool: "select" | "razor") => {
+    activeTool.value = tool;
+    editorEngine.setTool(tool);
+};
+
+// Split Logic
+const handleSplit = () => {
+    // Split at playhead
+    // We need to find which clip is under the playhead on Selected Tracks
+    // For now, let's just split the FIRST clip found under playhead on ANY track for simplicity,
+    // or better: split all clips under playhead if no selection, or just selected clip
+
+    // Simple v1: Split selected clip at playhead
+    // Simple v1: Split selected clip at playhead
+    const selectedIds = store.getSelectedClipIds();
+    if (selectedIds.length > 0) {
+        selectedIds.forEach((id) => {
+            store.splitClip(id, currentTime.value);
+        });
+        // Clear selection to avoid stale IDs for next split attempt
+        store.selectClip("", false);
+    } else {
+        // Fallback: Split valid clips under playhead on ALL tracks
+        // We capture the list of clips to split FIRST to avoid issues if tracks array changes during iteration
+        const clipsToSplit: { id: string; time: number }[] = [];
+
+        store.tracks.forEach((track) => {
+            const clipUnderPlayhead = track.clips.find(
+                (c) =>
+                    c.start < currentTime.value &&
+                    c.start + c.duration > currentTime.value, // strict inequality to avoid splitting at exact edge
+            );
+            if (clipUnderPlayhead) {
+                clipsToSplit.push({
+                    id: clipUnderPlayhead.id,
+                    time: currentTime.value,
+                });
+            }
+        });
+
+        clipsToSplit.forEach(({ id, time }) => {
+            store.splitClip(id, time);
+        });
+    }
+};
+
+const handleRazorClick = (e: MouseEvent, trackId: number, time: number) => {
+    if (activeTool.value !== "razor") return;
+
+    // Find clip at time
+    const track = store.tracks.find((t) => t.id === trackId);
+    if (!track) return;
+
+    const clip = track.clips.find(
+        (c) => c.start <= time && c.start + c.duration > time,
+    );
+    if (clip) {
+        store.splitClip(clip.id, time);
+        // Optional: switch back to select tool after one cut?
+        // setActiveTool('select');
+    }
 };
 
 const startScrubbing = (e: MouseEvent) => {
@@ -210,11 +277,13 @@ const handleTimelineClick = () => {
             :is-snapping="isSnappingEnabled"
             :current-time="currentTime"
             :duration="store.duration"
+            :active-tool="activeTool"
             v-model:zoom-level="zoomLevel"
             @seek="store.seek"
             @toggle-playback="store.togglePlayback"
             @toggle-snapping="toggleSnapping"
-            @split="() => {} /* TODO: Implement split */"
+            @split="handleSplit"
+            @update:active-tool="setActiveTool"
         />
 
         <!-- Timeline Area -->
@@ -309,7 +378,9 @@ const handleTimelineClick = () => {
                         :key="track.id"
                         :track="track"
                         :zoom-level="zoomLevel"
+                        :active-tool="activeTool"
                         @contextmenu="handleClipContextMenu"
+                        @razor-click="handleRazorClick"
                     />
 
                     <!-- Video Drop Zone (Create new track) -->
@@ -331,9 +402,11 @@ const handleTimelineClick = () => {
                         v-for="track in audioTracks"
                         :key="track.id"
                         :track="track"
-                        :zoomLevel="zoomLevel"
+                        :zoom-level="zoomLevel"
+                        :active-tool="activeTool"
                         @drop="handleTrackDrop"
                         @contextmenu="handleClipContextMenu"
+                        @razor-click="handleRazorClick"
                     />
 
                     <!-- Audio Drop Zone (Create new track) -->

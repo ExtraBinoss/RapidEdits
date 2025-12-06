@@ -100,8 +100,28 @@ export class ThreeRenderer {
         });
 
         const visibleClipIds = new Set(visibleClips.map((c) => c.id));
+
+        // Identify active assets to avoid pausing shared assets
+        const activeAssetIds = new Set(visibleClips.map((c) => c.assetId));
+
         for (const [clipId, mesh] of this.clipMeshes) {
             if (!visibleClipIds.has(clipId)) {
+                // Cleanup: Check if we should pause the video
+                // We must find which asset was used for this clipId.
+                // Since mess map doesn't store asset, we rely on the material map being a VideoTexture
+                const mat = mesh.material as THREE.MeshBasicMaterial;
+                if (mat.map && mat.map instanceof THREE.VideoTexture) {
+                    const video = mat.map.image;
+                    // Only pause if no other currently visible clip uses this asset?
+                    // This is hard to check perfectly without reverse mapping,
+                    // BUT: if we pause it here, and it IS needed, the syncVideoFrame for the other clip will play it again immediately.
+                    // The only risk is a stutter.
+                    // Safer: Pause it. The active loop will re-play it 1ms later if needed.
+                    if (video && !video.paused) {
+                        video.pause();
+                    }
+                }
+
                 this.scene.remove(mesh);
                 (mesh.material as THREE.MeshBasicMaterial).dispose();
                 this.clipMeshes.delete(clipId);

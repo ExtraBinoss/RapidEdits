@@ -127,7 +127,9 @@ const hide = () => {
                         left: `${coords.left}px`,
                     }"
                 >
-                    {{ text }}
+                    <slot name="content">
+                        {{ text }}
+                    </slot>
                 </div>
             </Transition>
         </Teleport>

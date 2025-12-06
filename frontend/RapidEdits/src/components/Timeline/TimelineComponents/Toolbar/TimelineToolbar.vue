@@ -3,23 +3,26 @@ import {
     Play,
     Pause,
     SkipBack,
-    SkipForward,
     ZoomIn,
     ZoomOut,
     Scissors,
     Magnet,
+    MousePointer2,
+    Slash,
 } from "lucide-vue-next";
 import Button from "../../../UI/Button/Button.vue";
 import Tooltip from "../../../UI/Overlay/Tooltip.vue";
 import Divider from "../../../UI/Divider/Divider.vue";
+import KeyChip from "../../../UI/KeyChip/KeyChip.vue";
 import { formatTime } from "../../../../utils/time";
 
-const props = defineProps<{
+defineProps<{
     currentTime: number;
     duration: number; // Not strictly needed for display if we only show current time, but good for context if needed
     isPlaying: boolean;
     isSnapping: boolean;
     zoomLevel: number;
+    activeTool: "select" | "razor";
 }>();
 
 const emit = defineEmits<{
@@ -28,6 +31,7 @@ const emit = defineEmits<{
     (e: "toggleSnapping"): void;
     (e: "split"): void;
     (e: "update:zoomLevel", val: number): void;
+    (e: "update:activeTool", val: "select" | "razor"): void;
 }>();
 </script>
 
@@ -37,7 +41,13 @@ const emit = defineEmits<{
     >
         <!-- Left Controls -->
         <div class="flex items-center gap-2">
-            <Tooltip text="Go to Start (Home)" position="bottom">
+            <Tooltip text="Go to Start" position="bottom">
+                <template #content>
+                    <div class="flex items-center gap-2">
+                        <span>Go to Start</span>
+                        <KeyChip char="Home" />
+                    </div>
+                </template>
                 <Button
                     variant="icon"
                     size="sm"
@@ -46,13 +56,68 @@ const emit = defineEmits<{
                 />
             </Tooltip>
 
-            <Tooltip text="Next Frame (Coming Soon)" position="bottom">
-                <Button variant="icon" size="sm" :icon="SkipForward" disabled />
+            <Divider orientation="vertical" />
+
+            <Tooltip text="Select Tool" position="bottom">
+                <template #content>
+                    <div class="flex items-center gap-2">
+                        <span>Select Tool</span>
+                        <KeyChip char="V" />
+                    </div>
+                </template>
+                <Button
+                    variant="icon"
+                    size="sm"
+                    :icon="MousePointer2"
+                    :active="activeTool === 'select'"
+                    @click="emit('update:activeTool', 'select')"
+                />
             </Tooltip>
 
             <Divider orientation="vertical" />
 
-            <Tooltip text="Toggle Snapping (N)" position="bottom">
+            <!-- Split Action -->
+            <Tooltip text="Split Clip at Playhead" position="bottom">
+                <template #content>
+                    <div class="flex items-center gap-2">
+                        <span>Split</span>
+                        <KeyChip char="S" />
+                    </div>
+                </template>
+                <Button
+                    variant="icon"
+                    size="sm"
+                    :icon="Scissors"
+                    @click="emit('split')"
+                />
+            </Tooltip>
+
+            <!-- Razor Tool -->
+            <Tooltip text="Razor Tool" position="bottom">
+                <template #content>
+                    <div class="flex items-center gap-2">
+                        <span>Razor Tool</span>
+                        <KeyChip char="C" />
+                    </div>
+                </template>
+                <Button
+                    variant="icon"
+                    size="sm"
+                    :icon="Slash"
+                    :active="activeTool === 'razor'"
+                    @click="emit('update:activeTool', 'razor')"
+                />
+            </Tooltip>
+
+            <Divider orientation="vertical" />
+
+            <Tooltip text="Snapping" position="bottom">
+                <template #content>
+                    <div class="flex items-center gap-2">
+                        <span>Snapping</span>
+                        <KeyChip char="M" />
+                    </div>
+                </template>
                 <Button
                     variant="icon"
                     size="sm"
@@ -60,17 +125,6 @@ const emit = defineEmits<{
                     :active="isSnapping"
                     @click="emit('toggleSnapping')"
                 />
-            </Tooltip>
-
-            <Tooltip text="Split Clip (S)" position="bottom">
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    :icon="Scissors"
-                    @click="emit('split')"
-                >
-                    Split
-                </Button>
             </Tooltip>
         </div>
 
@@ -80,10 +134,13 @@ const emit = defineEmits<{
                 {{ formatTime(currentTime) }}
             </span>
 
-            <Tooltip
-                :text="isPlaying ? 'Pause (Space)' : 'Play (Space)'"
-                position="bottom"
-            >
+            <Tooltip :text="isPlaying ? 'Pause' : 'Play'" position="bottom">
+                <template #content>
+                    <div class="flex items-center gap-2">
+                        <span>{{ isPlaying ? "Pause" : "Play" }}</span>
+                        <KeyChip char="Space" />
+                    </div>
+                </template>
                 <Button
                     variant="secondary"
                     class="rounded-full w-8 h-8 flex items-center justify-center"
@@ -100,7 +157,13 @@ const emit = defineEmits<{
 
         <!-- Right Controls (Zoom) -->
         <div class="flex items-center gap-2">
-            <Tooltip text="Zoom Out (-)" position="bottom">
+            <Tooltip text="Zoom Out" position="bottom">
+                <template #content>
+                    <div class="flex items-center gap-2">
+                        <span>Zoom Out</span>
+                        <KeyChip char="-" />
+                    </div>
+                </template>
                 <Button
                     variant="icon"
                     size="sm"
@@ -125,7 +188,13 @@ const emit = defineEmits<{
                 class="w-20 h-1 bg-canvas-border rounded-lg appearance-none cursor-pointer accent-brand-primary"
             />
 
-            <Tooltip text="Zoom In (+)" position="bottom">
+            <Tooltip text="Zoom In" position="bottom">
+                <template #content>
+                    <div class="flex items-center gap-2">
+                        <span>Zoom In</span>
+                        <KeyChip char="+" />
+                    </div>
+                </template>
                 <Button
                     variant="icon"
                     size="sm"

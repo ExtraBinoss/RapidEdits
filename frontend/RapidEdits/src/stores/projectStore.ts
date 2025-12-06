@@ -37,8 +37,12 @@ export const useProjectStore = defineStore("project", () => {
     });
 
     globalEventBus.on("TIMELINE_UPDATED", () => {
-        // Reactivity trigger
-        tracks.value = [...editorEngine.getTracks()];
+        // Reactivity trigger: Create new array AND new track objects
+        // to ensure components detecting prop changes update correctly
+        tracks.value = editorEngine.getTracks().map((t) => ({
+            ...t,
+            clips: [...t.clips],
+        }));
     });
 
     globalEventBus.on("PLAYBACK_TIME_UPDATED", (time: any) => {
@@ -78,6 +82,10 @@ export const useProjectStore = defineStore("project", () => {
         return editorEngine.addTrack(type);
     };
 
+    function splitClip(clipId: string, time: number) {
+        editorEngine.splitClip(clipId, time);
+    }
+
     return {
         assets,
         tracks,
@@ -98,6 +106,7 @@ export const useProjectStore = defineStore("project", () => {
         getSelectedClipIds: () => editorEngine.getSelectedClipIds(),
         deleteSelectedClips: () => editorEngine.deleteSelectedClips(),
         unlinkSelectedClips: () => editorEngine.unlinkSelectedClips(),
+        splitClip,
 
         // Reactive State for selection (sync via event)
         selectedClipIds: computed(() => {

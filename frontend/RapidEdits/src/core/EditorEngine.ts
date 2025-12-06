@@ -3,6 +3,7 @@ import { TimelineSystem } from "./systems/TimelineSystem";
 import { SelectionSystem } from "./systems/SelectionSystem";
 import { PlaybackSystem } from "./systems/PlaybackSystem";
 import { InputSystem } from "./systems/InputSystem";
+import { globalEventBus } from "./events/EventBus";
 import type { Asset } from "../types/Media";
 import type { Track, Clip } from "../types/Timeline";
 
@@ -13,6 +14,9 @@ export class EditorEngine {
     public selectionSystem: SelectionSystem;
     public playbackSystem: PlaybackSystem;
     public inputSystem: InputSystem;
+
+    // Tools State
+    private activeTool: "select" | "razor" = "select";
 
     constructor() {
         this.assetSystem = new AssetSystem();
@@ -48,6 +52,10 @@ export class EditorEngine {
         this.timelineSystem.updateClip(id, updates);
     }
 
+    public splitClip(clipId: string, time: number) {
+        this.timelineSystem.splitClip(clipId, time);
+    }
+
     // Snapping
     public toggleSnapping() {
         return this.timelineSystem.toggleSnapping();
@@ -75,6 +83,16 @@ export class EditorEngine {
             this.getCurrentTime(),
             excludeClipId,
         );
+    }
+
+    // Tools
+    public setTool(tool: "select" | "razor") {
+        this.activeTool = tool;
+        globalEventBus.emit({ type: "TOOL_CHANGED", payload: tool });
+    }
+
+    public getTool() {
+        return this.activeTool;
     }
 
     // Selection

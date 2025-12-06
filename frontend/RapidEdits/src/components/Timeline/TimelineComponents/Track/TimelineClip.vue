@@ -10,6 +10,7 @@ const props = defineProps<{
     clip: Clip;
     track: Track; // Needed to know context if we want to move tracks later
     zoomLevel: number;
+    activeTool?: "select" | "razor";
 }>();
 
 const store = useProjectStore();
@@ -25,7 +26,12 @@ const clipStyle = computed(() => {
     return {
         left: `${start * props.zoomLevel}px`,
         width: `${props.clip.duration * props.zoomLevel}px`,
-        cursor: isDragging.value ? "grabbing" : "grab",
+        cursor:
+            props.activeTool === "razor"
+                ? "cell"
+                : isDragging.value
+                  ? "grabbing"
+                  : "grab",
         zIndex: isDragging.value ? 50 : 10,
     };
 });
@@ -35,7 +41,7 @@ import { watch } from "vue";
 watch(
     () => props.clip.start,
     (newStart) => {
-        console.log("Clip start prop updated:", newStart);
+        // console.log("Clip start prop updated:", newStart);
         if (!isDragging.value) {
             tempStart.value = newStart;
         }
@@ -56,6 +62,8 @@ const getTrackColor = (type: string) => {
 let rafId: number | null = null;
 
 const startDrag = (e: MouseEvent) => {
+    if (props.activeTool === "razor") return;
+
     e.preventDefault();
     e.stopPropagation(); // prevent triggering parent track drop zones or selections
 
@@ -134,11 +142,18 @@ const isSelected = computed(() => {
 });
 
 const handleClick = (e: MouseEvent) => {
+    if (props.activeTool === "razor") {
+        // Allow propagation so DynamicTrack can handle split
+        return;
+    }
+
     e.stopPropagation();
     // Logic moved to mousedown for selection start, but we can refine toggle here
     const toggle = e.ctrlKey || e.metaKey || e.shiftKey;
     if (toggle) {
         store.selectClip(props.clip.id, true);
+    } else {
+        store.selectClip(props.clip.id, false);
     }
 };
 

@@ -15,6 +15,14 @@ export class SelectionSystem {
             this.selectedClipIds.clear();
         }
 
+        if (!id) {
+            globalEventBus.emit({
+                type: "SELECTION_CHANGED",
+                payload: Array.from(this.selectedClipIds),
+            });
+            return;
+        }
+
         const tracks = this.timelineSystem.getTracks();
 
         // Find if this clip has a group

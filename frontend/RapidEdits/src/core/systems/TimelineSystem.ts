@@ -141,7 +141,124 @@ export class TimelineSystem {
             duration: asset.duration || 5,
             offset: 0,
             type: typeOverride || asset.type,
+            speed: 1,
         };
+    }
+
+    public splitClip(clipId: string, splitTime: number): void {
+        let primaryClip: Clip | undefined;
+        let primaryTrack: Track | undefined;
+
+        // 1. Find the primary clip
+        for (const t of this.tracks) {
+            const c = t.clips.find((clip) => clip.id === clipId);
+            if (c) {
+                primaryClip = c;
+                primaryTrack = t;
+                break;
+            }
+        }
+
+        if (!primaryClip || !primaryTrack) return;
+
+        // 2. Identify all clips to split (Primary + Linked)
+        const clipsToSplit: { clip: Clip; track: Track }[] = [];
+
+        // Always add the primary one
+        clipsToSplit.push({ clip: primaryClip, track: primaryTrack });
+
+        // If grouped, find others
+        if (primaryClip.groupId) {
+            for (const t of this.tracks) {
+                for (const c of t.clips) {
+                    if (
+                        c.groupId === primaryClip.groupId &&
+                        c.id !== primaryClip.id
+                    ) {
+                        clipsToSplit.push({ clip: c, track: t });
+                    }
+                }
+            }
+        }
+
+        // 3. Generate a new Group ID for the "Right" side if the original was grouped
+        // This ensures the Right Side clips (Video R + Audio R) are linked to EACH OTHER,
+        // but separated from the Left Side clips (Video L + Audio L).
+        const newGroupId = primaryClip.groupId ? uuidv4() : undefined;
+
+        // 4. Perform Split on all
+        let anySplit = false;
+        clipsToSplit.forEach(({ clip, track }) => {
+            if (this.performSingleSplit(clip, track, splitTime, newGroupId)) {
+                anySplit = true;
+            }
+        });
+
+        if (anySplit) {
+            globalEventBus.emit({
+                type: "TIMELINE_UPDATED",
+                payload: undefined,
+            });
+        }
+    }
+
+    private performSingleSplit(
+        originalClip: Clip,
+        track: Track,
+        splitTime: number,
+        newGroupId?: string,
+    ): boolean {
+        // Validation: Check bounds with a small buffer for min duration
+        const minDuration = 0.05; // 50ms minimum clip size
+        if (
+            splitTime <= originalClip.start + minDuration ||
+            splitTime >=
+                originalClip.start + originalClip.duration - minDuration
+        ) {
+            return false;
+        }
+
+        const relativeSplitTime = splitTime - originalClip.start;
+        const firstHalfDuration = relativeSplitTime;
+        const secondHalfDuration = originalClip.duration - relativeSplitTime;
+
+        // 1. Update First Half
+        // We find the index again to be safe, though we have the object reference
+        const clipIndex = track.clips.findIndex(
+            (c) => c.id === originalClip.id,
+        );
+        if (clipIndex === -1) return false;
+
+        track.clips[clipIndex] = {
+            ...originalClip,
+            duration: firstHalfDuration,
+        };
+
+        // 2. Create Second Half
+        const secondHalfClip: Clip = {
+            ...originalClip,
+            id: uuidv4(),
+            start: originalClip.start + firstHalfDuration,
+            duration: secondHalfDuration,
+            offset: originalClip.offset + firstHalfDuration,
+            groupId: newGroupId, // Use the NEW group ID (linked to other right-halves)
+        };
+
+        track.clips.push(secondHalfClip);
+        track.clips.sort((a, b) => a.start - b.start);
+
+        // Emit Event for this specific split
+        globalEventBus.emit({
+            type: "CLIP_SPLIT",
+            payload: {
+                originalClipId: originalClip.id,
+                newClipId: secondHalfClip.id,
+                splitTime: splitTime,
+                trackId: track.id,
+            },
+        });
+
+        return true;
     }
 
     public updateClip(id: string, updates: Partial<Clip>) {

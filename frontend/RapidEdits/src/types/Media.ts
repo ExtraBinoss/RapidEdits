@@ -41,4 +41,14 @@ export type EditorEvent =
     | { type: "PLAYBACK_TOGGLED"; payload: boolean }
     | { type: "SHOW_FEEDBACK"; payload: { icon: string; text?: string } }
     | { type: "AMBIENT_COLOR_UPDATE"; payload: string }
-    | { type: "SELECTION_CHANGED"; payload: string[] };
+    | { type: "SELECTION_CHANGED"; payload: string[] }
+    | {
+          type: "CLIP_SPLIT";
+          payload: {
+              originalClipId: string;
+              newClipId: string;
+              splitTime: number;
+              trackId: number;
+          };
+      }
+    | { type: "TOOL_CHANGED"; payload: "select" | "razor" };
