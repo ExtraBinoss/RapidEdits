@@ -15,9 +15,7 @@ const store = useProjectStore();
 const { tracks, currentTime, isPlaying } = storeToRefs(store);
 
 const videoTracks = computed(() => {
-    return tracks.value.filter(
-        (t) => t.type === "video",
-    );
+    return tracks.value.filter((t) => t.type === "video");
 });
 const audioTracks = computed(() => {
     return tracks.value.filter((t) => t.type === "audio");
@@ -300,7 +298,7 @@ const handleTimelineClick = () => {
                 <div
                     v-for="track in customTracks"
                     :key="track.id"
-                    class="h-24 border-b border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
+                    class="h-24 border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
                 >
                     <span class="font-medium text-text-main mb-1">{{
                         track.name
@@ -312,13 +310,16 @@ const handleTimelineClick = () => {
                     </div>
                 </div>
 
-                <div v-if="customTracks.length > 0" class="h-4 bg-canvas-darker border-y border-canvas-border flex items-center justify-center flex-shrink-0"></div>
+                <div
+                    v-if="customTracks.length > 0"
+                    class="h-4 bg-canvas-darker border-y border-canvas-border flex items-center justify-center flex-shrink-0"
+                ></div>
 
                 <!-- Video Tracks Header -->
                 <div
                     v-for="track in videoTracks"
                     :key="track.id"
-                    class="h-24 border-b border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
+                    class="h-24 border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
                 >
                     <span class="font-medium text-text-main mb-1">{{
                         track.name
@@ -344,7 +345,7 @@ const handleTimelineClick = () => {
                 <div
                     v-for="track in audioTracks"
                     :key="track.id"
-                    class="h-24 border-b border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
+                    class="h-24 border-canvas-border flex flex-col justify-center px-3 text-xs hover:bg-canvas-lighter transition-colors group flex-shrink-0"
                 >
                     <span class="font-medium text-text-main mb-1">{{
                         track.name
@@ -368,7 +369,7 @@ const handleTimelineClick = () => {
             >
                 <!-- Ruler -->
                 <div
-                    class="h-8 sticky top-0 bg-canvas-light border-b border-canvas-border z-10 flex items-end cursor-pointer hover:bg-canvas-lighter"
+                    class="h-8 sticky top-0 bg-canvas-light border-canvas-border z-10 flex items-end cursor-pointer hover:bg-canvas-lighter"
                     @mousedown="startScrubbing"
                     :style="{
                         minWidth: '100%',
@@ -407,7 +408,7 @@ const handleTimelineClick = () => {
                     <!-- Divider -->
                     <div
                         v-if="customTracks.length > 0"
-                        class="h-4 bg-canvas-darker border-y border-canvas-border/30"
+                        class="h-4 bg-canvas-darker"
                     ></div>
 
                     <!-- Video Tracks Loop -->
@@ -423,7 +424,7 @@ const handleTimelineClick = () => {
 
                     <!-- Video Drop Zone (Create new track) -->
                     <div
-                        class="h-24 border-b border-canvas-border/30 relative bg-canvas/10 border-dashed border-2 border-transparent hover:border-brand-primary/30 transition-colors flex items-center justify-center text-text-muted/50 hover:text-brand-primary/80"
+                        class="h-24 border-canvas-border/30 relative bg-canvas/10 border-dashed border-2 border-transparent hover:border-brand-primary/30 transition-colors flex items-center justify-center text-text-muted/50 hover:text-brand-primary/80"
                         @dragover.prevent
                         @drop="handleNewTrackDrop($event, 'video')"
                     >
@@ -431,9 +432,7 @@ const handleTimelineClick = () => {
                     </div>
 
                     <!-- Divider -->
-                    <div
-                        class="h-4 bg-canvas-darker border-y border-canvas-border/30"
-                    ></div>
+                    <div class="h-4 bg-canvas-darker"></div>
 
                     <!-- Audio Tracks Loop -->
                     <DynamicTrack
@@ -449,7 +448,7 @@ const handleTimelineClick = () => {
 
                     <!-- Audio Drop Zone (Create new track) -->
                     <div
-                        class="h-24 border-b border-canvas-border/30 relative bg-canvas/10 border-dashed border-2 border-transparent hover:border-emerald-500/30 transition-colors flex items-center justify-center text-text-muted/50 hover:text-emerald-500/80"
+                        class="h-24 border-canvas-border/30 relative bg-canvas/10 border-dashed border-2 border-transparent hover:border-emerald-500/30 transition-colors flex items-center justify-center text-text-muted/50 hover:text-emerald-500/80"
                         @dragover.prevent
                         @drop="handleNewTrackDrop($event, 'audio')"
                     >

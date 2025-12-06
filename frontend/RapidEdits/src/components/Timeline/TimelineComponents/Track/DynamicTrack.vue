@@ -39,7 +39,7 @@ const handleContainerClick = (e: MouseEvent) => {
 
 <template>
     <div
-        class="h-24 border-b border-canvas-border/30 relative bg-canvas/20 transition-colors"
+        class="h-24 border-canvas-border/30 relative bg-canvas/20 transition-colors"
         @dragover.prevent
         @drop="handleDrop"
         @click="handleContainerClick"

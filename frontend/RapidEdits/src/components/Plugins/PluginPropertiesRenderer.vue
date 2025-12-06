@@ -10,6 +10,7 @@
                 <!-- Regular Property Wrapper -->
                 <div v-else class="group">
                     <label
+                        :for="getPropId(prop)"
                         class="block text-xs font-medium text-text-muted mb-1.5 transition-colors group-hover:text-text-main"
                     >
                         {{ prop.label }}
@@ -21,6 +22,8 @@
                     >
                         <TextArea
                             v-if="prop.type === 'long-text'"
+                            :id="getPropId(prop)"
+                            :name="prop.key"
                             :model-value="getValue(prop.key)"
                             v-bind="prop.props"
                             @update:model-value="
@@ -175,6 +178,10 @@ const clipData = computed(() => props.clip.data || {});
 const getValue = (key: string) => {
     // Should probably support nested keys eventually, but for now flat
     return clipData.value[key];
+};
+
+const getPropId = (prop: PluginPropertyDefinition) => {
+    return `${props.clip.id}-${prop.key}`;
 };
 
 const shouldShow = (prop: PluginPropertyDefinition) => {
