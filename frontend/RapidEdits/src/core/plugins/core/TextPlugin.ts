@@ -27,13 +27,18 @@ export class TextPlugin extends BasePlugin {
             label: "Content",
             key: "text",
             type: "long-text",
-            props: { rows: 2 },
+            props: { rows: 2, placeholder: "Enter text..." },
+        },
+        {
+            label: "Appearance",
+            key: "sep1",
+            type: "divider",
         },
         {
             label: "Size",
             key: "fontSize",
-            type: "number",
-            props: { step: 0.1 },
+            type: "slider",
+            props: { min: 1, max: 200, step: 1 },
         },
         {
             label: "Color",
@@ -41,9 +46,19 @@ export class TextPlugin extends BasePlugin {
             type: "color",
         },
         {
+            label: "Transform",
+            key: "sep2",
+            type: "divider",
+        },
+        {
             label: "Position",
             key: "position",
             type: "vector3",
+        },
+        {
+            label: "3D Settings",
+            key: "sep3",
+            type: "divider",
         },
         {
             label: "3D Extrusion",
@@ -53,9 +68,14 @@ export class TextPlugin extends BasePlugin {
         {
             label: "Depth",
             key: "depth",
-            type: "number",
-            props: { step: 1 },
+            type: "slider",
+            props: { min: 1, max: 50, step: 1 },
             showIf: (data: any) => data.is3D,
+        },
+        {
+            label: "System",
+            key: "sep4",
+            type: "divider",
         },
         {
             label: "Filmstrip Auto-Fit",

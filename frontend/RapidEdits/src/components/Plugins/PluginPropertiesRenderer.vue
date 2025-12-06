@@ -1,133 +1,153 @@
 <template>
-    <div class="space-y-4">
-        <div v-for="prop in properties" :key="prop.key">
-            <div v-if="shouldShow(prop)">
-                <label class="block text-xs font-medium text-gray-400 mb-1">
-                    {{ prop.label }}
-                </label>
+    <div class="space-y-5">
+        <div v-for="(prop, index) in properties" :key="index">
+            <template v-if="shouldShow(prop)">
+                <!-- Divider -->
+                <div v-if="prop.type === 'divider'" class="py-2">
+                    <Divider orientation="horizontal" />
+                </div>
 
-                <!-- Text -->
-                <textarea
-                    v-if="prop.type === 'long-text'"
-                    :value="getValue(prop.key)"
-                    class="w-full bg-canvas-dark border border-canvas-border rounded-md px-3 py-2 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder-text-muted/50"
-                    v-bind="prop.props"
-                    @input="
-                        (e) =>
-                            updateProperty(
-                                prop.key,
-                                (e.target as HTMLTextAreaElement).value,
-                            )
-                    "
-                ></textarea>
-
-                <Input
-                    v-else-if="prop.type === 'text'"
-                    type="text"
-                    :model-value="getValue(prop.key)"
-                    v-bind="prop.props"
-                    @update:model-value="(val) => updateProperty(prop.key, val)"
-                />
-
-                <!-- Number -->
-                <Input
-                    v-else-if="prop.type === 'number'"
-                    type="number"
-                    :model-value="getValue(prop.key)"
-                    v-bind="prop.props"
-                    @update:model-value="
-                        (val) => updateProperty(prop.key, Number(val))
-                    "
-                />
-
-                <!-- Color -->
-                <div
-                    v-else-if="prop.type === 'color'"
-                    class="flex items-center space-x-2"
-                >
-                    <div
-                        class="relative w-8 h-8 rounded overflow-hidden border border-gray-700"
+                <!-- Regular Property Wrapper -->
+                <div v-else class="group">
+                    <label
+                        class="block text-xs font-medium text-text-muted mb-1.5 transition-colors group-hover:text-text-main"
                     >
-                        <input
-                            type="color"
+                        {{ prop.label }}
+                    </label>
+
+                    <!-- Text / Long Text -->
+                    <div
+                        v-if="prop.type === 'text' || prop.type === 'long-text'"
+                    >
+                        <TextArea
+                            v-if="prop.type === 'long-text'"
+                            :model-value="getValue(prop.key)"
+                            v-bind="prop.props"
+                            @update:model-value="
+                                (val) => updateProperty(prop.key, val)
+                            "
+                        />
+                        <Input
+                            v-else
+                            type="text"
+                            :model-value="getValue(prop.key)"
+                            v-bind="prop.props"
+                            @update:model-value="
+                                (val) => updateProperty(prop.key, val)
+                            "
+                        />
+                    </div>
+
+                    <!-- Number / Slider -->
+                    <div
+                        v-else-if="
+                            prop.type === 'number' || prop.type === 'slider'
+                        "
+                    >
+                        <Slider
+                            v-if="prop.type === 'slider'"
+                            :model-value="getValue(prop.key)"
+                            v-bind="prop.props"
+                            @update:model-value="
+                                (val) => updateProperty(prop.key, val)
+                            "
+                        />
+                        <Input
+                            v-else
+                            type="number"
+                            :model-value="getValue(prop.key)"
+                            v-bind="prop.props"
+                            @update:model-value="
+                                (val) => updateProperty(prop.key, Number(val))
+                            "
+                        />
+                    </div>
+
+                    <!-- Color -->
+                    <ColorInput
+                        v-else-if="prop.type === 'color'"
+                        :model-value="getValue(prop.key)"
+                        @update:model-value="
+                            (val) => updateProperty(prop.key, val)
+                        "
+                    />
+
+                    <!-- Boolean (Switch) -->
+                    <Switch
+                        v-else-if="prop.type === 'boolean'"
+                        :model-value="getValue(prop.key)"
+                        @update:model-value="
+                            (val) => updateProperty(prop.key, val)
+                        "
+                    />
+
+                    <!-- Vector3 -->
+                    <div
+                        v-else-if="prop.type === 'vector3'"
+                        class="grid grid-cols-3 gap-2"
+                    >
+                        <div
+                            v-for="axis in ['x', 'y', 'z']"
+                            :key="axis"
+                            class="relative group/axis"
+                        >
+                            <span
+                                class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-text-muted uppercase transition-colors group-focus-within/axis:text-brand-primary"
+                                >{{ axis }}</span
+                            >
+                            <Input
+                                type="number"
+                                class="pl-4 text-xs font-mono"
+                                :model-value="getValue(prop.key)?.[axis]"
+                                @update:model-value="
+                                    (val) =>
+                                        updateVector(
+                                            prop.key,
+                                            axis,
+                                            Number(val),
+                                        )
+                                "
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Select -->
+                    <div v-else-if="prop.type === 'select'" class="relative">
+                        <select
                             :value="getValue(prop.key)"
-                            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] p-0 m-0 border-0 cursor-pointer"
-                            @input="
+                            class="w-full appearance-none bg-canvas-dark border border-canvas-border rounded-md px-3 py-2 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-transparent transition-all cursor-pointer"
+                            @change="
                                 (e) =>
                                     updateProperty(
                                         prop.key,
-                                        (e.target as HTMLInputElement).value,
+                                        (e.target as HTMLSelectElement).value,
                                     )
                             "
-                        />
-                    </div>
-                    <span class="text-xs text-gray-500 font-mono">
-                        {{ getValue(prop.key) }}
-                    </span>
-                </div>
-
-                <!-- Boolean -->
-                <div
-                    v-else-if="prop.type === 'boolean'"
-                    class="flex items-center mt-1"
-                >
-                    <input
-                        type="checkbox"
-                        :checked="getValue(prop.key)"
-                        class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-800"
-                        @change="
-                            (e) =>
-                                updateProperty(
-                                    prop.key,
-                                    (e.target as HTMLInputElement).checked,
-                                )
-                        "
-                    />
-                </div>
-
-                <!-- Vector3 -->
-                <div
-                    v-else-if="prop.type === 'vector3'"
-                    class="grid grid-cols-3 gap-2"
-                >
-                    <div v-for="axis in ['x', 'y', 'z']" :key="axis">
-                        <span
-                            class="text-[10px] text-gray-500 uppercase block mb-1"
-                            >{{ axis }}</span
                         >
-                        <Input
-                            type="number"
-                            :model-value="getValue(prop.key)?.[axis]"
-                            @update:model-value="
-                                (val) =>
-                                    updateVector(prop.key, axis, Number(val))
-                            "
-                        />
+                            <option
+                                v-for="opt in prop.options"
+                                :key="opt.value"
+                                :value="opt.value"
+                            >
+                                {{ opt.label }}
+                            </option>
+                        </select>
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-text-muted"
+                        >
+                            <svg
+                                class="fill-current h-4 w-4"
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 20 20"
+                            >
+                                <path
+                                    d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"
+                                />
+                            </svg>
+                        </div>
                     </div>
                 </div>
-
-                <!-- Select -->
-                <select
-                    v-else-if="prop.type === 'select'"
-                    :value="getValue(prop.key)"
-                    class="w-full bg-gray-800 border border-gray-700 rounded p-2 text-sm text-white focus:border-blue-500 focus:outline-none"
-                    @change="
-                        (e) =>
-                            updateProperty(
-                                prop.key,
-                                (e.target as HTMLSelectElement).value,
-                            )
-                    "
-                >
-                    <option
-                        v-for="opt in prop.options"
-                        :key="opt.value"
-                        :value="opt.value"
-                    >
-                        {{ opt.label }}
-                    </option>
-                </select>
-            </div>
+            </template>
         </div>
     </div>
 </template>
@@ -139,6 +159,11 @@ import type { PluginPropertyDefinition } from "../../core/plugins/PluginTypes";
 import { editorEngine } from "../../core/EditorEngine";
 import { globalEventBus } from "../../core/events/EventBus";
 import Input from "../UI/Input/Input.vue";
+import Divider from "../UI/Divider/Divider.vue";
+import TextArea from "../UI/TextArea/TextArea.vue";
+import Slider from "../UI/Slider/Slider.vue";
+import ColorInput from "../UI/ColorPicker/ColorInput.vue";
+import Switch from "../UI/Switch/Switch.vue";
 
 const props = defineProps<{
     clip: Clip;
@@ -148,6 +173,7 @@ const props = defineProps<{
 const clipData = computed(() => props.clip.data || {});
 
 const getValue = (key: string) => {
+    // Should probably support nested keys eventually, but for now flat
     return clipData.value[key];
 };
 
@@ -159,6 +185,23 @@ const shouldShow = (prop: PluginPropertyDefinition) => {
 };
 
 const updateProperty = (key: string, value: any) => {
+    // If it's a color input text, ensure we handle the # prefix
+    if (
+        typeof value === "string" &&
+        value.length === 7 &&
+        value.startsWith("#")
+    ) {
+        // already good
+    } else if (
+        typeof value === "string" &&
+        value.length === 6 &&
+        !value.startsWith("#")
+    ) {
+        // handle case where user deletes # in input
+        // Assuming this logic is inside specific component usually, but here we can be safe
+    }
+
+    // For now simple update
     const newData = { ...clipData.value, [key]: value };
     applyUpdate(newData);
 };
@@ -172,7 +215,6 @@ const updateVector = (key: string, axis: string, value: number) => {
 const applyUpdate = (newData: any) => {
     editorEngine.updateClip(props.clip.id, { data: newData });
 
-    // Check if any property changed that affects filmstrip or other plugins
     globalEventBus.emit({
         type: "PLUGIN_PROPERTY_CHANGED",
         payload: { clipId: props.clip.id },

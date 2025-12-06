@@ -68,7 +68,9 @@ export type PluginPropertyType =
     | "boolean"
     | "vector3"
     | "select"
-    | "long-text";
+    | "long-text"
+    | "slider"
+    | "divider";
 
 export interface PluginPropertyDefinition {
     label: string;
