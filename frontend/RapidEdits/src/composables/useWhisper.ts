@@ -89,7 +89,7 @@ export function useWhisper() {
 
     const transcribe = async (
         audioBlob: Blob | File,
-        language: string = "en",
+        language: string = "fr",
     ) => {
         if (!isModelReady.value) {
             error.value = "Model not loaded. Please download the model first.";
@@ -159,11 +159,14 @@ export function useWhisper() {
             }
 
             console.log("audioData", audioData);
+            const langCode = language.split("-")[0] || "fr";
+            console.log("Starting transcription with language:", langCode);
+
             worker.value?.postMessage({
                 type: "transcribe",
                 data: {
                     audio: audioData,
-                    language: language.split("-")[0], // Whisper expects 'en', 'fr', etc. not 'en-US'
+                    language: langCode,
                 },
             }); // Removed transferables to be safe for now, copying is fine for <100MB
             console.log("Transcribing...");

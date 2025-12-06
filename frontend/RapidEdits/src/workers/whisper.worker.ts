@@ -17,6 +17,7 @@ class WhisperWorker {
                     "Xenova/whisper-base",
                     {
                         progress_callback,
+                        revision: "output_attentions", // Required for word-level timestamps
                     },
                 );
             } catch (e) {
@@ -66,7 +67,7 @@ self.addEventListener("message", async (event) => {
                 language: data.language || "en",
                 chunk_length_s: 30,
                 stride_length_s: 5,
-                return_timestamps: true,
+                return_timestamps: "word",
                 temperature: 0,
                 repetition_penalty: 1.2,
                 no_repeat_ngram_size: 3,
