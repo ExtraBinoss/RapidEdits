@@ -1,5 +1,5 @@
 import { ref, watchEffect, type Ref } from "vue";
-import { thumbnailGenerator } from "../../../core/ThumbnailGenerator";
+import { thumbnailGenerator } from "../../../core/generators/ThumbnailGenerator";
 
 interface Thumbnail {
     id: string;

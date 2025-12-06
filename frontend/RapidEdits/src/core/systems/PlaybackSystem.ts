@@ -1,4 +1,4 @@
-import { globalEventBus } from "../EventBus";
+import { globalEventBus } from "../events/EventBus";
 import { audioManager } from "../AudioManager";
 
 export class PlaybackSystem {

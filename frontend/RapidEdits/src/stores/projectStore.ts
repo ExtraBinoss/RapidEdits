@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { editorEngine } from "../core/EditorEngine";
-import { globalEventBus } from "../core/EventBus";
+import { globalEventBus } from "../core/events/EventBus";
 import type { Asset } from "../types/Media";
 import type { Track, Clip } from "../types/Timeline";
 

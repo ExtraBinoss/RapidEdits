@@ -1,4 +1,4 @@
-import { globalEventBus } from "../EventBus";
+import { globalEventBus } from "../events/EventBus";
 import { PlaybackSystem } from "./PlaybackSystem";
 import { TimelineSystem } from "./TimelineSystem";
 import { SelectionSystem } from "./SelectionSystem";

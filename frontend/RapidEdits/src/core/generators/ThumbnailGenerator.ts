@@ -19,15 +19,20 @@ export class ThumbnailGenerator {
         this.video.crossOrigin = "anonymous";
         this.video.muted = true;
         this.video.preload = "auto";
-        
+
         // Hidden canvas for drawing
         this.canvas = new OffscreenCanvas(160, 90); // 16:9 small thumbnail
         this.ctx = this.canvas.getContext("2d", { willReadFrequently: true })!;
     }
 
-    public async generate(url: string, timestamp: number, width: number = 160, height: number = 90): Promise<string> {
+    public async generate(
+        url: string,
+        timestamp: number,
+        width: number = 160,
+        height: number = 90,
+    ): Promise<string> {
         const id = `${url}-${timestamp.toFixed(2)}-${width}x${height}`;
-        
+
         if (this.cache.has(id)) {
             return this.cache.get(id)!;
         }
@@ -65,15 +70,23 @@ export class ThumbnailGenerator {
             });
 
             // Draw
-            this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
-            
+            this.ctx.drawImage(
+                this.video,
+                0,
+                0,
+                this.canvas.width,
+                this.canvas.height,
+            );
+
             // Extract
-            const blob = await this.canvas.convertToBlob({ type: "image/jpeg", quality: 0.7 });
+            const blob = await this.canvas.convertToBlob({
+                type: "image/jpeg",
+                quality: 0.7,
+            });
             const dataUrl = URL.createObjectURL(blob); // Using ObjectURL is faster than base64 for caching
-            
+
             this.cache.set(request.id, dataUrl);
             request.resolve(dataUrl);
-
         } catch (error) {
             console.error("Thumbnail generation failed", error);
             request.reject(error);

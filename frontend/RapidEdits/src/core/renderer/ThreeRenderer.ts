@@ -1,8 +1,8 @@
 import * as THREE from "three";
-import { editorEngine } from "./EditorEngine";
-import { globalEventBus } from "./EventBus";
-import { TextureAllocator } from "./renderer/TextureAllocator";
-import type { Clip, Track } from "../types/Timeline";
+import { editorEngine } from "../EditorEngine";
+import { globalEventBus } from "../events/EventBus";
+import { TextureAllocator } from "./textures/TextureAllocator";
+import type { Clip, Track } from "../../types/Timeline";
 
 export class ThreeRenderer {
     private container: HTMLElement;

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue';
-import type { Asset } from '../../types/Media';
-import { thumbnailGenerator } from '../../core/ThumbnailGenerator';
+import { ref, onMounted, watch, computed } from "vue";
+import type { Asset } from "../../types/Media";
+import { thumbnailGenerator } from "../../core/generators/ThumbnailGenerator";
 
 const props = defineProps<{
-  asset: Asset;
+    asset: Asset;
 }>();
 
 const coverUrl = ref<string | null>(null);
@@ -15,7 +15,11 @@ const isLoadingPreviews = ref(false);
 const hasGeneratedPreviews = ref(false);
 
 const currentSrc = computed(() => {
-    if (isHovering.value && hasGeneratedPreviews.value && previewUrls.value.length > 0) {
+    if (
+        isHovering.value &&
+        hasGeneratedPreviews.value &&
+        previewUrls.value.length > 0
+    ) {
         return previewUrls.value[activeIndex.value];
     }
     return coverUrl.value;
@@ -24,7 +28,12 @@ const currentSrc = computed(() => {
 const generateCover = async () => {
     if (coverUrl.value) return; // Already generated
     try {
-        const url = await thumbnailGenerator.generate(props.asset.url, 0.5, 320, 180);
+        const url = await thumbnailGenerator.generate(
+            props.asset.url,
+            0.5,
+            320,
+            180,
+        );
         coverUrl.value = url;
     } catch (e) {
         console.error("Cover generation failed", e);
@@ -35,20 +44,22 @@ const generateCover = async () => {
 const generatePreviews = async () => {
     if (hasGeneratedPreviews.value || isLoadingPreviews.value) return;
     isLoadingPreviews.value = true;
-    
+
     const count = 10;
     const duration = props.asset.duration || 1; // avoid 0 division
     const step = duration / count;
 
     try {
         const promises = [];
-        const tempPreviews: string[] = new Array(count).fill('');
+        const tempPreviews: string[] = new Array(count).fill("");
         for (let i = 0; i < count; i++) {
             const time = Math.min(i * step, duration);
             promises.push(
-                thumbnailGenerator.generate(props.asset.url, time, 320, 180).then(url => {
-                    tempPreviews[i] = url;
-                })
+                thumbnailGenerator
+                    .generate(props.asset.url, time, 320, 180)
+                    .then((url) => {
+                        tempPreviews[i] = url;
+                    }),
             );
         }
         await Promise.all(promises);
@@ -67,10 +78,13 @@ const onMouseMove = (e: MouseEvent) => {
     if (!hasGeneratedPreviews.value && !isLoadingPreviews.value) {
         generatePreviews();
     }
-    
+
     if (hasGeneratedPreviews.value && previewUrls.value.length > 0) {
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const percent = Math.max(
+            0,
+            Math.min(1, (e.clientX - rect.left) / rect.width),
+        );
         activeIndex.value = Math.floor(percent * previewUrls.value.length);
     }
 };
@@ -81,41 +95,51 @@ const onMouseLeave = () => {
 };
 
 onMounted(() => {
-    if (props.asset.type === 'video') {
+    if (props.asset.type === "video") {
         generateCover();
     }
 });
 
-watch(() => props.asset, () => {
-    coverUrl.value = null;
-    previewUrls.value = [];
-    hasGeneratedPreviews.value = false;
-    activeIndex.value = 0;
-    if (props.asset.type === 'video') {
-        generateCover();
-    }
-});
+watch(
+    () => props.asset,
+    () => {
+        coverUrl.value = null;
+        previewUrls.value = [];
+        hasGeneratedPreviews.value = false;
+        activeIndex.value = 0;
+        if (props.asset.type === "video") {
+            generateCover();
+        }
+    },
+);
 </script>
 
 <template>
-    <div 
+    <div
         class="w-full h-full relative overflow-hidden bg-black"
         @mousemove="onMouseMove"
         @mouseleave="onMouseLeave"
         @mouseenter="generatePreviews"
     >
-        <img 
+        <img
             v-if="currentSrc"
-            :src="currentSrc" 
+            :src="currentSrc"
             class="w-full h-full object-cover pointer-events-none transition-opacity duration-100"
         />
-        <div v-else class="w-full h-full flex items-center justify-center text-white/20 text-xs">
+        <div
+            v-else
+            class="w-full h-full flex items-center justify-center text-white/20 text-xs"
+        >
             Loading...
         </div>
 
         <!-- Progress Bar for Scrubbing -->
-        <div v-if="isHovering && hasGeneratedPreviews" class="absolute bottom-0 left-0 h-1 bg-brand-primary transition-all"
-            :style="{ width: `${((activeIndex + 1) / previewUrls.length) * 100}%` }"
+        <div
+            v-if="isHovering && hasGeneratedPreviews"
+            class="absolute bottom-0 left-0 h-1 bg-brand-primary transition-all"
+            :style="{
+                width: `${((activeIndex + 1) / previewUrls.length) * 100}%`,
+            }"
         ></div>
     </div>
 </template>

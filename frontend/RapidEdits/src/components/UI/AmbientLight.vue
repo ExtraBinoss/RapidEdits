@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from "vue";
-import { globalEventBus } from "../../core/EventBus";
+import { globalEventBus } from "../../core/events/EventBus";
 
 const ambientShadow = ref<string>("transparent");
 

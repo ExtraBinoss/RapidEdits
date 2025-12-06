@@ -1,4 +1,4 @@
-import type { EditorEvent } from "../types/Media";
+import type { EditorEvent } from "../../types/Media";
 
 type EventHandler<T = any> = (payload: T) => void;
 

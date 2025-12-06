@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, onBeforeUnmount } from "vue";
-import { ThreeRenderer } from "../core/ThreeRenderer";
+import { ThreeRenderer } from "../core/renderer/ThreeRenderer";
 import { useProjectStore } from "../stores/projectStore";
 import OSD from "./UI/OSD.vue";
 import Popover from "./UI/Popover.vue";

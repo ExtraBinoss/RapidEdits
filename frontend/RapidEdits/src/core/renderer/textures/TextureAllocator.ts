@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { resourceManager } from "../ResourceManager";
-import type { Asset } from "../../types/Media";
+import { resourceManager } from "../../ResourceManager";
+import type { Asset } from "../../../types/Media";
 
 export class TextureAllocator {
     private textureCache: Map<string, THREE.Texture> = new Map();

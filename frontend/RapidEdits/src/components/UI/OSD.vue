@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { Play, Pause, Volume2 } from "lucide-vue-next";
-import { globalEventBus } from "../../core/EventBus";
+import { globalEventBus } from "../../core/events/EventBus";
 
 const isVisible = ref(false);
 const icon = ref<any>(Play);

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { globalEventBus } from "../EventBus";
+import { globalEventBus } from "../events/EventBus";
 import { MediaType, type Asset, type MediaTypeValue } from "../../types/Media";
 
 export class AssetSystem {

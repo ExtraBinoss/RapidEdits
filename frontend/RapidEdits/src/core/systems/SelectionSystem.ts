@@ -1,4 +1,4 @@
-import { globalEventBus } from "../EventBus";
+import { globalEventBus } from "../events/EventBus";
 import { TimelineSystem } from "./TimelineSystem";
 import type { Clip } from "../../types/Timeline";
 

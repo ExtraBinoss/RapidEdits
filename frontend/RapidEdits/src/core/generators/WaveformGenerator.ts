@@ -1,5 +1,5 @@
-import { globalEventBus } from "./EventBus";
-import Worker from "../workers/waveform.worker?worker";
+import { globalEventBus } from "../events/EventBus";
+import Worker from "../../workers/waveform.worker?worker";
 
 export class WaveformGenerator {
     private audioContext: AudioContext;
