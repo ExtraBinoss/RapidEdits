@@ -62,12 +62,21 @@ self.addEventListener("message", async (event) => {
 
             // output: { text: "...", chunks: [...] }
             const result = await transcriber(audio, {
+                language: data.language || "en",
                 chunk_length_s: 30,
                 stride_length_s: 5,
                 return_timestamps: true,
-                callback_function: (_item: any) => {
-                    // streaming callbacks if supported by the pipeline wrapper in future
-                    // self.postMessage({ status: 'partial', result: item });
+                callback_function: (item: any) => {
+                    // item is the chunk { text, timestamp: [start, end] }
+                    if (item && item.timestamp) {
+                        self.postMessage({
+                            status: "transcribing-progress",
+                            data: {
+                                timestamp: item.timestamp,
+                                text: item.text,
+                            },
+                        });
+                    }
                 },
             });
 

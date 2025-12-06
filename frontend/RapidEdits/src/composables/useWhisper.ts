@@ -15,7 +15,8 @@ export function useWhisper() {
     const isModelLoading = ref(false);
     const isModelReady = ref(false);
     const isTranscribing = ref(false);
-    const progress = ref(0);
+    const progress = ref(0); // Download progress
+    const transcriptionProgress = ref(0); // Transcription percentage (0-100)
     const statusMessage = ref("");
     const error = ref<string | null>(null);
     const result = ref<WhisperResult | null>(null);
@@ -50,7 +51,20 @@ export function useWhisper() {
                     progress.value = 100;
                 } else if (status === "complete") {
                     isTranscribing.value = false;
+                    transcriptionProgress.value = 100;
                     result.value = workerResult;
+                } else if (status === "transcribing-progress") {
+                    // event.data.data contains { timestamp: [start, end], text }
+                    const { timestamp } = event.data.data;
+                    if (timestamp && totalDuration > 0) {
+                        const endTime = timestamp[1];
+                        // Calculate percentage
+                        transcriptionProgress.value = Math.min(
+                            Math.round((endTime / totalDuration) * 100),
+                            99,
+                        );
+                        statusMessage.value = `Transcribing... ${transcriptionProgress.value}%`;
+                    }
                 } else if (status === "error") {
                     error.value = message;
                     isModelLoading.value = false;
@@ -68,13 +82,21 @@ export function useWhisper() {
         worker.value?.postMessage({ type: "load" });
     };
 
-    const transcribe = async (audioBlob: Blob | File) => {
+    // Store duration to calculate progress
+    let totalDuration = 0;
+
+    const transcribe = async (
+        audioBlob: Blob | File,
+        language: string = "en",
+    ) => {
         if (!isModelReady.value) {
             error.value = "Model not loaded. Please download the model first.";
             return;
         }
 
         isTranscribing.value = true;
+        transcriptionProgress.value = 0;
+        statusMessage.value = "Preparing audio...";
         result.value = null;
         error.value = null;
 
@@ -88,6 +110,9 @@ export function useWhisper() {
             });
 
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            totalDuration = audioBuffer.duration; // Store duration
+            console.log("totalDuration", totalDuration);
+            statusMessage.value = "Transcribing...";
 
             // We need 16kHz execution
             // If the decoded audio is not 16k, we need to resample or trust the worker pipeline handle raw data if properly tagged
@@ -111,14 +136,14 @@ export function useWhisper() {
                 const resampledBuffer = await offlineContext.startRendering();
                 audioData = resampledBuffer.getChannelData(0);
             }
-
-            worker.value?.postMessage(
-                {
-                    type: "transcribe",
-                    data: { audio: audioData },
+            console.log("audioData", audioData);
+            worker.value?.postMessage({
+                type: "transcribe",
+                data: {
+                    audio: audioData,
+                    language: language.split("-")[0], // Whisper expects 'en', 'fr', etc. not 'en-US'
                 },
-                [audioData.buffer],
-            ); // Transferable
+            }); // Removed transferables to be safe for now, copying is fine for <100MB
 
             // Close context to release resources
             if (audioContext.state !== "closed") {
@@ -151,5 +176,6 @@ export function useWhisper() {
         downloadModel,
         transcribe,
         clearResult,
+        transcriptionProgress,
     };
 }

@@ -52,7 +52,11 @@ const {
     result: whisperResult,
     downloadModel,
     transcribe: transcribeAudio,
+    transcriptionProgress,
 } = useWhisper();
+
+const currentFileName = ref<string>("");
+const selectedFile = ref<File | null>(null);
 
 const drawerState = ref({
     voice: true,
@@ -66,10 +70,15 @@ const toggleDrawer = (key: keyof typeof drawerState.value) => {
 const handleFileUpload = async (e: Event) => {
     const target = e.target as HTMLInputElement;
     if (target.files && target.files[0]) {
-        await transcribeAudio(target.files[0]);
+        selectedFile.value = target.files[0];
+        currentFileName.value = target.files[0].name;
     }
-    // reset input
-    target.value = "";
+};
+
+const startTranscription = async () => {
+    if (selectedFile.value) {
+        await transcribeAudio(selectedFile.value, detectedLanguage.value);
+    }
 };
 
 const languages = [
@@ -490,6 +499,30 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                     </div>
 
                                     <div class="flex items-center gap-2">
+                                        <!-- Shared Language Selector for File Transcription too -->
+                                        <select
+                                            :value="detectedLanguage"
+                                            @change="
+                                                (e) =>
+                                                    setLanguage(
+                                                        (
+                                                            e.target as HTMLSelectElement
+                                                        ).value,
+                                                    )
+                                            "
+                                            class="bg-canvas border border-canvas-border text-xs rounded px-2 py-1 text-text-main focus:outline-none focus:border-brand-primary w-full mb-2"
+                                        >
+                                            <option
+                                                v-for="lang in languages"
+                                                :key="lang.code"
+                                                :value="lang.code"
+                                            >
+                                                {{ lang.name }}
+                                            </option>
+                                        </select>
+                                    </div>
+
+                                    <div class="flex flex-col gap-2">
                                         <input
                                             type="file"
                                             accept="audio/*,video/*"
@@ -497,18 +530,54 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                             @change="handleFileUpload"
                                             :disabled="whisperTranscribing"
                                         />
+                                        <div
+                                            v-if="currentFileName"
+                                            class="text-[10px] text-text-muted truncate px-1"
+                                        >
+                                            Selected: {{ currentFileName }}
+                                        </div>
                                     </div>
+
+                                    <Button
+                                        v-if="
+                                            selectedFile &&
+                                            !whisperTranscribing &&
+                                            !whisperResult
+                                        "
+                                        variant="primary"
+                                        size="sm"
+                                        @click="startTranscription"
+                                        class="w-full mt-2"
+                                    >
+                                        Start Transcription
+                                    </Button>
 
                                     <div
                                         v-if="whisperTranscribing"
-                                        class="py-4 flex flex-col items-center gap-2"
+                                        class="py-4 flex flex-col items-center gap-2 w-full"
                                     >
                                         <div
-                                            class="w-6 h-6 border-2 border-brand-primary border-t-transparent rounded-full animate-spin"
-                                        ></div>
-                                        <span class="text-xs text-text-muted"
-                                            >Transcribing...</span
+                                            class="w-full h-1.5 bg-canvas-border rounded-full overflow-hidden"
                                         >
+                                            <div
+                                                class="h-full bg-brand-primary transition-all duration-300"
+                                                :style="{
+                                                    width:
+                                                        transcriptionProgress +
+                                                        '%',
+                                                }"
+                                            ></div>
+                                        </div>
+                                        <div
+                                            class="flex justify-between w-full text-[10px] text-text-muted"
+                                        >
+                                            <span>{{ whisperStatus }}</span>
+                                            <span
+                                                >{{
+                                                    transcriptionProgress
+                                                }}%</span
+                                            >
+                                        </div>
                                     </div>
 
                                     <div
