@@ -73,14 +73,21 @@ export class ExportService {
                 
                 // Wait for video seek (syncVideoFrame triggered seek in renderFrame)
                 await this.waitForSeek(renderer);
+
+                // Safety delay to ensure the video element has repainted with the new frame data
+                // 'seeked' event fires when data is ready, but the compositor might need a tick to update.
+                await new Promise(r => requestAnimationFrame(r));
                 
                 // Final Render for this frame
                 renderer.renderFrame(time, tracks);
                 
                 // Create Frame from Canvas
-                // Note: We use the raw canvas element. 
+                const frameTimestamp = Math.round(i * 1000000 / config.fps);
+                const frameDurationVal = Math.round(1000000 / config.fps);
+
                 const frame = new VideoFrame(exportCanvas, {
-                    timestamp: i * 1000000 / config.fps // microseconds
+                    timestamp: frameTimestamp,
+                    duration: frameDurationVal
                 });
 
                 // Encode

@@ -135,7 +135,7 @@ app.post('/render/finish/:sessionId', (req, res) => {
     
     const outputOptions = isWebM 
         ? ['-deadline realtime', '-cpu-used 4', '-b:v 0', '-crf 30'] 
-        : []; // No options needed for copy
+        : ['-r ' + outputFps]; // Enforce Constant Frame Rate
 
     console.log(`[${sessionId}] Starting FFmpeg Mux/Transcode`);
     console.log(`[${sessionId}] Input: Raw H.264 Stream (Annex B)`);
