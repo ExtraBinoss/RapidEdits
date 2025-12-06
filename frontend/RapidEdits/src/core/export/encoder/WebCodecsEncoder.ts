@@ -30,9 +30,17 @@ export class WebCodecsEncoder {
         this.config = config;
 
         this.encoder = new VideoEncoder({
-            output: (chunk) => this.handleChunk(chunk),
+            output: (chunk) => {
+                console.log(
+                    "[ExportDebug] Encoder Output Chunk",
+                    chunk.byteLength,
+                    chunk.type,
+                    chunk.timestamp,
+                );
+                this.handleChunk(chunk);
+            },
             error: (e) => {
-                console.error("Encoder error", e);
+                console.error("[ExportDebug] Encoder error", e);
                 // We might want to rethrow or emit this
             },
         });
@@ -44,9 +52,9 @@ export class WebCodecsEncoder {
         const isWebM = (this.config as any).format === "webm";
 
         // Codec Strings
-        // H.264 High Profile Level 5.2: avc1.640034
+        // H.264 Main Profile Level 4.2: avc1.4d002a
         // VP9 Profile 0 Level 3.1: vp09.00.31.08 (standard for web)
-        const codec = isWebM ? "vp09.00.31.08" : "avc1.640034";
+        const codec = isWebM ? "vp09.00.31.08" : "avc1.4d002a";
 
         const config: VideoEncoderConfig = {
             codec,

@@ -53,7 +53,7 @@ export class FrameSynchronizer {
         expectedTime: number,
     ) {
         const expectedTimeUs = expectedTime * 1_000_000;
-        const toleranceUs = 2000; // 2ms tolerance (Tight!)
+        const toleranceUs = 4000; // 4ms tolerance (Relaxed for stability)
 
         let attempts = 0;
         const maxAttempts = 50; // 1 second

@@ -27,6 +27,7 @@ export class ThreeRenderer {
     private samplingCtx: OffscreenCanvasRenderingContext2D;
     private lastSampleTime: number = 0;
     private isCaptureMode: boolean = false;
+    private pendingLoads: Set<Promise<any>> = new Set();
 
     constructor(
         container: HTMLElement,
@@ -84,6 +85,15 @@ export class ThreeRenderer {
         }
     }
 
+    public async waitForPendingLoads() {
+        if (this.pendingLoads.size === 0) return;
+        console.log(
+            `[Renderer] Waiting for ${this.pendingLoads.size} textures...`,
+        );
+        await Promise.all(Array.from(this.pendingLoads));
+        this.pendingLoads.clear();
+    }
+
     public setScaleMode(mode: "fit" | "fill" | number) {
         this.scaleMode = mode;
         this.handleResize(); // Trigger re-layout
@@ -112,6 +122,21 @@ export class ThreeRenderer {
         });
 
         const visibleClipIds = new Set(visibleClips.map((c) => c.id));
+        if (this.isCaptureMode) {
+            // console.log(`[Renderer] Frame @ ${currentTime}: ${visibleClips.length} clips`);
+            // Uncomment if needed, but might be spammy.
+            // Actually, the user complained about black video.
+            if (visibleClips.length > 0) {
+                // Force update video textures
+                visibleClips.forEach((c) => {
+                    const mesh = this.clipMeshes.get(c.id);
+                    if (mesh) {
+                        const map = (mesh.material as any).map;
+                        if (map) map.needsUpdate = true;
+                    }
+                });
+            }
+        }
 
         for (const [clipId, mesh] of this.clipMeshes) {
             if (!visibleClipIds.has(clipId)) {
@@ -159,7 +184,8 @@ export class ThreeRenderer {
                 // Since this might be running isolated, we assume editorEngine.getAsset works OR pass access.
                 // But editorEngine.getAsset() is just looking up in store.
                 // The store is global so it's fine.
-                this.allocator
+                // track the promise
+                const promise = this.allocator
                     .getTexture(editorEngine.getAsset(clip.assetId)!)
                     .then((texture) => {
                         const currentMesh = this.clipMeshes.get(clip.id);
@@ -172,6 +198,7 @@ export class ThreeRenderer {
                             this.fitMeshToScreen(newMesh, texture);
                         }
                     });
+                this.pendingLoads.add(promise);
             }
 
             const trackIndex = tracks.findIndex(

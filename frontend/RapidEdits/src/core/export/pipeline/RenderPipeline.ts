@@ -17,7 +17,9 @@ export class RenderPipeline {
         this.container = document.createElement("div");
         Object.assign(this.container.style, {
             position: "fixed",
-            top: "-9999px",
+            top: "0",
+            left: "0",
+            zIndex: "-9999",
             width: `${width}px`,
             height: `${height}px`,
             visibility: "visible",
@@ -51,12 +53,28 @@ export class RenderPipeline {
         const tracks = editorEngine.getTracks();
 
         for (let i = 0; i < frameCount; i++) {
-            if (checkCancel()) throw new Error("Cancelled");
+            if (checkCancel()) {
+                console.log("[ExportDebug] Cancelled at frame", i);
+                throw new Error("Cancelled");
+            }
+            if (i % 30 === 0)
+                console.log(
+                    "[ExportDebug] Rendering frame",
+                    i,
+                    "/",
+                    frameCount,
+                );
 
             const time = i * dt;
 
+            // 0. Initial Delay for Textures/GPU Upload (Prevents Black Video)
+            if (i === 0) await new Promise((r) => setTimeout(r, 50));
+
             // 1. Render Frame (Triggers Texture Updates / Seeks)
             this.renderer.renderFrame(time, tracks);
+
+            // 1.5. Wait for Textures to Load
+            await this.renderer.waitForPendingLoads();
 
             // 2. Ensure Video Elements are Attached
             const activeVideos = this.renderer.getActiveVideoElements();
@@ -87,7 +105,7 @@ export class RenderPipeline {
                 duration: Math.round(dt * 1_000_000),
             });
 
-            await encoder.encodeFrame(frame, i % fps === 0); // Keyframe every 1s (approx)
+            await encoder.encodeFrame(frame, i % (fps * 2) === 0); // Keyframe every 2s
             frame.close();
 
             // Progress
