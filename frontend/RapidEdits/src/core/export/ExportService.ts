@@ -63,10 +63,12 @@ export class ExportService {
             for (let i = 0; i < totalFrames; i++) {
                 if (this.abortController.signal.aborted) throw new Error("Export Cancelled");
 
+                // Seek 10% into the frame to avoid floating-point boundary jitter (preventing previous/next frame snapping)
                 const time = i * frameDuration;
+                const renderTime = time + (frameDuration * 0.1);
                 
                 // Initial Render to load textures/create meshes
-                renderer.renderFrame(time, tracks);
+                renderer.renderFrame(renderTime, tracks);
 
                 // Wait for textures to load (if any new ones appeared)
                 await renderer.waitForPendingLoads();
@@ -74,12 +76,11 @@ export class ExportService {
                 // Wait for video seek (syncVideoFrame triggered seek in renderFrame)
                 await this.waitForSeek(renderer);
 
-                // Safety delay to ensure the video element has repainted with the new frame data
-                // 'seeked' event fires when data is ready, but the compositor might need a tick to update.
-                await new Promise(r => requestAnimationFrame(r));
+                // Double RAF: Ensure compositor has painted the new video frame to the texture
+                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
                 
                 // Final Render for this frame
-                renderer.renderFrame(time, tracks);
+                renderer.renderFrame(renderTime, tracks);
                 
                 // Create Frame from Canvas
                 // Use microsecond precision for timestamps
