@@ -14,6 +14,7 @@ import {
     Square,
     Trash2,
     Plus,
+    Info,
 } from "lucide-vue-next";
 import Button from "./UI/Button/Button.vue";
 import Tooltip from "./UI/Overlay/Tooltip.vue";
@@ -26,6 +27,8 @@ import { useSpeechRecognition } from "../composables/useSpeechRecognition";
 import { useWhisper } from "../composables/useWhisper";
 import { MediaType } from "../types/Media";
 import Drawer from "./UI/Overlay/Drawer.vue";
+import Dialog from "./UI/Overlay/Dialog.vue";
+import Select from "./UI/Input/Select.vue";
 
 const activeTab = ref("media");
 const themeStore = useThemeStore();
@@ -55,6 +58,8 @@ const {
     transcriptionProgress,
     tokensPerSecond,
     device,
+    model: whisperModel,
+    audioDetails,
 } = useWhisper();
 
 const currentFileName = ref<string>("");
@@ -64,6 +69,18 @@ const drawerState = ref({
     voice: false,
     transcribe: true,
 });
+
+const isWebGpuInfoOpen = ref(false);
+
+const availableModels = [
+    { label: "Whisper Tiny (Fastest)", value: "onnx-community/whisper-tiny" },
+    { label: "Whisper Base (Balanced)", value: "onnx-community/whisper-base" },
+    { label: "Whisper Small (Better)", value: "onnx-community/whisper-small" },
+    {
+        label: "Whisper Large V3 Turbo (Best/Slow)",
+        value: "onnx-community/whisper-large-v3-turbo",
+    },
+];
 
 const toggleDrawer = (key: keyof typeof drawerState.value) => {
     drawerState.value[key] = !drawerState.value[key];
@@ -324,25 +341,17 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                         >
                             <div class="flex flex-col gap-4">
                                 <!-- Language Selector -->
-                                <select
-                                    :value="detectedLanguage"
-                                    @change="
-                                        (e: Event) =>
-                                            setLanguage(
-                                                (e.target as HTMLSelectElement)
-                                                    .value,
-                                            )
+                                <Select
+                                    label="Language"
+                                    :modelValue="detectedLanguage"
+                                    @update:modelValue="setLanguage"
+                                    :options="
+                                        languages.map((l) => ({
+                                            label: l.name,
+                                            value: l.code,
+                                        }))
                                     "
-                                    class="bg-canvas border border-canvas-border text-xs rounded px-2 py-1 text-text-main focus:outline-none focus:border-brand-primary w-full"
-                                >
-                                    <option
-                                        v-for="lang in languages"
-                                        :key="lang.code"
-                                        :value="lang.code"
-                                    >
-                                        {{ lang.name }}
-                                    </option>
-                                </select>
+                                />
 
                                 <!-- Controls -->
                                 <div class="flex gap-2 justify-center">
@@ -493,84 +502,139 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                     >
                                 </div>
 
-                                <div v-else class="flex flex-col gap-4">
-                                    <div
-                                        class="bg-green-500/10 border border-green-500/20 text-green-500 text-xs p-2 rounded text-center"
-                                    >
-                                        Model Loaded & Ready
-                                    </div>
-
-                                    <div class="flex flex-col gap-2">
-                                        <label
-                                            class="text-[10px] text-text-muted uppercase font-bold tracking-wider"
-                                            >Device</label
-                                        >
-                                        <select
-                                            v-model="device"
-                                            class="bg-canvas border border-canvas-border text-xs rounded px-2 py-1 text-text-main focus:outline-none focus:border-brand-primary w-full"
-                                        >
-                                            <option value="webgpu">
-                                                WebGPU (Experimental)
-                                            </option>
-                                            <option value="cpu">
-                                                CPU (Stable)
-                                            </option>
-                                        </select>
-                                    </div>
-
-                                    <div class="flex items-center gap-2">
-                                        <!-- Shared Language Selector for File Transcription too -->
-                                        <select
-                                            :value="detectedLanguage"
-                                            @change="
-                                                (e: Event) =>
-                                                    setLanguage(
-                                                        (
-                                                            e.target as HTMLSelectElement
-                                                        ).value,
-                                                    )
-                                            "
-                                            class="bg-canvas border border-canvas-border text-xs rounded px-2 py-1 text-text-main focus:outline-none focus:border-brand-primary w-full mb-2"
-                                        >
-                                            <option
-                                                v-for="lang in languages"
-                                                :key="lang.code"
-                                                :value="lang.code"
-                                            >
-                                                {{ lang.name }}
-                                            </option>
-                                        </select>
-                                    </div>
-
-                                    <div class="flex flex-col gap-2">
-                                        <input
-                                            type="file"
-                                            accept="audio/*,video/*"
-                                            class="block w-full text-xs text-text-muted file:mr-2 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-brand-primary/10 file:text-brand-accent hover:file:bg-brand-primary/20 cursor-pointer"
-                                            @change="handleFileUpload"
-                                            :disabled="whisperTranscribing"
-                                        />
+                                    <div class="flex flex-col gap-4">
                                         <div
-                                            v-if="currentFileName"
-                                            class="text-[10px] text-text-muted truncate px-1"
+                                            class="bg-green-500/10 border border-green-500/20 text-green-500 text-xs p-2 rounded text-center"
                                         >
-                                            Selected: {{ currentFileName }}
+                                            Model Loaded & Ready
                                         </div>
-                                    </div>
 
-                                    <Button
-                                        v-if="
-                                            selectedFile &&
-                                            !whisperTranscribing &&
-                                            !whisperResult
-                                        "
-                                        variant="primary"
-                                        size="sm"
-                                        @click="startTranscription"
-                                        class="w-full mt-2"
-                                    >
-                                        Start Transcription
-                                    </Button>
+                                        <div class="flex gap-2 items-end">
+                                            <div class="flex-1">
+                                                <Select
+                                                    label="Device"
+                                                    v-model="device"
+                                                    :options="[
+                                                        {
+                                                            label: 'WebGPU (Experimental)',
+                                                            value: 'webgpu',
+                                                        },
+                                                        {
+                                                            label: 'CPU (Stable)',
+                                                            value: 'cpu',
+                                                        },
+                                                    ]"
+                                                />
+                                            </div>
+                                            <Button
+                                                variant="secondary"
+                                                class="h-[38px] w-[38px] flex items-center justify-center mb-px"
+                                                @click="isWebGpuInfoOpen = true"
+                                            >
+                                                <Info class="w-4 h-4" />
+                                            </Button>
+                                        </div>
+
+                                        <Select
+                                            label="Model"
+                                            v-model="whisperModel"
+                                            :options="availableModels"
+                                        />
+
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <!-- Shared Language Selector for File Transcription too -->
+                                            <Select
+                                                label="Language"
+                                                :modelValue="detectedLanguage"
+                                                @update:modelValue="setLanguage"
+                                                :options="
+                                                    languages.map((l) => ({
+                                                        label: l.name,
+                                                        value: l.code,
+                                                    }))
+                                                "
+                                                class="w-full"
+                                            />
+                                        </div>
+
+                                        <div class="flex flex-col gap-2">
+                                            <input
+                                                type="file"
+                                                accept="audio/*,video/*"
+                                                class="block w-full text-xs text-text-muted file:mr-2 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-brand-primary/10 file:text-brand-accent hover:file:bg-brand-primary/20 cursor-pointer"
+                                                @change="handleFileUpload"
+                                                :disabled="whisperTranscribing"
+                                            />
+                                            <div
+                                                v-if="currentFileName"
+                                                class="text-[10px] text-text-muted truncate px-1"
+                                            >
+                                                Selected: {{ currentFileName }}
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            v-if="audioDetails"
+                                            class="bg-canvas-darker p-3 rounded text-[10px] grid grid-cols-2 gap-y-1 gap-x-2 border border-canvas-border"
+                                        >
+                                            <div class="text-text-muted">
+                                                Channels:
+                                                <span class="text-text-main">{{
+                                                    audioDetails.channels
+                                                }}</span>
+                                            </div>
+                                            <div class="text-text-muted">
+                                                Sample Rate:
+                                                <span class="text-text-main"
+                                                    >{{
+                                                        audioDetails.sampleRate
+                                                    }}
+                                                    Hz</span
+                                                >
+                                            </div>
+                                            <div class="text-text-muted">
+                                                Duration:
+                                                <span class="text-text-main"
+                                                    >{{
+                                                        audioDetails.duration.toFixed(
+                                                            2,
+                                                        )
+                                                    }}s</span
+                                                >
+                                            </div>
+                                            <div class="text-text-muted">
+                                                Length:
+                                                <span class="text-text-main"
+                                                    >{{
+                                                        audioDetails.length
+                                                    }}
+                                                    samples</span
+                                                >
+                                            </div>
+                                            <div
+                                                class="col-span-2 text-text-muted mt-1 pt-1 border-t border-canvas-border"
+                                            >
+                                                Model:
+                                                <span
+                                                    class="text-brand-primary"
+                                                    >{{ whisperModel }}</span
+                                                >
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            v-if="
+                                                selectedFile &&
+                                                !whisperTranscribing &&
+                                                !whisperResult
+                                            "
+                                            variant="primary"
+                                            size="sm"
+                                            @click="startTranscription"
+                                            class="w-full mt-2"
+                                        >
+                                            Start Transcription
+                                        </Button>
 
                                     <div
                                         v-if="whisperTranscribing"
@@ -702,5 +766,64 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                 </div>
             </div>
         </div>
+
+        <Dialog
+            :isOpen="isWebGpuInfoOpen"
+            title="WebGPU Configuration"
+            @close="isWebGpuInfoOpen = false"
+        >
+            <div class="flex flex-col gap-3">
+                <p class="text-sm">
+                    WebGPU provides significantly faster transcription but may
+                    require configuration on some systems.
+                </p>
+
+                <div class="bg-canvas-darker p-3 rounded border border-canvas-border">
+                    <h4 class="font-bold text-xs mb-2 text-brand-primary">
+                        Chrome / Edge Flags
+                    </h4>
+                    <p class="text-[10px] mb-2 text-text-muted">
+                        Go to <code class="bg-black/30 px-1 rounded">chrome://flags</code>
+                        and enable:
+                    </p>
+                    <ul class="list-disc pl-4 text-[10px] space-y-1">
+                        <li>
+                            <strong class="text-text-main">Vulkan</strong>
+                            (Linux, Android): Search for
+                            <code class="text-brand-accent">#enable-vulkan</code>
+                        </li>
+                        <li>
+                            <strong class="text-text-main">Skia Renderer</strong>:
+                            Search for
+                            <code class="text-brand-accent"
+                                >#pdf-use-skia-renderer</code
+                            >
+                        </li>
+                        <li>
+                            <strong class="text-text-main"
+                                >Unsafe WebGPU Support</strong
+                            >: Search for
+                            <code class="text-brand-accent"
+                                >#enable-unsafe-webgpu</code
+                            >
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="text-[10px] text-text-muted italic">
+                    If you experience issues or crashes, try switching the Device
+                    to <strong>CPU</strong>.
+                </div>
+            </div>
+            <template #footer>
+                <Button
+                    variant="primary"
+                    size="sm"
+                    @click="isWebGpuInfoOpen = false"
+                >
+                    Got it
+                </Button>
+            </template>
+        </Dialog>
     </div>
 </template>

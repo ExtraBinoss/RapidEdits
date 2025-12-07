@@ -23,6 +23,12 @@ export function useWhisper() {
     const tokensPerSecond = ref<number | string>(0);
     const device = ref<"webgpu" | "cpu">("webgpu"); // Default to WebGPU
     const model = ref<string>("onnx-community/whisper-base"); // Default to Whisper Base
+    const audioDetails = ref<{
+        channels: number;
+        length: number;
+        sampleRate: number;
+        duration: number;
+    } | null>(null);
 
     const initWorker = () => {
         if (!worker.value) {
@@ -122,12 +128,13 @@ export function useWhisper() {
 
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
             // totalDuration = audioBuffer.duration;
-            console.log("Decoded audio details:", {
+            audioDetails.value = {
                 channels: audioBuffer.numberOfChannels,
                 length: audioBuffer.length,
                 sampleRate: audioBuffer.sampleRate,
                 duration: audioBuffer.duration,
-            });
+            };
+            console.log("Decoded audio details:", audioDetails.value);
 
             let audioData: Float32Array;
 
@@ -199,5 +206,6 @@ export function useWhisper() {
         transcriptionProgress,
         device,
         model,
+        audioDetails,
     };
 }
