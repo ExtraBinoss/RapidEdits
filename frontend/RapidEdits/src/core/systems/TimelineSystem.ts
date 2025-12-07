@@ -140,6 +140,50 @@ export class TimelineSystem {
         globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
     }
 
+    public addClipsBatch(
+        items: {
+            assetId: string;
+            trackId: number;
+            start: number;
+            typeOverride?: MediaTypeValue;
+            extraData?: Partial<Clip>;
+        }[],
+    ) {
+        const affectedTrackIds = new Set<number>();
+
+        items.forEach((item) => {
+            const asset = this.assetSystem.getAsset(item.assetId);
+            if (!asset) return;
+
+            const targetTrack = this.tracks.find((t) => t.id === item.trackId);
+            if (!targetTrack) return;
+
+            const clip = this.createClipObject(
+                asset,
+                targetTrack.id,
+                item.start,
+                item.typeOverride,
+            );
+
+            if (item.extraData) {
+                Object.assign(clip, item.extraData);
+            }
+
+            targetTrack.clips.push(clip);
+            affectedTrackIds.add(targetTrack.id);
+        });
+
+        // Sort affected tracks
+        affectedTrackIds.forEach((trackId) => {
+            const track = this.tracks.find((t) => t.id === trackId);
+            if (track) {
+                track.clips.sort((a, b) => a.start - b.start);
+            }
+        });
+
+        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
+    }
+
     public removeTrack(trackId: number) {
         const index = this.tracks.findIndex((t) => t.id === trackId);
         if (index !== -1) {

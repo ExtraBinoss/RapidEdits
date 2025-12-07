@@ -53,6 +53,17 @@ export class EditorEngine {
         this.timelineSystem.addClip(assetId, targetTrackId, startTime);
     }
 
+    public addClipsBatch(
+        items: {
+            assetId: string;
+            trackId: number;
+            start: number;
+            extraData?: Partial<Clip>;
+        }[],
+    ) {
+        this.timelineSystem.addClipsBatch(items);
+    }
+
     public updateClip(id: string, updates: Partial<Clip>) {
         this.timelineSystem.updateClip(id, updates);
     }

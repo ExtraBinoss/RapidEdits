@@ -100,17 +100,18 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
     if (source === "whisper" && whisperResult.value) {
         const track = editorEngine.addTrack("text");
         const startTimeOffset = editorEngine.getCurrentTime();
+        const batchItems = [];
 
-        whisperResult.value.chunks.forEach((chunk) => {
+        for (const chunk of whisperResult.value.chunks) {
             const assetId = crypto.randomUUID();
             const start = chunk.timestamp[0];
             const end = chunk.timestamp[1];
-            const duration = Math.max(0.5, end - start); // Ensure minimum duration
+            const duration = Math.max(0.5, end - start);
 
             editorEngine.assetSystem.registerAsset({
                 id: assetId,
                 name: chunk.text,
-                type: MediaType.TEXT, // This is virtual type for asset system
+                type: MediaType.TEXT,
                 url: "",
                 size: 0,
                 createdAt: Date.now(),
@@ -118,28 +119,33 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
             });
 
             const clipStart = startTimeOffset + start;
-            editorEngine.addClip(assetId, track.id, clipStart);
 
-            const addedClip = track.clips.find((c) => c.assetId === assetId);
-            if (addedClip) {
-                editorEngine.updateClip(addedClip.id, {
-                    type: createPluginId(PluginCategory.Core, "text"),
+            batchItems.push({
+                assetId: assetId,
+                trackId: track.id,
+                start: clipStart,
+                typeOverride: createPluginId(PluginCategory.Core, "text"),
+                extraData: {
                     name: chunk.text,
+                    duration: duration,
                     data: {
                         text: chunk.text,
-                        fontSize: 50, // Matches TextPlugin default
+                        fontSize: 50,
                         color: "#ffffff",
                         position: { x: 0, y: 0, z: 0 },
                         rotation: { x: 0, y: 0, z: 0 },
                         scale: { x: 1, y: 1, z: 1 },
-                        is3D: true, // User requested 3D text
+                        is3D: true,
                         depth: 5,
                         autoFit: false,
                     },
-                    duration: duration,
-                });
-            }
-        });
+                },
+            });
+        }
+
+        if (batchItems.length > 0) {
+            editorEngine.addClipsBatch(batchItems);
+        }
         return;
     }
 
@@ -147,8 +153,9 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
 
     const track = editorEngine.addTrack("text");
     const startTimeOffset = editorEngine.getCurrentTime();
+    const batchItems = [];
 
-    results.forEach((result) => {
+    for (const result of results) {
         const assetId = crypto.randomUUID();
         const duration =
             (result.endTimestamp || result.timestamp + 2) - result.timestamp;
@@ -164,13 +171,15 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
         });
 
         const clipStart = startTimeOffset + result.timestamp;
-        editorEngine.addClip(assetId, track.id, clipStart);
 
-        const addedClip = track.clips.find((c) => c.assetId === assetId);
-        if (addedClip) {
-            editorEngine.updateClip(addedClip.id, {
-                type: createPluginId(PluginCategory.Core, "text"),
+        batchItems.push({
+            assetId: assetId,
+            trackId: track.id,
+            start: clipStart,
+            typeOverride: createPluginId(PluginCategory.Core, "text"),
+            extraData: {
                 name: result.transcript,
+                duration: duration,
                 data: {
                     text: result.transcript,
                     color: "#ffffff",
@@ -182,10 +191,13 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                     depth: 5,
                     autoFit: false,
                 },
-                duration: duration,
-            });
-        }
-    });
+            },
+        });
+    }
+
+    if (batchItems.length > 0) {
+        editorEngine.addClipsBatch(batchItems);
+    }
 };
 </script>
 
