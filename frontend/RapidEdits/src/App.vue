@@ -9,13 +9,14 @@ import { updateFavicon } from "./utils/faviconUtils";
 import { useThemeStore } from "./stores/themeStore";
 import { TextPlugin } from "./core/plugins/core/TextPlugin";
 import { pluginRegistry } from "./core/plugins/PluginRegistry";
+import StatusBar from "./components/Footer/StatusBar.vue";
 
 const themeStore = useThemeStore();
 
 onMounted(() => {
     updateFavicon("#3b82f6"); // Brand primary color
     themeStore.initTheme();
-    
+
     // Register Core Plugins
     pluginRegistry.register(new TextPlugin());
 });
@@ -56,5 +57,8 @@ onMounted(() => {
                 </div>
             </div>
         </div>
+
+        <!-- System Status Bar -->
+        <StatusBar />
     </div>
 </template>

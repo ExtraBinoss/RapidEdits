@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from "vue";
+import { ref } from "vue";
 
 export interface WhisperResult {
     text: string;
@@ -10,26 +10,27 @@ export interface WhisperResult {
 
 import WhisperWorker from "../workers/whisper.worker?worker";
 
-export function useWhisper() {
-    const worker = ref<Worker | null>(null);
-    const isModelLoading = ref(false);
-    const isModelReady = ref(false);
-    const isTranscribing = ref(false);
-    const progress = ref(0); // Download progress
-    const transcriptionProgress = ref(0); // Transcription percentage (0-100) - Less relevant with streaming but kept
-    const statusMessage = ref("");
-    const error = ref<string | null>(null);
-    const result = ref<WhisperResult | null>(null);
-    const tokensPerSecond = ref<number | string>(0);
-    const device = ref<"webgpu" | "cpu">("webgpu"); // Default to WebGPU
-    const model = ref<string>("Xenova/whisper-base"); // Default to Whisper Base
-    const audioDetails = ref<{
-        channels: number;
-        length: number;
-        sampleRate: number;
-        duration: number;
-    } | null>(null);
+// Singleton State
+const worker = ref<Worker | null>(null);
+const isModelLoading = ref(false);
+const isModelReady = ref(false);
+const isTranscribing = ref(false);
+const progress = ref(0);
+const transcriptionProgress = ref(0);
+const statusMessage = ref("");
+const error = ref<string | null>(null);
+const result = ref<WhisperResult | null>(null);
+const tokensPerSecond = ref<number | string>(0);
+const device = ref<"webgpu" | "cpu">("webgpu");
+const model = ref<string>("Xenova/whisper-base");
+const audioDetails = ref<{
+    channels: number;
+    length: number;
+    sampleRate: number;
+    duration: number;
+} | null>(null);
 
+export function useWhisper() {
     const initWorker = () => {
         if (!worker.value) {
             worker.value = new WhisperWorker();
@@ -47,7 +48,6 @@ export function useWhisper() {
                     isModelLoading.value = true;
                     statusMessage.value = message;
                 } else if (status === "progress") {
-                    // workerProgress is usually { status: 'progress', name: '...', file: '...', progress: 0-100, loaded: ..., total: ... }
                     if (workerProgress.status === "progress") {
                         progress.value = Math.round(
                             workerProgress.progress || 0,
@@ -62,7 +62,6 @@ export function useWhisper() {
                 } else if (status === "complete") {
                     isTranscribing.value = false;
                     transcriptionProgress.value = 100;
-                    // Standardize result
                     result.value = {
                         text: workerResult.text || workerResult[0]?.text || "",
                         chunks: workerResult.chunks || [],
@@ -72,11 +71,11 @@ export function useWhisper() {
                     isTranscribing.value = false;
                     statusMessage.value = "Transcription stopped";
                 } else if (status === "transcribing-progress") {
-                    // data contains { text, tps }
                     if (data) {
+                        // Optimistic update of text
                         result.value = {
                             text: data.text,
-                            chunks: [],
+                            chunks: [], // Chunks come only at complete for now in this worker impl
                         };
                         tokensPerSecond.value = data.tps;
                         statusMessage.value = `Transcribing... (${data.tps} tokens/s)`;
@@ -101,9 +100,6 @@ export function useWhisper() {
         });
     };
 
-    // Store duration to calculate progress
-    // let totalDuration = 0;
-    
     const stop = () => {
         if (isTranscribing.value && worker.value) {
             worker.value.postMessage({ type: "stop" });
@@ -113,8 +109,11 @@ export function useWhisper() {
 
     const transcribe = async (
         audioBlob: Blob | File,
-        language: string = "auto", // Default to auto detection
+        language: string = "auto",
+        start?: number,
+        end?: number,
     ) => {
+        initWorker(); // Ensure worker exists
         if (!isModelReady.value) {
             error.value = "Model not loaded. Please download the model first.";
             return;
@@ -124,13 +123,11 @@ export function useWhisper() {
         transcriptionProgress.value = 0;
         tokensPerSecond.value = 0;
         statusMessage.value = "Preparing audio...";
-        
-        // Reset state
+
         result.value = null;
         error.value = null;
 
         try {
-            // Decode audio on main thread using AudioContext
             const arrayBuffer = await audioBlob.arrayBuffer();
             const audioContext = new (
                 window.AudioContext || (window as any).webkitAudioContext
@@ -139,28 +136,48 @@ export function useWhisper() {
             });
 
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            // totalDuration = audioBuffer.duration;
             audioDetails.value = {
                 channels: audioBuffer.numberOfChannels,
                 length: audioBuffer.length,
                 sampleRate: audioBuffer.sampleRate,
                 duration: audioBuffer.duration,
             };
-            console.log("Decoded audio details:", audioDetails.value);
+
+            // Slice audio if start/end provided
+            let finalBuffer = audioBuffer;
+            if (start !== undefined || end !== undefined) {
+                const s = start || 0;
+                const e = end || audioBuffer.duration;
+                const startSample = Math.floor(s * audioBuffer.sampleRate);
+                const endSample = Math.floor(e * audioBuffer.sampleRate);
+                const len = endSample - startSample;
+
+                if (len > 0) {
+                    const slicedCtx = new OfflineAudioContext(
+                        audioBuffer.numberOfChannels,
+                        len,
+                        audioBuffer.sampleRate,
+                    );
+                    const source = slicedCtx.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(slicedCtx.destination);
+                    source.start(0, s, e - s);
+                    finalBuffer = await slicedCtx.startRendering();
+                }
+            }
 
             let audioData: Float32Array;
 
-            if (audioBuffer.sampleRate === 16000) {
-                audioData = audioBuffer.getChannelData(0);
+            if (finalBuffer.sampleRate === 16000) {
+                audioData = finalBuffer.getChannelData(0);
             } else {
-                // Resample if needed (though context was forced 16k)
                 const offlineContext = new OfflineAudioContext(
                     1,
-                    Math.ceil(audioBuffer.duration * 16000),
+                    Math.ceil(finalBuffer.duration * 16000),
                     16000,
                 );
                 const source = offlineContext.createBufferSource();
-                source.buffer = audioBuffer;
+                source.buffer = finalBuffer;
                 source.connect(offlineContext.destination);
                 source.start(0);
                 const resampledBuffer = await offlineContext.startRendering();
@@ -181,7 +198,6 @@ export function useWhisper() {
                     model: model.value,
                 },
             });
-            console.log("Transcribing with language:", sanitizedLanguage);
 
             if (audioContext.state !== "closed") {
                 audioContext.close();
@@ -197,11 +213,13 @@ export function useWhisper() {
         tokensPerSecond.value = 0;
     };
 
-    onUnmounted(() => {
+    const terminate = () => {
         if (worker.value) {
             worker.value.terminate();
+            worker.value = null;
+            isModelReady.value = false;
         }
-    });
+    };
 
     return {
         isModelLoading,
@@ -220,5 +238,6 @@ export function useWhisper() {
         device,
         model,
         audioDetails,
+        terminate, // Exposed for manual cleanup if ever needed
     };
 }

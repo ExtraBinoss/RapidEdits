@@ -1,15 +1,25 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { Files, Mic, Square, Trash2, Plus, Info } from "lucide-vue-next";
+import { ref, watch } from "vue";
+import {
+    Files,
+    Mic,
+    Square,
+    Trash2,
+    Plus,
+    Info,
+    Settings,
+} from "lucide-vue-next";
 import Button from "../UI/Button/Button.vue";
 import { useSpeechRecognition } from "../../composables/useSpeechRecognition";
 import { useWhisper } from "../../composables/useWhisper";
+import { useJobSystem } from "../../composables/useJobSystem";
 import { MediaType } from "../../types/Media";
 import { editorEngine } from "../../core/EditorEngine";
 import { createPluginId, PluginCategory } from "../../core/plugins/PluginTypes";
 import Drawer from "../UI/Overlay/Drawer.vue";
 import Dialog from "../UI/Overlay/Dialog.vue";
 import Select from "../UI/Input/Select.vue";
+import RangeSlider from "../UI/Slider/RangeSlider.vue";
 
 const {
     isListening,
@@ -41,8 +51,12 @@ const {
     audioDetails,
 } = useWhisper();
 
+const { addJob, updateJob } = useJobSystem();
+
 const currentFileName = ref<string>("");
 const selectedFile = ref<File | null>(null);
+const fileDuration = ref(0);
+const timeRange = ref<[number, number]>([0, 0]);
 
 const drawerState = ref({
     voice: false,
@@ -69,19 +83,63 @@ const toggleDrawer = (key: keyof typeof drawerState.value) => {
 const handleFileUpload = async (e: Event) => {
     const target = e.target as HTMLInputElement;
     if (target.files && target.files[0]) {
-        selectedFile.value = target.files[0];
-        currentFileName.value = target.files[0].name;
+        const file = target.files[0];
+        selectedFile.value = file;
+        currentFileName.value = file.name;
+
+        // Get duration for slider
+        const audio = new Audio(URL.createObjectURL(file));
+        audio.onloadedmetadata = () => {
+            fileDuration.value = audio.duration;
+            timeRange.value = [0, audio.duration];
+        };
     }
 };
 
 const startTranscription = async () => {
     if (selectedFile.value) {
-        // Clear previous results to reset UI
+        // Create Job
+        const jobId = addJob({
+            type: "transcription",
+            title: `Transcribing ${currentFileName.value}`,
+        });
+
+        const unwatch = watch(
+            [whisperStatus, transcriptionProgress, whisperError, whisperResult],
+            () => {
+                const isError = !!whisperError.value;
+                const isComplete =
+                    !!whisperResult.value && !whisperTranscribing.value;
+
+                updateJob(jobId, {
+                    status: isError
+                        ? "error"
+                        : isComplete
+                          ? "success"
+                          : "running",
+                    progress: transcriptionProgress.value,
+                    details: whisperStatus.value,
+                    error: whisperError.value || undefined,
+                    cancel: () => stopTranscription(),
+                });
+
+                if (isError || isComplete) {
+                    unwatch();
+                }
+            },
+        );
+
+        // Clear previous results to reset UI internal state if needed
         if (whisperResult.value) {
-            clearResults();
             whisperResult.value = null;
         }
-        await transcribeAudio(selectedFile.value, detectedLanguage.value);
+
+        await transcribeAudio(
+            selectedFile.value,
+            detectedLanguage.value,
+            timeRange.value[0],
+            timeRange.value[1],
+        );
     }
 };
 
@@ -315,12 +373,12 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                 </div>
             </Drawer>
 
-            <!-- Drawer 2: Transcription -->
+            <!-- Drawer 2: Transcription (Configuration) -->
             <Drawer
-                title="Audio Transcription (File)"
+                title="Audio Transcription (Config)"
                 :isOpen="drawerState.transcribe"
                 @toggle="toggleDrawer('transcribe')"
-                :icon="Files"
+                :icon="Settings"
             >
                 <div class="flex flex-col gap-4">
                     <div
@@ -328,7 +386,7 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                         class="bg-canvas-darker p-4 rounded-lg border border-canvas-border flex flex-col gap-2 items-center text-center"
                     >
                         <div class="text-xs text-text-muted mb-2">
-                            Model required (~30MB). Runs locally in browser.
+                            Model required (~30MB).
                         </div>
                         <Button
                             variant="primary"
@@ -353,44 +411,30 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                 :style="{ width: whisperProgress + '%' }"
                             ></div>
                         </div>
-                        <span
-                            v-if="whisperStatus"
-                            class="text-[10px] text-text-muted"
-                            >{{ whisperStatus }}</span
-                        >
                     </div>
 
                     <div v-else class="flex flex-col gap-4">
-                        <div
-                            class="bg-green-500/10 border border-green-500/20 text-green-500 text-xs p-2 rounded text-center"
-                        >
-                            Model Loaded & Ready
-                        </div>
-
-                        <div class="flex gap-2 items-end">
-                            <div class="flex-1 min-w-0">
-                                <Select
-                                    label="Device"
-                                    v-model="device"
-                                    :options="[
-                                        {
-                                            label: 'WebGPU (Experimental)',
-                                            value: 'webgpu',
-                                        },
-                                        {
-                                            label: 'CPU (Stable)',
-                                            value: 'cpu',
-                                        },
-                                    ]"
-                                />
+                        <!-- Config Section -->
+                        <div class="flex gap-2">
+                            <Select
+                                label="Device"
+                                v-model="device"
+                                :options="[
+                                    { label: 'WebGPU (Fast)', value: 'webgpu' },
+                                    { label: 'CPU (Stable)', value: 'cpu' },
+                                ]"
+                                class="flex-1"
+                            />
+                            <div class="flex items-end mb-px">
+                                <Button
+                                    variant="secondary"
+                                    class="h-[38px] w-[38px] p-0"
+                                    @click="isWebGpuInfoOpen = true"
+                                    title="WebGPU Info"
+                                >
+                                    <Info class="w-4 h-4" />
+                                </Button>
                             </div>
-                            <Button
-                                variant="secondary"
-                                class="h-[38px] w-[38px] flex items-center justify-center mb-px shrink-0"
-                                @click="isWebGpuInfoOpen = true"
-                            >
-                                <Info class="w-4 h-4" />
-                            </Button>
                         </div>
 
                         <Select
@@ -399,22 +443,24 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                             :options="availableModels"
                         />
 
-                        <div class="flex items-center gap-2 mb-2">
-                            <Select
-                                label="Language"
-                                :modelValue="detectedLanguage"
-                                @update:modelValue="setLanguage"
-                                :options="
-                                    languages.map((l) => ({
-                                        label: l.name,
-                                        value: l.code,
-                                    }))
-                                "
-                                class="w-full"
-                            />
-                        </div>
+                        <Select
+                            label="Language"
+                            :modelValue="detectedLanguage"
+                            @update:modelValue="setLanguage"
+                            :options="
+                                languages.map((l) => ({
+                                    label: l.name,
+                                    value: l.code,
+                                }))
+                            "
+                        />
 
-                        <div class="flex flex-col gap-2">
+                        <div
+                            class="flex flex-col gap-2 border-t border-canvas-border pt-4"
+                        >
+                            <label class="text-sm font-medium text-gray-400"
+                                >Audio Source</label
+                            >
                             <input
                                 type="file"
                                 accept="audio/*,video/*"
@@ -428,116 +474,68 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                             >
                                 Selected: {{ currentFileName }}
                             </div>
-                            <Button
-                                v-if="audioDetails"
-                                variant="ghost"
-                                size="sm"
-                                @click="isNerdInfoDialogOpen = true"
-                                class="text-[10px] text-brand-primary p-0 h-auto"
+                        </div>
+
+                        <div v-if="selectedFile" class="flex flex-col gap-2">
+                            <label class="text-sm font-medium text-gray-400"
+                                >Time Range (sec)</label
                             >
-                                Show Audio/Model Details
-                            </Button>
+                            <RangeSlider
+                                v-model="timeRange"
+                                :min="0"
+                                :max="Math.ceil(fileDuration)"
+                                :step="0.1"
+                            />
                         </div>
 
                         <Button
-                            v-if="
-                                selectedFile &&
-                                !whisperTranscribing &&
-                                !whisperResult
-                            "
+                            v-if="selectedFile"
                             variant="primary"
                             size="sm"
                             @click="startTranscription"
+                            :disabled="whisperTranscribing"
                             class="w-full mt-2"
                         >
-                            Start Transcription
+                            {{
+                                whisperTranscribing
+                                    ? "Transcribing (See Status Bar)..."
+                                    : "Start Transcription Job"
+                            }}
                         </Button>
 
+                        <!-- Result Actions (Only if result exists) -->
                         <div
-                            v-if="whisperTranscribing"
-                            class="py-4 flex flex-col items-center gap-2 w-full"
+                            v-if="whisperResult && !whisperTranscribing"
+                            class="mt-4 p-3 bg-canvas-darker rounded border border-canvas-border"
                         >
                             <div
-                                class="w-full h-1.5 bg-canvas-border rounded-full overflow-hidden"
+                                class="text-xs text-text-muted mb-2 flex justify-between"
                             >
-                                <div
-                                    class="h-full bg-brand-primary transition-all duration-300"
-                                    :style="{
-                                        width: transcriptionProgress + '%',
-                                    }"
-                                ></div>
-                            </div>
-                            <div
-                                class="flex justify-between w-full text-[10px] text-text-muted"
-                            >
-                                <span>{{ whisperStatus }}</span>
-                                <span
-                                    v-if="tokensPerSecond"
-                                    class="text-brand-accent"
-                                    >{{ tokensPerSecond }} t/s</span
+                                <span>Transcription Ready</span>
+                                <span class="text-brand-accent"
+                                    >{{
+                                        whisperResult.chunks.length
+                                    }}
+                                    segments</span
                                 >
                             </div>
                             <Button
-                                variant="danger"
+                                variant="primary"
+                                :icon="Plus"
+                                @click="() => addToTimeline('whisper')"
                                 size="sm"
-                                :icon="Square"
-                                @click="stopTranscription"
-                                class="mt-2 w-full"
+                                class="w-full"
                             >
-                                Stop
+                                Add {{ whisperResult.chunks.length }} Subs to
+                                Timeline
                             </Button>
-                        </div>
-                        <Button
-                            v-if="whisperResult"
-                            variant="primary"
-                            :icon="Plus"
-                            @click="() => addToTimeline('whisper')"
-                            size="sm"
-                            class="w-full mt-2"
-                        >
-                            Add to Timeline
-                        </Button>
-                    </div>
-
-                    <div
-                        v-if="whisperResult"
-                        class="bg-canvas border border-canvas-border rounded-lg p-3 overflow-y-auto max-h-[200px] text-sm"
-                    >
-                        <div
-                            v-if="
-                                whisperResult.text &&
-                                (!whisperResult.chunks ||
-                                    whisperResult.chunks.length === 0)
-                            "
-                            class="text-xs text-text-main leading-relaxed whitespace-pre-wrap"
-                        >
-                            {{ whisperResult.text }}
-                            <span
-                                v-if="whisperTranscribing"
-                                class="inline-block w-1.5 h-3 bg-brand-primary animate-pulse ml-0.5"
-                            ></span>
-                        </div>
-
-                        <div
-                            v-for="(chunk, idx) in whisperResult.chunks"
-                            :key="idx"
-                            class="mb-2 p-2 bg-canvas-darker rounded hover:bg-canvas-border transition-colors text-xs"
-                        >
-                            <span
-                                class="text-text-muted text-left text-[10px] block mb-1"
+                            <div
+                                class="max-h-20 overflow-y-auto text-[10px] text-text-muted mt-2 border-t border-canvas-border pt-2 italic"
                             >
-                                {{ chunk.timestamp[0].toFixed(1) }}s -
-                                {{ chunk.timestamp[1].toFixed(1) }}s
-                            </span>
-                            {{ chunk.text }}
+                                Preview:
+                                {{ whisperResult.text.substring(0, 100) }}...
+                            </div>
                         </div>
-                    </div>
-
-                    <div
-                        v-if="whisperError"
-                        class="p-3 bg-red-500/10 border border-red-500/20 rounded text-red-500 text-xs"
-                    >
-                        {{ whisperError }}
                     </div>
                 </div>
             </Drawer>
@@ -548,111 +546,19 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
             title="WebGPU Configuration"
             @close="isWebGpuInfoOpen = false"
         >
-            <div class="flex flex-col gap-4">
-                <p class="text-base text-text-main">
-                    WebGPU provides significantly faster transcription but may
-                    require configuration on some systems.
-                </p>
-
-                <div
-                    class="bg-canvas-darker p-4 rounded border border-canvas-border"
-                >
-                    <h4 class="font-bold text-sm mb-3 text-brand-primary">
-                        Chrome / Edge Flags
-                    </h4>
-                    <p class="text-sm mb-3 text-text-muted">
-                        Go to
-                        <code class="bg-black/30 px-1 rounded select-all"
-                            >chrome://flags</code
-                        >
-                        and enable:
-                    </p>
-                    <ul class="list-disc pl-5 text-sm space-y-2 text-text-main">
-                        <li>
-                            <strong>Vulkan</strong>
-                            (Linux, Android): Search for
-                            <code class="text-brand-accent select-all"
-                                >#enable-vulkan</code
-                            >
-                        </li>
-                        <li>
-                            <strong>Skia Renderer</strong>: Search for
-                            <code class="text-brand-accent select-all"
-                                >#pdf-use-skia-renderer</code
-                            >
-                        </li>
-                        <li>
-                            <strong>Unsafe WebGPU Support</strong>: Search for
-                            <code class="text-brand-accent select-all"
-                                >#enable-unsafe-webgpu</code
-                            >
-                        </li>
-                    </ul>
-                </div>
-
-                <div
-                    class="text-sm text-brand-primary bg-brand-primary/10 p-3 rounded border border-brand-primary/20"
-                >
-                    <strong>Important:</strong> You must relaunch Chrome for
-                    these changes to take effect.
-                </div>
-
-                <div class="text-sm text-text-muted italic">
-                    If you experience issues or crashes, try switching the
-                    Device to <strong>CPU</strong>.
-                </div>
-            </div>
+            <!-- Simplified content for brevity as request was to clean up sidebar -->
+            <p class="text-text-main text-sm">
+                WebGPU uses your graphics card for 10x faster transcription.
+                Enable <strong>#enable-unsafe-webgpu</strong> in
+                <code>chrome://flags</code> if needed.
+            </p>
             <template #footer>
                 <Button
                     variant="primary"
                     size="md"
                     @click="isWebGpuInfoOpen = false"
+                    >Close</Button
                 >
-                    Got it
-                </Button>
-            </template>
-        </Dialog>
-
-        <Dialog
-            :isOpen="isNerdInfoDialogOpen"
-            title="Audio & Model Details"
-            @close="isNerdInfoDialogOpen = false"
-        >
-            <div v-if="audioDetails" class="flex flex-col gap-2 text-sm">
-                <p class="text-text-main">
-                    <strong class="text-text-muted">Channels:</strong>
-                    {{ audioDetails.channels }}
-                </p>
-                <p class="text-text-main">
-                    <strong class="text-text-muted">Sample Rate:</strong>
-                    {{ audioDetails.sampleRate }} Hz
-                </p>
-                <p class="text-text-main">
-                    <strong class="text-text-muted">Duration:</strong>
-                    {{ audioDetails.duration.toFixed(2) }}s
-                </p>
-                <p class="text-text-main">
-                    <strong class="text-text-muted">Length:</strong>
-                    {{ audioDetails.length }} samples
-                </p>
-                <p
-                    class="text-text-main mt-2 pt-2 border-t border-canvas-border"
-                >
-                    <strong class="text-text-muted">Model:</strong>
-                    <code class="text-brand-primary">{{ whisperModel }}</code>
-                </p>
-            </div>
-            <div v-else class="text-text-muted text-sm">
-                No audio details available yet. Please transcribe an audio file.
-            </div>
-            <template #footer>
-                <Button
-                    variant="primary"
-                    size="md"
-                    @click="isNerdInfoDialogOpen = false"
-                >
-                    Close
-                </Button>
             </template>
         </Dialog>
     </div>
