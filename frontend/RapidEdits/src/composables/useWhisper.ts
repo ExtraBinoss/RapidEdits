@@ -1,4 +1,5 @@
 import { ref } from "vue";
+import { useJobSystem } from "./useJobSystem";
 
 export interface WhisperResult {
     text: string;
@@ -29,8 +30,12 @@ const audioDetails = ref<{
     sampleRate: number;
     duration: number;
 } | null>(null);
+// Current active job ID to link UI actions if needed, though mostly handled internally now
+const currentJobId = ref<string | null>(null);
 
 export function useWhisper() {
+    const { addJob, updateJob, removeJob } = useJobSystem();
+
     const initWorker = () => {
         if (!worker.value) {
             worker.value = new WhisperWorker();
@@ -47,12 +52,22 @@ export function useWhisper() {
                 if (status === "loading") {
                     isModelLoading.value = true;
                     statusMessage.value = message;
+                    if (currentJobId.value) {
+                        updateJob(currentJobId.value, {
+                            details: `Loading Model: ${message}`,
+                        });
+                    }
                 } else if (status === "progress") {
                     if (workerProgress.status === "progress") {
                         progress.value = Math.round(
                             workerProgress.progress || 0,
                         );
                         statusMessage.value = `Downloading ${workerProgress.file}... ${progress.value}%`;
+                        if (currentJobId.value) {
+                            updateJob(currentJobId.value, {
+                                details: statusMessage.value,
+                            });
+                        }
                     }
                 } else if (status === "ready") {
                     isModelLoading.value = false;
@@ -67,23 +82,74 @@ export function useWhisper() {
                         chunks: workerResult.chunks || [],
                     };
                     statusMessage.value = "Transcription Complete";
+
+                    if (currentJobId.value) {
+                        updateJob(currentJobId.value, {
+                            status: "success",
+                            progress: 100,
+                            details: `Completed (${result.value?.chunks.length} segments)`,
+                        });
+                        currentJobId.value = null;
+                    }
                 } else if (status === "stopped") {
                     isTranscribing.value = false;
                     statusMessage.value = "Transcription stopped";
+                    if (currentJobId.value) {
+                        // Mark as error/cancelled in job system so it stays visible as stopped
+                        updateJob(currentJobId.value, {
+                            status: "error",
+                            error: "Stopped by user",
+                        });
+                        currentJobId.value = null;
+                    }
                 } else if (status === "transcribing-progress") {
                     if (data) {
                         // Optimistic update of text
                         result.value = {
                             text: data.text,
-                            chunks: [], // Chunks come only at complete for now in this worker impl
+                            chunks: [],
                         };
                         tokensPerSecond.value = data.tps;
-                        statusMessage.value = `Transcribing... (${data.tps} tokens/s)`;
+                        statusMessage.value = `Transcribing... ${data.tps} t/s`;
+
+                        // Calculate percentage based on current audio duration
+                        let pct = 0;
+                        if (audioDetails.value?.duration && data.timestamp) {
+                            // data.timestamp is pair [start, end] of latest chunk, or just end time number
+                            const currentSeconds = Array.isArray(data.timestamp)
+                                ? data.timestamp[1]
+                                : data.timestamp;
+                            if (currentSeconds) {
+                                pct = Math.min(
+                                    100,
+                                    Math.round(
+                                        (currentSeconds /
+                                            audioDetails.value.duration) *
+                                            100,
+                                    ),
+                                );
+                            }
+                        }
+                        transcriptionProgress.value = pct;
+
+                        if (currentJobId.value) {
+                            updateJob(currentJobId.value, {
+                                progress: pct,
+                                details: `Transcribing... (${pct}%) - ${Math.round(data.tps)} t/s`,
+                            });
+                        }
                     }
                 } else if (status === "error") {
                     error.value = message;
                     isModelLoading.value = false;
                     isTranscribing.value = false;
+                    if (currentJobId.value) {
+                        updateJob(currentJobId.value, {
+                            status: "error",
+                            error: message,
+                        });
+                        currentJobId.value = null;
+                    }
                 }
             };
         }
@@ -115,6 +181,7 @@ export function useWhisper() {
     ) => {
         initWorker(); // Ensure worker exists
         if (!isModelReady.value) {
+            // Logic to auto-download could go here, but for now we error
             error.value = "Model not loaded. Please download the model first.";
             return;
         }
@@ -126,6 +193,15 @@ export function useWhisper() {
 
         result.value = null;
         error.value = null;
+
+        // Start Job
+        const filename = (audioBlob as File).name || "Audio File";
+        currentJobId.value = addJob({
+            type: "transcription",
+            title: `Transcribing ${filename}`,
+            details: "Preparing...",
+            cancel: stop,
+        });
 
         try {
             const arrayBuffer = await audioBlob.arrayBuffer();
@@ -148,6 +224,9 @@ export function useWhisper() {
             if (start !== undefined || end !== undefined) {
                 const s = start || 0;
                 const e = end || audioBuffer.duration;
+                // Update duration for progress calculation to match the SLICE
+                audioDetails.value.duration = e - s;
+
                 const startSample = Math.floor(s * audioBuffer.sampleRate);
                 const endSample = Math.floor(e * audioBuffer.sampleRate);
                 const len = endSample - startSample;
@@ -205,6 +284,13 @@ export function useWhisper() {
         } catch (e: any) {
             error.value = "Audio decoding failed: " + e.message;
             isTranscribing.value = false;
+            if (currentJobId.value) {
+                updateJob(currentJobId.value, {
+                    status: "error",
+                    error: error.value || "Unknown error",
+                });
+                currentJobId.value = null;
+            }
         }
     };
 
@@ -238,6 +324,6 @@ export function useWhisper() {
         device,
         model,
         audioDetails,
-        terminate, // Exposed for manual cleanup if ever needed
+        terminate,
     };
 }

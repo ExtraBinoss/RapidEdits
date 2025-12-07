@@ -52,81 +52,132 @@ const cancelJob = (job: Job) => {
     <Popover position="bottom-right">
         <template #trigger>
             <div class="relative">
-                <Button variant="ghost" class="relative group">
-                    <component
-                        :is="statusIcon"
-                        class="w-4 h-4"
-                        :class="[
-                            statusColor,
-                            { 'animate-spin': hasActiveJobs },
-                        ]"
-                    />
-                    <span
-                        v-if="hasActiveJobs || latestJob"
-                        class="ml-2 text-xs font-medium max-w-[100px] truncate hidden md:inline-block"
+                <Button
+                    variant="ghost"
+                    class="relative group h-9 px-3 border border-transparent hover:border-canvas-border transition-all"
+                >
+                    <!-- Status Icon & Label -->
+                    <div class="flex items-center gap-2">
+                        <component
+                            :is="statusIcon"
+                            class="w-4 h-4"
+                            :class="[
+                                statusColor,
+                                { 'animate-spin': hasActiveJobs },
+                            ]"
+                        />
+
+                        <div
+                            v-if="hasActiveJobs || latestJob"
+                            class="flex flex-col items-start text-xs hidden md:flex"
+                        >
+                            <span
+                                class="font-medium text-text-main max-w-[120px] truncate leading-tight"
+                            >
+                                {{ latestJob?.title || "Background Tasks" }}
+                            </span>
+                            <span
+                                v-if="hasActiveJobs"
+                                class="text-[10px] text-text-muted leading-tight"
+                            >
+                                {{ latestJob?.details || "Running..." }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Ambient Progress Bar (Bottom Border) -->
+                    <div
+                        v-if="hasActiveJobs"
+                        class="absolute bottom-0 left-0 h-[2px] bg-canvas-dark w-full overflow-hidden rounded-b-md"
                     >
-                        {{ latestJob?.title || "Jobs" }}
-                    </span>
+                        <div
+                            class="h-full bg-gradient-to-r from-brand-secondary to-brand-primary transition-all duration-300 relative"
+                            :style="{ width: `${latestJob?.progress || 0}%` }"
+                        >
+                            <div
+                                class="absolute inset-0 bg-white/30 animate-[shine_1.5s_infinite]"
+                            ></div>
+                        </div>
+                    </div>
                 </Button>
 
                 <!-- Notification Dot for finished jobs -->
                 <span
                     v-if="finishedJobs.length > 0 && !hasActiveJobs"
-                    class="absolute top-1 right-1 w-2 h-2 bg-brand-primary rounded-full border border-canvas"
+                    class="absolute top-1 right-1 w-2 h-2 bg-brand-primary rounded-full border border-canvas shadow-sm"
                 ></span>
             </div>
         </template>
 
         <template #content>
-            <div class="w-80 p-2">
+            <div
+                class="w-80 p-0 bg-canvas-light rounded-lg shadow-xl border border-canvas-border overflow-hidden"
+            >
+                <!-- Header -->
                 <div
-                    class="pb-2 border-b border-canvas-border mb-2 flex justify-between items-center px-1"
+                    class="p-3 border-b border-canvas-border flex justify-between items-center bg-canvas-darker/50"
                 >
-                    <h3 class="text-sm font-semibold text-text-main">
-                        Background Tasks
+                    <h3
+                        class="text-xs font-bold text-text-main uppercase tracking-wider flex items-center gap-2"
+                    >
+                        <Activity class="w-3 h-3 text-brand-primary" />
+                        Tasks
                     </h3>
                     <button
                         v-if="finishedJobs.length > 0"
-                        class="text-[10px] text-text-muted hover:text-red-400 flex items-center gap-1"
+                        class="text-[10px] text-text-muted hover:text-red-400 flex items-center gap-1 transition-colors"
                         @click="clearFinished"
                     >
-                        <Trash2 class="w-3 h-3" /> Clear Done
+                        <Trash2 class="w-3 h-3" /> Clear All
                     </button>
                 </div>
 
+                <!-- Empty State -->
                 <div
                     v-if="activeJobs.length === 0 && finishedJobs.length === 0"
-                    class="text-center py-6 text-text-muted text-xs italic"
+                    class="flex flex-col items-center justify-center py-8 text-text-muted"
                 >
-                    No active tasks.
+                    <CheckCircle class="w-8 h-8 opacity-20 mb-2" />
+                    <span class="text-xs italic">All systems operational</span>
                 </div>
 
-                <div class="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
+                <!-- Job List -->
+                <div class="max-h-[300px] overflow-y-auto">
                     <!-- Active List -->
                     <div
                         v-for="job in activeJobs"
                         :key="job.id"
-                        class="p-3 bg-canvas-darker rounded border border-canvas-border/50"
+                        class="p-3 border-b border-canvas-border last:border-0 bg-canvas/30"
                     >
                         <div class="flex justify-between items-start mb-2">
-                            <div
-                                class="text-xs font-semibold text-text-main truncate pr-2"
-                                :title="job.title"
-                            >
-                                {{ job.title }}
+                            <div class="flex-1 min-w-0 mr-2">
+                                <div
+                                    class="text-xs font-semibold text-text-main truncate"
+                                    :title="job.title"
+                                >
+                                    {{ job.title }}
+                                </div>
+                                <div
+                                    class="text-[10px] text-text-muted truncate"
+                                >
+                                    {{ job.details }}
+                                </div>
                             </div>
                             <button
                                 @click="cancelJob(job)"
-                                class="text-[10px] text-red-500 hover:text-red-400"
+                                class="text-text-muted hover:text-red-500 transition-colors p-1"
+                                title="Cancel"
                             >
-                                Cancel
+                                <X class="w-3 h-3" />
                             </button>
                         </div>
+
+                        <!-- Modern Progress Bar -->
                         <div
-                            class="w-full h-1.5 bg-canvas-border rounded-full overflow-hidden mb-1"
+                            class="relative h-1.5 w-full bg-canvas-dark rounded-full overflow-hidden"
                         >
                             <div
-                                class="h-full bg-brand-primary transition-all duration-300 relative overflow-hidden"
+                                class="absolute inset-y-0 left-0 bg-gradient-to-r from-brand-secondary to-brand-primary transition-all duration-300 rounded-full"
                                 :style="{ width: `${job.progress}%` }"
                             >
                                 <div
@@ -134,13 +185,10 @@ const cancelJob = (job: Job) => {
                                 ></div>
                             </div>
                         </div>
-                        <div
-                            class="flex justify-between text-[10px] text-text-muted"
-                        >
-                            <span class="truncate max-w-[180px]">{{
-                                job.details
-                            }}</span>
-                            <span>{{ job.progress }}%</span>
+                        <div class="text-right mt-1">
+                            <span class="text-[9px] font-mono text-text-muted"
+                                >{{ job.progress }}%</span
+                            >
                         </div>
                     </div>
 
@@ -148,14 +196,23 @@ const cancelJob = (job: Job) => {
                     <div
                         v-for="job in finishedJobs"
                         :key="job.id"
-                        class="p-2 rounded hover:bg-canvas-darker transition-colors flex items-center gap-3"
+                        class="p-3 flex items-center gap-3 hover:bg-canvas-darker/50 transition-colors group"
                     >
                         <div class="shrink-0">
-                            <CheckCircle
+                            <div
                                 v-if="job.status === 'success'"
-                                class="w-4 h-4 text-green-500"
-                            />
-                            <AlertCircle v-else class="w-4 h-4 text-red-500" />
+                                class="w-6 h-6 rounded-full bg-green-500/10 flex items-center justify-center border border-green-500/20"
+                            >
+                                <CheckCircle
+                                    class="w-3.5 h-3.5 text-green-500"
+                                />
+                            </div>
+                            <div
+                                v-else
+                                class="w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20"
+                            >
+                                <AlertCircle class="w-3.5 h-3.5 text-red-500" />
+                            </div>
                         </div>
                         <div class="flex-1 min-w-0">
                             <p
@@ -163,13 +220,18 @@ const cancelJob = (job: Job) => {
                             >
                                 {{ job.title }}
                             </p>
-                            <p class="text-[10px] text-text-muted truncate">
+                            <p
+                                class="text-[10px] text-text-muted truncate"
+                                :class="{
+                                    'text-red-400': job.status === 'error',
+                                }"
+                            >
                                 {{ job.error || "Completed" }}
                             </p>
                         </div>
                         <button
                             @click="removeJob(job.id)"
-                            class="text-text-muted hover:text-text-main"
+                            class="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-text-main p-1"
                         >
                             <X class="w-3 h-3" />
                         </button>

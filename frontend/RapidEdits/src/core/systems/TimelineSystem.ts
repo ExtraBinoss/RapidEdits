@@ -141,35 +141,50 @@ export class TimelineSystem {
     }
 
     public addClipsBatch(
-        items: {
+        clips: {
             assetId: string;
             trackId: number;
             start: number;
             typeOverride?: MediaTypeValue;
             extraData?: Partial<Clip>;
         }[],
-        chunkSize = 10,
     ) {
-        let index = 0;
+        if (clips.length === 0) return;
 
-        const processChunk = () => {
-            const chunk = items.slice(index, index + chunkSize);
-            if (chunk.length === 0) return;
+        // Group by track to minimize lookups
+        const clipsByTrack = new Map<
+            number,
+            {
+                assetId: string;
+                start: number;
+                typeOverride?: MediaTypeValue;
+                extraData?: Partial<Clip>;
+            }[]
+        >();
 
-            const affectedTrackIds = new Set<number>();
+        clips.forEach((clip) => {
+            if (!clipsByTrack.has(clip.trackId)) {
+                clipsByTrack.set(clip.trackId, []);
+            }
+            clipsByTrack.get(clip.trackId)!.push(clip);
+        });
 
-            chunk.forEach((item) => {
+        const affectedTrackIds = new Set<number>();
+
+        // Process each track once
+        clipsByTrack.forEach((trackClips, trackId) => {
+            const track = this.tracks.find((t) => t.id === trackId);
+            if (!track) return;
+
+            const newClips: Clip[] = [];
+
+            trackClips.forEach((item) => {
                 const asset = this.assetSystem.getAsset(item.assetId);
                 if (!asset) return;
 
-                const targetTrack = this.tracks.find(
-                    (t) => t.id === item.trackId,
-                );
-                if (!targetTrack) return;
-
                 const clip = this.createClipObject(
                     asset,
-                    targetTrack.id,
+                    trackId,
                     item.start,
                     item.typeOverride,
                 );
@@ -178,30 +193,23 @@ export class TimelineSystem {
                     Object.assign(clip, item.extraData);
                 }
 
-                targetTrack.clips.push(clip);
-                affectedTrackIds.add(targetTrack.id);
+                newClips.push(clip);
             });
 
-            // Sort affected tracks
-            affectedTrackIds.forEach((trackId) => {
-                const track = this.tracks.find((t) => t.id === trackId);
-                if (track) {
-                    track.clips.sort((a, b) => a.start - b.start);
-                }
-            });
+            if (newClips.length > 0) {
+                track.clips.push(...newClips);
+                // Sort once
+                track.clips.sort((a, b) => a.start - b.start);
+                affectedTrackIds.add(trackId);
+            }
+        });
 
+        if (affectedTrackIds.size > 0) {
             globalEventBus.emit({
                 type: "TIMELINE_UPDATED",
                 payload: undefined,
             });
-
-            index += chunkSize;
-            if (index < items.length) {
-                requestAnimationFrame(processChunk);
-            }
-        };
-
-        processChunk();
+        }
     }
 
     public removeTrack(trackId: number) {

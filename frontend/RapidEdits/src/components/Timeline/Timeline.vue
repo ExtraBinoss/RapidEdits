@@ -70,11 +70,48 @@ const zoomLevel = ref(20);
 const scrollContainer = ref<HTMLElement | null>(null);
 const headersContainer = ref<HTMLElement | null>(null);
 
+const visibleStart = ref(0);
+const visibleEnd = ref(0);
+
+const updateVisibleRange = () => {
+    if (!scrollContainer.value) return;
+    const el = scrollContainer.value;
+    const start = el.scrollLeft / zoomLevel.value;
+    const end = (el.scrollLeft + el.clientWidth) / zoomLevel.value;
+
+    // Add buffer (e.g. 1 screen width worth of time)
+    const buffer = (el.clientWidth / zoomLevel.value) * 0.5;
+    visibleStart.value = Math.max(0, start - buffer);
+    visibleEnd.value = end + buffer;
+};
+
 const handleScroll = () => {
     if (scrollContainer.value && headersContainer.value) {
         headersContainer.value.scrollTop = scrollContainer.value.scrollTop;
     }
+    updateVisibleRange();
 };
+
+// Update on zoom change
+watch(zoomLevel, () => {
+    updateVisibleRange();
+});
+
+// Initial update on mount (use resize observer for robustness)
+import { onMounted, onUnmounted } from "vue";
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+    if (scrollContainer.value) {
+        resizeObserver = new ResizeObserver(() => updateVisibleRange());
+        resizeObserver.observe(scrollContainer.value);
+        updateVisibleRange();
+    }
+});
+
+onUnmounted(() => {
+    resizeObserver?.disconnect();
+});
 
 // Auto-scroll logic
 watch(currentTime, (time) => {
@@ -378,6 +415,8 @@ const handleTimelineClick = () => {
                         :track="track"
                         :zoom-level="zoomLevel"
                         :active-tool="activeTool"
+                        :visible-start="visibleStart"
+                        :visible-end="visibleEnd"
                         @contextmenu="handleClipContextMenu"
                         @razor-click="handleRazorClick"
                     />
@@ -395,6 +434,8 @@ const handleTimelineClick = () => {
                         :track="track"
                         :zoom-level="zoomLevel"
                         :active-tool="activeTool"
+                        :visible-start="visibleStart"
+                        :visible-end="visibleEnd"
                         @contextmenu="handleClipContextMenu"
                         @razor-click="handleRazorClick"
                     />
@@ -418,6 +459,8 @@ const handleTimelineClick = () => {
                         :track="track"
                         :zoom-level="zoomLevel"
                         :active-tool="activeTool"
+                        :visible-start="visibleStart"
+                        :visible-end="visibleEnd"
                         @drop="handleTrackDrop"
                         @contextmenu="handleClipContextMenu"
                         @razor-click="handleRazorClick"

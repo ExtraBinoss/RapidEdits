@@ -12,7 +12,6 @@ import {
 import Button from "../UI/Button/Button.vue";
 import { useSpeechRecognition } from "../../composables/useSpeechRecognition";
 import { useWhisper } from "../../composables/useWhisper";
-import { useJobSystem } from "../../composables/useJobSystem";
 import { MediaType } from "../../types/Media";
 import { editorEngine } from "../../core/EditorEngine";
 import { createPluginId, PluginCategory } from "../../core/plugins/PluginTypes";
@@ -50,8 +49,6 @@ const {
     model: whisperModel,
     audioDetails,
 } = useWhisper();
-
-const { addJob, updateJob } = useJobSystem();
 
 const currentFileName = ref<string>("");
 const selectedFile = ref<File | null>(null);
@@ -98,37 +95,6 @@ const handleFileUpload = async (e: Event) => {
 
 const startTranscription = async () => {
     if (selectedFile.value) {
-        // Create Job
-        const jobId = addJob({
-            type: "transcription",
-            title: `Transcribing ${currentFileName.value}`,
-        });
-
-        const unwatch = watch(
-            [whisperStatus, transcriptionProgress, whisperError, whisperResult],
-            () => {
-                const isError = !!whisperError.value;
-                const isComplete =
-                    !!whisperResult.value && !whisperTranscribing.value;
-
-                updateJob(jobId, {
-                    status: isError
-                        ? "error"
-                        : isComplete
-                          ? "success"
-                          : "running",
-                    progress: transcriptionProgress.value,
-                    details: whisperStatus.value,
-                    error: whisperError.value || undefined,
-                    cancel: () => stopTranscription(),
-                });
-
-                if (isError || isComplete) {
-                    unwatch();
-                }
-            },
-        );
-
         // Clear previous results to reset UI internal state if needed
         if (whisperResult.value) {
             whisperResult.value = null;
@@ -386,7 +352,7 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                         class="bg-canvas-darker p-4 rounded-lg border border-canvas-border flex flex-col gap-2 items-center text-center"
                     >
                         <div class="text-xs text-text-muted mb-2">
-                            Model required (~30MB).
+                            Model required (~200MB).
                         </div>
                         <Button
                             variant="primary"

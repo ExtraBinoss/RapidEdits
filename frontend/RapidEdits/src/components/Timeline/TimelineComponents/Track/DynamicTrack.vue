@@ -3,10 +3,14 @@ import type { Track } from "../../../../types/Timeline";
 import TimelineClip from "../Track/TimelineClip.vue";
 // import { useProjectStore } from "../../stores/projectStore";
 
+import { computed } from "vue";
+
 const props = defineProps<{
     track: Track;
     zoomLevel: number;
     activeTool?: "select" | "razor";
+    visibleStart?: number;
+    visibleEnd?: number;
 }>();
 
 const emit = defineEmits<{
@@ -14,6 +18,22 @@ const emit = defineEmits<{
     (e: "contextmenu", event: MouseEvent, clipId: string): void;
     (e: "razor-click", event: MouseEvent, trackId: number, time: number): void;
 }>();
+
+// Virtualization: Only render clips that intersect with the visible range
+const visibleClips = computed(() => {
+    // If no range provided (e.g. init), show all or efficient default
+    if (props.visibleStart === undefined || props.visibleEnd === undefined) {
+        return props.track.clips;
+    }
+
+    return props.track.clips.filter((clip) => {
+        const start = clip.start;
+        const end = clip.start + clip.duration;
+        // Check overlap: Start of clip < End of View AND End of Clip > Start of View
+        return start < props.visibleEnd! && end > props.visibleStart!;
+    });
+});
+// ... (rest of filtering logic implemented implicitly via computed above)
 
 // Store not currently needed in this component
 // const store = useProjectStore();
@@ -54,7 +74,7 @@ const handleContainerClick = (e: MouseEvent) => {
     >
         <!-- Clips -->
         <TimelineClip
-            v-for="clip in track.clips"
+            v-for="clip in visibleClips"
             :key="clip.id"
             :clip="clip"
             :track="track"
