@@ -21,6 +21,8 @@ export function useWhisper() {
     const error = ref<string | null>(null);
     const result = ref<WhisperResult | null>(null);
     const tokensPerSecond = ref<number | string>(0);
+    const device = ref<"webgpu" | "cpu">("webgpu"); // Default to WebGPU
+    const model = ref<string>("onnx-community/whisper-base"); // Default to Whisper Base
 
     const initWorker = () => {
         if (!worker.value) {
@@ -84,7 +86,10 @@ export function useWhisper() {
         if (isModelReady.value) return;
 
         error.value = null;
-        worker.value?.postMessage({ type: "load" });
+        worker.value?.postMessage({
+            type: "load",
+            data: { device: device.value, model: model.value },
+        });
     };
 
     // Store duration to calculate progress
@@ -92,7 +97,7 @@ export function useWhisper() {
 
     const transcribe = async (
         audioBlob: Blob | File,
-        language: string = "en", // Default to en for Moonshine base
+        language: string = "auto", // Default to auto detection
     ) => {
         if (!isModelReady.value) {
             error.value = "Model not loaded. Please download the model first.";
@@ -143,14 +148,21 @@ export function useWhisper() {
                 audioData = resampledBuffer.getChannelData(0);
             }
 
+            let sanitizedLanguage = language;
+            if (language !== "auto" && language.includes("-")) {
+                sanitizedLanguage = language.split("-")[0] || language;
+            }
+
             worker.value?.postMessage({
                 type: "transcribe",
                 data: {
                     audio: audioData,
-                    language: language, // Note: Moonshine base is english only usually, unless using other checkpoints
+                    language: sanitizedLanguage,
+                    device: device.value,
+                    model: model.value,
                 },
             });
-            console.log("Transcribing...");
+            console.log("Transcribing with language:", sanitizedLanguage);
 
             if (audioContext.state !== "closed") {
                 audioContext.close();
@@ -185,5 +197,7 @@ export function useWhisper() {
         transcribe,
         clearResult,
         transcriptionProgress,
+        device,
+        model,
     };
 }

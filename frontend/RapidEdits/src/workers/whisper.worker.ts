@@ -1,4 +1,4 @@
-import { pipeline, TextStreamer } from "@huggingface/transformers";
+import { pipeline, TextStreamer, env } from "@huggingface/transformers";
 
 // Skip local model checks for now to avoid FS errors in browser env if not configured
 // env.allowLocalModels = false;
@@ -7,39 +7,72 @@ import { pipeline, TextStreamer } from "@huggingface/transformers";
 class WhisperWorker {
     static instance: any = null;
     static processing = false;
+    static currentDevice: "webgpu" | "cpu" | null = null;
+    static currentModel: string | null = null;
 
-    static async getInstance(progress_callback: (progress: any) => void) {
-        if (this.instance === null) {
+    static async getInstance(
+        progress_callback: (progress: any) => void,
+        device: "webgpu" | "cpu" = "webgpu",
+        modelId: string = "onnx-community/whisper-base",
+    ) {
+        // If device changed or no instance or model changed, create new one
+        if (
+            this.instance === null ||
+            this.currentDevice !== device ||
+            this.currentModel !== modelId
+        ) {
+            if (this.instance) {
+                await this.resetInstance();
+            }
+
             try {
+                // If WebGPU requested, check support
+                if (device === "webgpu") {
+                    if (!(navigator as any).gpu) {
+                        throw new Error("WebGPU not available");
+                    }
+                }
+
                 this.instance = await pipeline(
                     "automatic-speech-recognition",
-                    "onnx-community/moonshine-base-ONNX",
+                    modelId,
                     {
-                        device: "webgpu", // Prefer WebGPU
+                        device: device === "webgpu" ? "webgpu" : "wasm",
                         progress_callback,
                     },
                 );
-            } catch (e) {
-                console.error(
-                    "Failed to load model on WebGPU, falling back to CPU",
-                    e,
+                this.currentDevice = device;
+                this.currentModel = modelId;
+                console.log(
+                    `WhisperWorker: Loaded model ${modelId} with ${device}`,
                 );
-                // Fallback attempt without device assumption (defaults to wasm/cpu usually)
-                try {
-                    this.instance = await pipeline(
-                        "automatic-speech-recognition",
-                        "onnx-community/moonshine-base-ONNX",
-                        {
-                            progress_callback,
-                        },
-                    );
-                } catch (e2) {
-                    console.error("Failed to load model on CPU fallback", e2);
-                    throw e2;
+            } catch (e) {
+                console.error(`Failed to load model on ${device}`, e);
+                // If WebGPU failed, try fallback if it was the requested one?
+                // For explicit selection, maybe we should just error out?
+                // But for robustness, if they selected WebGPU and it crashes, maybe fallback?
+                // Let's implement fallback only if it was WebGPU
+                if (device === "webgpu") {
+                    console.warn("Falling back to CPU...");
+                    return this.getInstance(progress_callback, "cpu", modelId);
                 }
+                throw e;
             }
         }
         return this.instance;
+    }
+
+    static async resetInstance() {
+        if (this.instance && typeof this.instance.dispose === "function") {
+            try {
+                await this.instance.dispose();
+            } catch (e) {
+                console.warn("Retrying instance disposal failed", e);
+            }
+        }
+        this.instance = null;
+        this.currentDevice = null;
+        this.currentModel = null;
     }
 }
 
@@ -47,20 +80,25 @@ self.addEventListener("message", async (event) => {
     const { type, data } = event.data;
 
     if (type === "load") {
+        const { device, model } = data || {};
         try {
             self.postMessage({
                 status: "loading",
-                message: "Loading Moonshine model (WebGPU)...",
+                message: `Loading ${model || "Whisper Base"} model (${device || "webgpu"})...`,
             });
-            await WhisperWorker.getInstance((progress: any) => {
-                self.postMessage({ status: "progress", progress });
-            });
+            await WhisperWorker.getInstance(
+                (progress: any) => {
+                    self.postMessage({ status: "progress", progress });
+                },
+                device || "webgpu",
+                model || "onnx-community/whisper-base",
+            );
             self.postMessage({ status: "ready", message: "Model loaded" });
         } catch (err: any) {
             self.postMessage({ status: "error", message: err.message });
         }
     } else if (type === "transcribe") {
-        const { audio } = data;
+        const { audio, device, model, language } = data;
 
         if (WhisperWorker.processing) {
             self.postMessage({
@@ -72,8 +110,19 @@ self.addEventListener("message", async (event) => {
         WhisperWorker.processing = true;
 
         try {
-            console.log("Worker: Starting transcription...");
-            const transcriber = await WhisperWorker.getInstance(() => {});
+            console.log(
+                `Worker: Starting transcription on ${device}... Audio length: ${audio.length} samples. Language: ${language || "auto"}`,
+            );
+            const loadStart = performance.now();
+            const transcriber = await WhisperWorker.getInstance(
+                () => {},
+                device || "webgpu",
+                model || "onnx-community/whisper-base",
+            );
+            const loadEnd = performance.now();
+            console.log(
+                `Worker: Model loaded/retrieved in ${(loadEnd - loadStart).toFixed(2)}ms`,
+            );
 
             let startTime = performance.now();
             let tokenCount = 0;
@@ -99,15 +148,44 @@ self.addEventListener("message", async (event) => {
                 },
             });
 
-            const result = await transcriber(audio, {
-                streamer,
-            });
+            console.log("Worker: invoking transcriber()...");
 
-            console.log("Worker: Transcription complete", result);
+            // Generate config
+            const generate_kwargs: any = {
+                streamer,
+                chunk_length_s: 30, // Standard Whisper chunk size
+                stride_length_s: 5, // Overlap
+            };
+
+            // Set language if provided
+            if (language && language !== "auto") {
+                generate_kwargs.language = language;
+                generate_kwargs.task = "transcribe";
+            }
+
+            const result = await transcriber(audio, generate_kwargs);
+
+            const totalElapsed = (performance.now() - startTime) / 1000;
+            console.log(
+                `Worker: Transcription complete in ${totalElapsed.toFixed(2)}s.`,
+                result,
+            );
             self.postMessage({ status: "complete", result });
         } catch (err: any) {
             console.error("Worker: Transcription error", err);
-            self.postMessage({ status: "error", message: err.message });
+
+            // Auto fallback if we were on WebGPU and it crashed during exec
+            if (device === "webgpu" || !device) {
+                self.postMessage({
+                    status: "error",
+                    message:
+                        "WebGPU Error: " +
+                        err.message +
+                        ". Try switching to CPU.",
+                });
+            } else {
+                self.postMessage({ status: "error", message: err.message });
+            }
         } finally {
             WhisperWorker.processing = false;
         }

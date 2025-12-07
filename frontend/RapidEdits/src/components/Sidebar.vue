@@ -54,14 +54,15 @@ const {
     transcribe: transcribeAudio,
     transcriptionProgress,
     tokensPerSecond,
+    device,
 } = useWhisper();
 
 const currentFileName = ref<string>("");
 const selectedFile = ref<File | null>(null);
 
 const drawerState = ref({
-    voice: true,
-    transcribe: false,
+    voice: false,
+    transcribe: true,
 });
 
 const toggleDrawer = (key: keyof typeof drawerState.value) => {
@@ -497,6 +498,24 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                         class="bg-green-500/10 border border-green-500/20 text-green-500 text-xs p-2 rounded text-center"
                                     >
                                         Model Loaded & Ready
+                                    </div>
+
+                                    <div class="flex flex-col gap-2">
+                                        <label
+                                            class="text-[10px] text-text-muted uppercase font-bold tracking-wider"
+                                            >Device</label
+                                        >
+                                        <select
+                                            v-model="device"
+                                            class="bg-canvas border border-canvas-border text-xs rounded px-2 py-1 text-text-main focus:outline-none focus:border-brand-primary w-full"
+                                        >
+                                            <option value="webgpu">
+                                                WebGPU (Experimental)
+                                            </option>
+                                            <option value="cpu">
+                                                CPU (Stable)
+                                            </option>
+                                        </select>
                                     </div>
 
                                     <div class="flex items-center gap-2">
