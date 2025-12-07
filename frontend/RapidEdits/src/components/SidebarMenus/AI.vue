@@ -82,6 +82,11 @@ const handleFileUpload = async (e: Event) => {
 
 const startTranscription = async () => {
     if (selectedFile.value) {
+        // Clear previous results to reset UI
+        if (whisperResult.value) {
+            clearResults();
+            whisperResult.value = null;
+        }
         await transcribeAudio(selectedFile.value, detectedLanguage.value);
     }
 };
@@ -106,12 +111,12 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
             const assetId = crypto.randomUUID();
             const start = chunk.timestamp[0];
             const end = chunk.timestamp[1];
-            const duration = end - start;
+            const duration = Math.max(0.5, end - start); // Ensure minimum duration
 
             editorEngine.assetSystem.registerAsset({
                 id: assetId,
-                name: `Subtitle: ${chunk.text.substring(0, 10)}...`,
-                type: MediaType.TEXT,
+                name: chunk.text,
+                type: MediaType.TEXT, // This is virtual type for asset system
                 url: "",
                 size: 0,
                 createdAt: Date.now(),
@@ -124,16 +129,16 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
             const addedClip = track.clips.find((c) => c.assetId === assetId);
             if (addedClip) {
                 editorEngine.updateClip(addedClip.id, {
-                    type: "core.text",
+                    type: "core:text", // MUST match TextPlugin ID
                     name: chunk.text,
                     data: {
                         text: chunk.text,
+                        fontSize: 50, // Matches TextPlugin default
                         color: "#ffffff",
-                        fontSize: 24,
                         position: { x: 0, y: 0, z: 0 },
                         rotation: { x: 0, y: 0, z: 0 },
                         scale: { x: 1, y: 1, z: 1 },
-                        is3D: false,
+                        is3D: true, // User requested 3D text
                         depth: 5,
                         autoFit: false,
                     },
@@ -170,7 +175,7 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
         const addedClip = track.clips.find((c) => c.assetId === assetId);
         if (addedClip) {
             editorEngine.updateClip(addedClip.id, {
-                type: "core.text",
+                type: "core:text",
                 name: result.transcript,
                 data: {
                     text: result.transcript,

@@ -124,6 +124,8 @@ export function useWhisper() {
         transcriptionProgress.value = 0;
         tokensPerSecond.value = 0;
         statusMessage.value = "Preparing audio...";
+        
+        // Reset state
         result.value = null;
         error.value = null;
 
