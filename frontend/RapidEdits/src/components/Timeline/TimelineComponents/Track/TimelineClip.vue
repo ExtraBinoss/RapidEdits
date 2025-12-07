@@ -20,6 +20,15 @@ const isDragging = ref(false);
 // Optimistic UI state during drag
 const tempStart = ref(props.clip.start);
 
+// Video/Image clips always get filmstrip. Text/Plugin clips only if long enough (>2s) to avoid lag.
+const shouldShowFilmstrip = computed(() => {
+    if (props.clip.type === "video" || props.clip.type === "image") return true;
+    if (pluginRegistry.get(props.clip.type)) {
+        return props.clip.duration > 2.0;
+    }
+    return false;
+});
+
 const clipStyle = computed(() => {
     // If dragging, use the tempStart, otherwise efficient prop
     const start = isDragging.value ? tempStart.value : props.clip.start;
@@ -196,14 +205,7 @@ const stopDrag = () => {
     >
         <!-- Content -->
         <!-- GPU Preview for Video Clips -->
-        <Filmstrip
-            v-if="
-                clip.type === 'video' ||
-                clip.type === 'image' ||
-                pluginRegistry.get(clip.type)
-            "
-            :clip="clip"
-        />
+        <Filmstrip v-if="shouldShowFilmstrip" :clip="clip" />
 
         <!-- Audio Waveform -->
         <AudioWaveform v-else-if="clip.type === 'audio'" :clip="clip" />

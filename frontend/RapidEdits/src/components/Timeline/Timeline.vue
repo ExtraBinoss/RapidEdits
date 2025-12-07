@@ -85,11 +85,20 @@ const updateVisibleRange = () => {
     visibleEnd.value = end + buffer;
 };
 
+let scrollUpdatePending = false;
 const handleScroll = () => {
     if (scrollContainer.value && headersContainer.value) {
         headersContainer.value.scrollTop = scrollContainer.value.scrollTop;
     }
-    updateVisibleRange();
+
+    // Throttle virtualization updates to avoid excessive re-calculations
+    if (!scrollUpdatePending) {
+        requestAnimationFrame(() => {
+            updateVisibleRange();
+            scrollUpdatePending = false;
+        });
+        scrollUpdatePending = true;
+    }
 };
 
 // Update on zoom change
