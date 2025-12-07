@@ -4,6 +4,7 @@ import Button from "./UI/Button/Button.vue";
 import Tooltip from "./UI/Overlay/Tooltip.vue";
 import AppLogo from "./UI/Logo/AppLogo.vue";
 import ExportMenu from "./Export/ExportMenu.vue";
+import JobIndicator from "./Header/JobIndicator.vue";
 import { ref } from "vue";
 
 const showExportModal = ref(false);
@@ -37,6 +38,10 @@ const showExportModal = ref(false);
 
         <!-- Right Actions -->
         <div class="flex items-center gap-3">
+            <JobIndicator />
+
+            <div class="h-6 w-px bg-canvas-border mx-1"></div>
+
             <Tooltip text="Settings" position="bottom">
                 <Button variant="icon" :icon="Settings" />
             </Tooltip>

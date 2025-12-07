@@ -148,40 +148,60 @@ export class TimelineSystem {
             typeOverride?: MediaTypeValue;
             extraData?: Partial<Clip>;
         }[],
+        chunkSize = 10,
     ) {
-        const affectedTrackIds = new Set<number>();
+        let index = 0;
 
-        items.forEach((item) => {
-            const asset = this.assetSystem.getAsset(item.assetId);
-            if (!asset) return;
+        const processChunk = () => {
+            const chunk = items.slice(index, index + chunkSize);
+            if (chunk.length === 0) return;
 
-            const targetTrack = this.tracks.find((t) => t.id === item.trackId);
-            if (!targetTrack) return;
+            const affectedTrackIds = new Set<number>();
 
-            const clip = this.createClipObject(
-                asset,
-                targetTrack.id,
-                item.start,
-                item.typeOverride,
-            );
+            chunk.forEach((item) => {
+                const asset = this.assetSystem.getAsset(item.assetId);
+                if (!asset) return;
 
-            if (item.extraData) {
-                Object.assign(clip, item.extraData);
+                const targetTrack = this.tracks.find(
+                    (t) => t.id === item.trackId,
+                );
+                if (!targetTrack) return;
+
+                const clip = this.createClipObject(
+                    asset,
+                    targetTrack.id,
+                    item.start,
+                    item.typeOverride,
+                );
+
+                if (item.extraData) {
+                    Object.assign(clip, item.extraData);
+                }
+
+                targetTrack.clips.push(clip);
+                affectedTrackIds.add(targetTrack.id);
+            });
+
+            // Sort affected tracks
+            affectedTrackIds.forEach((trackId) => {
+                const track = this.tracks.find((t) => t.id === trackId);
+                if (track) {
+                    track.clips.sort((a, b) => a.start - b.start);
+                }
+            });
+
+            globalEventBus.emit({
+                type: "TIMELINE_UPDATED",
+                payload: undefined,
+            });
+
+            index += chunkSize;
+            if (index < items.length) {
+                requestAnimationFrame(processChunk);
             }
+        };
 
-            targetTrack.clips.push(clip);
-            affectedTrackIds.add(targetTrack.id);
-        });
-
-        // Sort affected tracks
-        affectedTrackIds.forEach((trackId) => {
-            const track = this.tracks.find((t) => t.id === trackId);
-            if (track) {
-                track.clips.sort((a, b) => a.start - b.start);
-            }
-        });
-
-        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
+        processChunk();
     }
 
     public removeTrack(trackId: number) {

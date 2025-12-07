@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import Input from "../Input/Input.vue";
 
 interface Props {
@@ -13,8 +13,6 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: "update:modelValue", value: [number, number]): void;
 }>();
-
-const sliderTrack = ref<HTMLElement | null>(null);
 
 const startVal = computed({
     get: () => props.modelValue[0],

@@ -9,7 +9,6 @@ import { updateFavicon } from "./utils/faviconUtils";
 import { useThemeStore } from "./stores/themeStore";
 import { TextPlugin } from "./core/plugins/core/TextPlugin";
 import { pluginRegistry } from "./core/plugins/PluginRegistry";
-import StatusBar from "./components/Footer/StatusBar.vue";
 
 const themeStore = useThemeStore();
 
@@ -57,8 +56,5 @@ onMounted(() => {
                 </div>
             </div>
         </div>
-
-        <!-- System Status Bar -->
-        <StatusBar />
     </div>
 </template>
