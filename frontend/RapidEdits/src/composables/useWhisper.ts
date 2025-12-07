@@ -16,10 +16,11 @@ export function useWhisper() {
     const isModelReady = ref(false);
     const isTranscribing = ref(false);
     const progress = ref(0); // Download progress
-    const transcriptionProgress = ref(0); // Transcription percentage (0-100)
+    const transcriptionProgress = ref(0); // Transcription percentage (0-100) - Less relevant with streaming but kept
     const statusMessage = ref("");
     const error = ref<string | null>(null);
     const result = ref<WhisperResult | null>(null);
+    const tokensPerSecond = ref<number | string>(0);
 
     const initWorker = () => {
         if (!worker.value) {
@@ -31,6 +32,7 @@ export function useWhisper() {
                     message,
                     result: workerResult,
                     progress: workerProgress,
+                    data,
                 } = event.data;
 
                 if (status === "loading") {
@@ -52,21 +54,22 @@ export function useWhisper() {
                 } else if (status === "complete") {
                     isTranscribing.value = false;
                     transcriptionProgress.value = 100;
-                    result.value = workerResult;
+                    // Standardize result
+                    result.value = {
+                        text: workerResult.text || workerResult[0]?.text || "",
+                        chunks: [], // Moonshine might not return timestamps/chunks in the same way immediately
+                    };
+                    statusMessage.value = "Transcription Complete";
                 } else if (status === "transcribing-progress") {
-                    // event.data.data contains { timestamp: [start, end], text }
-                    const { timestamp } = event.data.data;
-                    if (timestamp && totalDuration > 0) {
-                        const endTime = timestamp[1];
-                        // Calculate percentage
-                        transcriptionProgress.value = Math.min(
-                            Math.round((endTime / totalDuration) * 100),
-                            99,
-                        );
-                        statusMessage.value = `Transcribing... ${transcriptionProgress.value}%`;
+                    // data contains { text, tps }
+                    if (data) {
+                        result.value = {
+                            text: data.text,
+                            chunks: [],
+                        };
+                        tokensPerSecond.value = data.tps;
+                        statusMessage.value = `Transcribing... (${data.tps} tokens/s)`;
                     }
-                } else if (status === "transcribing-debug") {
-                    console.log("Worker DEBUG:", event.data.data);
                 } else if (status === "error") {
                     error.value = message;
                     isModelLoading.value = false;
@@ -85,11 +88,11 @@ export function useWhisper() {
     };
 
     // Store duration to calculate progress
-    let totalDuration = 0;
+    // let totalDuration = 0;
 
     const transcribe = async (
         audioBlob: Blob | File,
-        language: string = "fr",
+        language: string = "en", // Default to en for Moonshine base
     ) => {
         if (!isModelReady.value) {
             error.value = "Model not loaded. Please download the model first.";
@@ -98,6 +101,7 @@ export function useWhisper() {
 
         isTranscribing.value = true;
         transcriptionProgress.value = 0;
+        tokensPerSecond.value = 0;
         statusMessage.value = "Preparing audio...";
         result.value = null;
         error.value = null;
@@ -108,11 +112,11 @@ export function useWhisper() {
             const audioContext = new (
                 window.AudioContext || (window as any).webkitAudioContext
             )({
-                sampleRate: 16000, // Force 16k sample rate context if possible, but decoding will match file
+                sampleRate: 16000,
             });
 
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-            totalDuration = audioBuffer.duration; // Store duration
+            // totalDuration = audioBuffer.duration;
             console.log("Decoded audio details:", {
                 channels: audioBuffer.numberOfChannels,
                 length: audioBuffer.length,
@@ -120,24 +124,15 @@ export function useWhisper() {
                 duration: audioBuffer.duration,
             });
 
-            // Check if source buffer has data
-            const sourceData = audioBuffer.getChannelData(0);
-            const sourceNonZeros = sourceData.some((x) => x !== 0);
-            console.log("Source buffer has data:", sourceNonZeros);
-
             let audioData: Float32Array;
 
             if (audioBuffer.sampleRate === 16000) {
-                console.log("Using direct decoded buffer (16kHz)");
-                audioData = audioBuffer.getChannelData(0); // Use first channel
+                audioData = audioBuffer.getChannelData(0);
             } else {
-                console.log(
-                    "Resampling from " + audioBuffer.sampleRate + " to 16000",
-                );
-                // Resample to 16000
+                // Resample if needed (though context was forced 16k)
                 const offlineContext = new OfflineAudioContext(
                     1,
-                    Math.ceil(audioBuffer.duration * 16000), // ceil to ensure we fit
+                    Math.ceil(audioBuffer.duration * 16000),
                     16000,
                 );
                 const source = offlineContext.createBufferSource();
@@ -146,31 +141,17 @@ export function useWhisper() {
                 source.start(0);
                 const resampledBuffer = await offlineContext.startRendering();
                 audioData = resampledBuffer.getChannelData(0);
-                console.log(
-                    "Resampling complete. New length:",
-                    audioData.length,
-                );
             }
-
-            const hasData = audioData.some((x) => x !== 0);
-            console.log("Final audioData has data:", hasData);
-            if (!hasData && sourceNonZeros) {
-                console.error("Data lost during resampling!");
-            }
-
-            console.log("audioData", audioData);
-            const langCode = language.split("-")[0] || "fr";
-            console.log("Starting transcription with language:", langCode);
 
             worker.value?.postMessage({
                 type: "transcribe",
                 data: {
                     audio: audioData,
-                    language: langCode,
+                    language: language, // Note: Moonshine base is english only usually, unless using other checkpoints
                 },
-            }); // Removed transferables to be safe for now, copying is fine for <100MB
+            });
             console.log("Transcribing...");
-            // Close context to release resources
+
             if (audioContext.state !== "closed") {
                 audioContext.close();
             }
@@ -182,6 +163,7 @@ export function useWhisper() {
 
     const clearResult = () => {
         result.value = null;
+        tokensPerSecond.value = 0;
     };
 
     onUnmounted(() => {
@@ -198,6 +180,7 @@ export function useWhisper() {
         statusMessage,
         error,
         result,
+        tokensPerSecond,
         downloadModel,
         transcribe,
         clearResult,

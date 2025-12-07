@@ -53,6 +53,7 @@ const {
     downloadModel,
     transcribe: transcribeAudio,
     transcriptionProgress,
+    tokensPerSecond,
 } = useWhisper();
 
 const currentFileName = ref<string>("");
@@ -325,7 +326,7 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                 <select
                                     :value="detectedLanguage"
                                     @change="
-                                        (e) =>
+                                        (e: Event) =>
                                             setLanguage(
                                                 (e.target as HTMLSelectElement)
                                                     .value,
@@ -503,7 +504,7 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                         <select
                                             :value="detectedLanguage"
                                             @change="
-                                                (e) =>
+                                                (e: Event) =>
                                                     setLanguage(
                                                         (
                                                             e.target as HTMLSelectElement
@@ -573,39 +574,10 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                         >
                                             <span>{{ whisperStatus }}</span>
                                             <span
-                                                >{{
-                                                    transcriptionProgress
-                                                }}%</span
+                                                v-if="tokensPerSecond"
+                                                class="text-brand-accent"
+                                                >{{ tokensPerSecond }} t/s</span
                                             >
-                                        </div>
-                                    </div>
-
-                                    <div
-                                        v-if="whisperResult"
-                                        class="bg-canvas border border-canvas-border rounded-lg p-3 overflow-y-auto max-h-[200px] text-sm"
-                                    >
-                                        <div
-                                            v-for="(
-                                                chunk, idx
-                                            ) in whisperResult.chunks"
-                                            :key="idx"
-                                            class="mb-2 p-2 bg-canvas-darker rounded hover:bg-canvas-border transition-colors text-xs"
-                                        >
-                                            <span
-                                                class="text-text-muted text-[10px] block mb-1"
-                                            >
-                                                {{
-                                                    chunk.timestamp[0].toFixed(
-                                                        1,
-                                                    )
-                                                }}s -
-                                                {{
-                                                    chunk.timestamp[1].toFixed(
-                                                        1,
-                                                    )
-                                                }}s
-                                            </span>
-                                            {{ chunk.text }}
                                         </div>
                                     </div>
 
@@ -615,10 +587,50 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                         :icon="Plus"
                                         @click="() => addToTimeline('whisper')"
                                         size="sm"
-                                        class="w-full"
+                                        class="w-full mt-2"
                                     >
                                         Add to Timeline
                                     </Button>
+                                </div>
+
+                                <div
+                                    v-if="whisperResult"
+                                    class="bg-canvas border border-canvas-border rounded-lg p-3 overflow-y-auto max-h-[200px] text-sm"
+                                >
+                                    <!-- Streaming Text Support -->
+                                    <div
+                                        v-if="
+                                            whisperResult.text &&
+                                            (!whisperResult.chunks ||
+                                                whisperResult.chunks.length ===
+                                                    0)
+                                        "
+                                        class="text-xs text-text-main leading-relaxed whitespace-pre-wrap"
+                                    >
+                                        {{ whisperResult.text }}
+                                        <span
+                                            v-if="whisperTranscribing"
+                                            class="inline-block w-1.5 h-3 bg-brand-primary animate-pulse ml-0.5"
+                                        ></span>
+                                    </div>
+
+                                    <!-- Chunks Support (if provided later) -->
+                                    <div
+                                        v-for="(
+                                            chunk, idx
+                                        ) in whisperResult.chunks"
+                                        :key="idx"
+                                        class="mb-2 p-2 bg-canvas-darker rounded hover:bg-canvas-border transition-colors text-xs"
+                                    >
+                                        <span
+                                            class="text-text-muted text-left text-[10px] block mb-1"
+                                        >
+                                            {{ chunk.timestamp[0].toFixed(1) }}s
+                                            -
+                                            {{ chunk.timestamp[1].toFixed(1) }}s
+                                        </span>
+                                        {{ chunk.text }}
+                                    </div>
                                 </div>
 
                                 <div
