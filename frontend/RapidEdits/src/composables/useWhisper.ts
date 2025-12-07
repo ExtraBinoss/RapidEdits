@@ -22,7 +22,7 @@ export function useWhisper() {
     const result = ref<WhisperResult | null>(null);
     const tokensPerSecond = ref<number | string>(0);
     const device = ref<"webgpu" | "cpu">("webgpu"); // Default to WebGPU
-    const model = ref<string>("onnx-community/whisper-base"); // Default to Whisper Base
+    const model = ref<string>("Xenova/whisper-base"); // Default to Whisper Base
     const audioDetails = ref<{
         channels: number;
         length: number;
@@ -65,9 +65,12 @@ export function useWhisper() {
                     // Standardize result
                     result.value = {
                         text: workerResult.text || workerResult[0]?.text || "",
-                        chunks: [], // Moonshine might not return timestamps/chunks in the same way immediately
+                        chunks: workerResult.chunks || [],
                     };
                     statusMessage.value = "Transcription Complete";
+                } else if (status === "stopped") {
+                    isTranscribing.value = false;
+                    statusMessage.value = "Transcription stopped";
                 } else if (status === "transcribing-progress") {
                     // data contains { text, tps }
                     if (data) {
@@ -100,6 +103,13 @@ export function useWhisper() {
 
     // Store duration to calculate progress
     // let totalDuration = 0;
+    
+    const stop = () => {
+        if (isTranscribing.value && worker.value) {
+            worker.value.postMessage({ type: "stop" });
+            statusMessage.value = "Stopping...";
+        }
+    };
 
     const transcribe = async (
         audioBlob: Blob | File,
@@ -202,6 +212,7 @@ export function useWhisper() {
         tokensPerSecond,
         downloadModel,
         transcribe,
+        stop,
         clearResult,
         transcriptionProgress,
         device,

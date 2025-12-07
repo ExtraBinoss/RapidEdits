@@ -29,7 +29,7 @@ const tabs = [
     { id: "stickers", icon: Sticker, label: "Stickers" },
     { id: "effects", icon: Wand2, label: "Effects" },
     { id: "transitions", icon: SplitSquareHorizontal, label: "Transitions" },
-    { id: "speech", icon: Sparkles, label: "Speech to Text" },
+    { id: "speech", icon: Sparkles, label: "AI" },
 ];
 
 const activePlugins = computed(() => {

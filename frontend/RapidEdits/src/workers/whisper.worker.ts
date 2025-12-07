@@ -7,6 +7,7 @@ import { pipeline, TextStreamer, env } from "@huggingface/transformers";
 class WhisperWorker {
     static instance: any = null;
     static processing = false;
+    static stopping = false;
     static currentDevice: "webgpu" | "cpu" | null = null;
     static currentModel: string | null = null;
 
@@ -79,6 +80,11 @@ class WhisperWorker {
 self.addEventListener("message", async (event) => {
     const { type, data } = event.data;
 
+    if (type === "stop") {
+        WhisperWorker.stopping = true;
+        return;
+    }
+
     if (type === "load") {
         const { device, model } = data || {};
         try {
@@ -108,6 +114,7 @@ self.addEventListener("message", async (event) => {
             return;
         }
         WhisperWorker.processing = true;
+        WhisperWorker.stopping = false;
 
         try {
             console.log(
@@ -133,6 +140,9 @@ self.addEventListener("message", async (event) => {
                 skip_prompt: true,
                 skip_special_tokens: true,
                 callback_function: (text: string) => {
+                    if (WhisperWorker.stopping) {
+                        throw new Error("Aborted");
+                    }
                     tokenCount++;
                     currentText += text;
                     const elapsed = (performance.now() - startTime) / 1000;
@@ -155,6 +165,7 @@ self.addEventListener("message", async (event) => {
                 streamer,
                 chunk_length_s: 30, // Standard Whisper chunk size
                 stride_length_s: 5, // Overlap
+                return_timestamps: "word",
             };
 
             // Set language if provided
@@ -172,22 +183,28 @@ self.addEventListener("message", async (event) => {
             );
             self.postMessage({ status: "complete", result });
         } catch (err: any) {
-            console.error("Worker: Transcription error", err);
-
-            // Auto fallback if we were on WebGPU and it crashed during exec
-            if (device === "webgpu" || !device) {
-                self.postMessage({
-                    status: "error",
-                    message:
-                        "WebGPU Error: " +
-                        err.message +
-                        ". Try switching to CPU.",
-                });
+            if (err.message === "Aborted") {
+                console.log("Worker: Transcription aborted.");
+                self.postMessage({ status: "stopped", message: "Transcription stopped by user." });
             } else {
-                self.postMessage({ status: "error", message: err.message });
+                console.error("Worker: Transcription error", err);
+
+                // Auto fallback if we were on WebGPU and it crashed during exec
+                if (device === "webgpu" || !device) {
+                    self.postMessage({
+                        status: "error",
+                        message:
+                            "WebGPU Error: " +
+                            err.message +
+                            ". Try switching to CPU.",
+                    });
+                } else {
+                    self.postMessage({ status: "error", message: err.message });
+                }
             }
         } finally {
             WhisperWorker.processing = false;
+            WhisperWorker.stopping = false;
         }
     }
 });

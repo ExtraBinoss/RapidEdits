@@ -39,6 +39,7 @@ const {
     result: whisperResult,
     downloadModel,
     transcribe: transcribeAudio,
+    stop: stopTranscription,
     transcriptionProgress,
     tokensPerSecond,
     device,
@@ -58,12 +59,12 @@ const isWebGpuInfoOpen = ref(false);
 const isNerdInfoDialogOpen = ref(false);
 
 const availableModels = [
-    { label: "Whisper Tiny (Fastest)", value: "onnx-community/whisper-tiny" },
-    { label: "Whisper Base (Balanced)", value: "onnx-community/whisper-base" },
-    { label: "Whisper Small (Better)", value: "onnx-community/whisper-small" },
+    { label: "Whisper Tiny (Fastest)", value: "Xenova/whisper-tiny" },
+    { label: "Whisper Base (Balanced)", value: "Xenova/whisper-base" },
+    { label: "Whisper Small (Better)", value: "Xenova/whisper-small" },
     {
-        label: "Whisper Large V3 Turbo (Best/Slow)",
-        value: "onnx-community/whisper-large-v3-turbo",
+        label: "Whisper Large V3 (Best/Slow)",
+        value: "Xenova/whisper-large-v3",
     },
 ];
 
@@ -451,14 +452,22 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                 class="flex justify-between w-full text-[10px] text-text-muted"
                             >
                                 <span>{{ whisperStatus }}</span>
-                                <span
-                                    v-if="tokensPerSecond"
-                                    class="text-brand-accent"
-                                    >{{ tokensPerSecond }} t/s</span
-                                >
-                            </div>
-                        </div>
-
+                                                                    <span
+                                                                    v-if="tokensPerSecond"
+                                                                    class="text-brand-accent"
+                                                                    >{{ tokensPerSecond }} t/s</span
+                                                                >
+                                                            </div>
+                                                            <Button
+                                                                variant="danger"
+                                                                size="sm"
+                                                                :icon="Square"
+                                                                @click="stopTranscription"
+                                                                class="mt-2 w-full"
+                                                            >
+                                                                Stop
+                                                            </Button>
+                                                        </div>
                         <Button
                             v-if="whisperResult"
                             variant="primary"
