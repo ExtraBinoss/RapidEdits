@@ -170,9 +170,12 @@ export class ThreeClipManager {
 
         while (object.children.length > 0) {
             const child = object.children[0];
-            if (!(child instanceof THREE.Mesh)) continue;
-            object.remove(child);
-            this.disposeObject(child);
+            if (child) {
+                object.remove(child);
+                this.disposeObject(child);
+            } else {
+                break;
+            }
         }
     }
 

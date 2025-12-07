@@ -1,18 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import {
-    Files,
-    Mic,
-    Square,
-    Trash2,
-    Plus,
-    Info,
-} from "lucide-vue-next";
+import { Files, Mic, Square, Trash2, Plus, Info } from "lucide-vue-next";
 import Button from "../UI/Button/Button.vue";
 import { useSpeechRecognition } from "../../composables/useSpeechRecognition";
 import { useWhisper } from "../../composables/useWhisper";
 import { MediaType } from "../../types/Media";
 import { editorEngine } from "../../core/EditorEngine";
+import { createPluginId, PluginCategory } from "../../core/plugins/PluginTypes";
 import Drawer from "../UI/Overlay/Drawer.vue";
 import Dialog from "../UI/Overlay/Dialog.vue";
 import Select from "../UI/Input/Select.vue";
@@ -129,7 +123,7 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
             const addedClip = track.clips.find((c) => c.assetId === assetId);
             if (addedClip) {
                 editorEngine.updateClip(addedClip.id, {
-                    type: "core:text", // MUST match TextPlugin ID
+                    type: createPluginId(PluginCategory.Core, "text"),
                     name: chunk.text,
                     data: {
                         text: chunk.text,
@@ -175,7 +169,7 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
         const addedClip = track.clips.find((c) => c.assetId === assetId);
         if (addedClip) {
             editorEngine.updateClip(addedClip.id, {
-                type: "core:text",
+                type: createPluginId(PluginCategory.Core, "text"),
                 name: result.transcript,
                 data: {
                     text: result.transcript,
@@ -235,7 +229,11 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                             size="sm"
                             class="w-full"
                         >
-                            {{ isListening ? "Stop Recording" : "Start Recording" }}
+                            {{
+                                isListening
+                                    ? "Stop Recording"
+                                    : "Start Recording"
+                            }}
                         </Button>
                     </div>
 
@@ -261,7 +259,9 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                             :key="idx"
                             class="mb-2 p-2 bg-canvas-darker rounded hover:bg-canvas-border transition-colors group relative"
                         >
-                            <span class="text-text-muted text-[10px] block mb-1">
+                            <span
+                                class="text-text-muted text-[10px] block mb-1"
+                            >
                                 {{ res.timestamp.toFixed(1) }}s -
                                 {{ (res.endTimestamp || 0).toFixed(1) }}s
                             </span>
@@ -326,7 +326,9 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                             :disabled="whisperLoading"
                         >
                             {{
-                                whisperLoading ? "Downloading..." : "Download Model"
+                                whisperLoading
+                                    ? "Downloading..."
+                                    : "Download Model"
                             }}
                         </Button>
 
@@ -408,36 +410,36 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                 @change="handleFileUpload"
                                 :disabled="whisperTranscribing"
                             />
-                                            <div
-                                                v-if="currentFileName"
-                                                class="text-[10px] text-text-muted truncate px-1"
-                                            >
-                                                Selected: {{ currentFileName }}
-                                            </div>
-                                            <Button
-                                                v-if="audioDetails"
-                                                variant="ghost"
-                                                size="sm"
-                                                @click="isNerdInfoDialogOpen = true"
-                                                class="text-[10px] text-brand-primary p-0 h-auto"
-                                            >
-                                                Show Audio/Model Details
-                                            </Button>
-                                        </div>
+                            <div
+                                v-if="currentFileName"
+                                class="text-[10px] text-text-muted truncate px-1"
+                            >
+                                Selected: {{ currentFileName }}
+                            </div>
+                            <Button
+                                v-if="audioDetails"
+                                variant="ghost"
+                                size="sm"
+                                @click="isNerdInfoDialogOpen = true"
+                                class="text-[10px] text-brand-primary p-0 h-auto"
+                            >
+                                Show Audio/Model Details
+                            </Button>
+                        </div>
 
-                                        <Button
-                                            v-if="
-                                                selectedFile &&
-                                                !whisperTranscribing &&
-                                                !whisperResult
-                                            "
-                                            variant="primary"
-                                            size="sm"
-                                            @click="startTranscription"
-                                            class="w-full mt-2"
-                                        >
-                                            Start Transcription
-                                        </Button>
+                        <Button
+                            v-if="
+                                selectedFile &&
+                                !whisperTranscribing &&
+                                !whisperResult
+                            "
+                            variant="primary"
+                            size="sm"
+                            @click="startTranscription"
+                            class="w-full mt-2"
+                        >
+                            Start Transcription
+                        </Button>
 
                         <div
                             v-if="whisperTranscribing"
@@ -457,22 +459,22 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                                 class="flex justify-between w-full text-[10px] text-text-muted"
                             >
                                 <span>{{ whisperStatus }}</span>
-                                                                    <span
-                                                                    v-if="tokensPerSecond"
-                                                                    class="text-brand-accent"
-                                                                    >{{ tokensPerSecond }} t/s</span
-                                                                >
-                                                            </div>
-                                                            <Button
-                                                                variant="danger"
-                                                                size="sm"
-                                                                :icon="Square"
-                                                                @click="stopTranscription"
-                                                                class="mt-2 w-full"
-                                                            >
-                                                                Stop
-                                                            </Button>
-                                                        </div>
+                                <span
+                                    v-if="tokensPerSecond"
+                                    class="text-brand-accent"
+                                    >{{ tokensPerSecond }} t/s</span
+                                >
+                            </div>
+                            <Button
+                                variant="danger"
+                                size="sm"
+                                :icon="Square"
+                                @click="stopTranscription"
+                                class="mt-2 w-full"
+                            >
+                                Stop
+                            </Button>
+                        </div>
                         <Button
                             v-if="whisperResult"
                             variant="primary"
@@ -547,18 +549,22 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                         Chrome / Edge Flags
                     </h4>
                     <p class="text-sm mb-3 text-text-muted">
-                        Go to <code class="bg-black/30 px-1 rounded select-all">chrome://flags</code>
+                        Go to
+                        <code class="bg-black/30 px-1 rounded select-all"
+                            >chrome://flags</code
+                        >
                         and enable:
                     </p>
                     <ul class="list-disc pl-5 text-sm space-y-2 text-text-main">
                         <li>
                             <strong>Vulkan</strong>
                             (Linux, Android): Search for
-                            <code class="text-brand-accent select-all">#enable-vulkan</code>
+                            <code class="text-brand-accent select-all"
+                                >#enable-vulkan</code
+                            >
                         </li>
                         <li>
-                            <strong>Skia Renderer</strong>:
-                            Search for
+                            <strong>Skia Renderer</strong>: Search for
                             <code class="text-brand-accent select-all"
                                 >#pdf-use-skia-renderer</code
                             >
@@ -572,13 +578,16 @@ const addToTimeline = (source: "speech" | "whisper" = "speech") => {
                     </ul>
                 </div>
 
-                <div class="text-sm text-brand-primary bg-brand-primary/10 p-3 rounded border border-brand-primary/20">
-                    <strong>Important:</strong> You must relaunch Chrome for these changes to take effect.
+                <div
+                    class="text-sm text-brand-primary bg-brand-primary/10 p-3 rounded border border-brand-primary/20"
+                >
+                    <strong>Important:</strong> You must relaunch Chrome for
+                    these changes to take effect.
                 </div>
 
                 <div class="text-sm text-text-muted italic">
-                    If you experience issues or crashes, try switching the Device
-                    to <strong>CPU</strong>.
+                    If you experience issues or crashes, try switching the
+                    Device to <strong>CPU</strong>.
                 </div>
             </div>
             <template #footer>
