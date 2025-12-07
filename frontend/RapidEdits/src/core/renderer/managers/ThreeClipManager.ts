@@ -166,10 +166,13 @@ export class ThreeClipManager {
             } else {
                 (object.material as THREE.Material).dispose();
             }
-        } else if (object instanceof THREE.Group) {
-            object.traverse((child) => {
-                this.disposeObject(child);
-            });
+        }
+
+        while (object.children.length > 0) {
+            const child = object.children[0];
+            if (!(child instanceof THREE.Mesh)) continue;
+            object.remove(child);
+            this.disposeObject(child);
         }
     }
 
