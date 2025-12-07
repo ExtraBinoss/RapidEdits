@@ -75,6 +75,19 @@ const addPlugin = (plugin: IPlugin) => {
         });
     }
 };
+
+const handlePluginDragStart = (e: DragEvent, plugin: IPlugin) => {
+    if (e.dataTransfer) {
+        const payload = {
+            type: "plugin",
+            pluginId: plugin.id,
+            pluginType: plugin.type,
+            name: plugin.name,
+        };
+        e.dataTransfer.setData("application/json", JSON.stringify(payload));
+        e.dataTransfer.effectAllowed = "copy";
+    }
+};
 </script>
 
 <template>
@@ -138,8 +151,10 @@ const addPlugin = (plugin: IPlugin) => {
                         <div
                             v-for="plugin in activePlugins"
                             :key="plugin.id"
-                            class="aspect-square bg-canvas border border-canvas-border rounded-lg hover:border-brand-primary hover:bg-canvas-darker cursor-pointer flex flex-col items-center justify-center gap-2 transition-all group"
+                            class="aspect-square bg-canvas border border-canvas-border rounded-lg hover:border-brand-primary hover:bg-canvas-darker cursor-pointer flex flex-col items-center justify-center gap-2 transition-all group select-none"
                             @click="addPlugin(plugin)"
+                            draggable="true"
+                            @dragstart="(e) => handlePluginDragStart(e, plugin)"
                         >
                             <component
                                 :is="plugin.icon || DefaultPluginIcon"

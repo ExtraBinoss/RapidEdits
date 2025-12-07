@@ -10,6 +10,8 @@ import { useThemeStore } from "./stores/themeStore";
 import { TextPlugin } from "./core/plugins/core/TextPlugin";
 import { pluginRegistry } from "./core/plugins/PluginRegistry";
 
+import { FadeTransitionPlugin } from "./core/plugins/transitions/FadeTransitionPlugin";
+
 const themeStore = useThemeStore();
 
 onMounted(() => {
@@ -18,6 +20,7 @@ onMounted(() => {
 
     // Register Core Plugins
     pluginRegistry.register(new TextPlugin());
+    pluginRegistry.register(new FadeTransitionPlugin());
 });
 </script>
 

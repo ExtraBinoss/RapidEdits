@@ -188,6 +188,67 @@ const stopDrag = () => {
         store.updateClip(props.clip.id, { start: tempStart.value });
     }
 };
+
+const handleDrop = (e: DragEvent) => {
+    // Only accept drops if not actively using tool blocking it?
+    // We want to allow dropping effects on clips.
+    const dataStr = e.dataTransfer?.getData("application/json");
+    if (!dataStr) return;
+
+    try {
+        const data = JSON.parse(dataStr);
+        if (data.type === "plugin" && data.pluginType === "transition") {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Logic: If Fade, determine In or Out based on drop position
+            if (data.pluginId.includes("fade")) {
+                const rect = (
+                    e.currentTarget as HTMLElement
+                ).getBoundingClientRect();
+                const offsetX = e.clientX - rect.left;
+                const percentage = offsetX / rect.width;
+
+                const currentTransitions = props.clip.data?.transitions || {};
+                let updates = {};
+
+                if (percentage < 0.5) {
+                    // Fade In
+                    updates = {
+                        ...currentTransitions,
+                        fadeIn: { duration: 1.0, easing: "linear" },
+                    };
+                } else {
+                    // Fade Out
+                    updates = {
+                        ...currentTransitions,
+                        fadeOut: { duration: 1.0, easing: "linear" },
+                    };
+                }
+
+                store.updateClip(props.clip.id, {
+                    data: { ...props.clip.data, transitions: updates },
+                });
+            }
+        }
+    } catch (e) {
+        console.error("Drop error", e);
+    }
+};
+
+const transitions = computed(() => props.clip.data?.transitions || {});
+const hasFadeIn = computed(() => !!transitions.value.fadeIn);
+const hasFadeOut = computed(() => !!transitions.value.fadeOut);
+
+const fadeInWidth = computed(() => {
+    if (!hasFadeIn.value) return 0;
+    return (transitions.value.fadeIn.duration || 0) * props.zoomLevel;
+});
+
+const fadeOutWidth = computed(() => {
+    if (!hasFadeOut.value) return 0;
+    return (transitions.value.fadeOut.duration || 0) * props.zoomLevel;
+});
 </script>
 
 <template>
@@ -202,6 +263,8 @@ const stopDrag = () => {
         @mousedown="startDrag"
         @click="handleClick"
         @contextmenu="handleContextMenu"
+        @dragover.prevent
+        @drop="handleDrop"
     >
         <!-- Content -->
         <!-- GPU Preview for Video Clips -->
@@ -209,6 +272,27 @@ const stopDrag = () => {
 
         <!-- Audio Waveform -->
         <AudioWaveform v-else-if="clip.type === 'audio'" :clip="clip" />
+
+        <!-- Visual Ramps for Transitions -->
+        <svg
+            v-if="hasFadeIn || hasFadeOut"
+            class="absolute inset-0 w-full h-full pointer-events-none z-20 overflow-visible"
+        >
+            <!-- Fade In Ramp -->
+            <polygon
+                v-if="hasFadeIn"
+                :points="`0,100 ${fadeInWidth},0 0,0`"
+                class="fill-white/30"
+                vector-effect="non-scaling-stroke"
+            />
+
+            <!-- Fade Out Ramp -->
+            <polygon
+                v-if="hasFadeOut"
+                :points="`${clip.duration * zoomLevel - fadeOutWidth},0 ${clip.duration * zoomLevel},100 ${clip.duration * zoomLevel},0`"
+                class="fill-white/30"
+            />
+        </svg>
 
         <span
             class="relative z-10 text-[10px] font-medium truncate w-full pointer-events-none mix-blend-difference text-white"

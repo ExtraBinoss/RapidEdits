@@ -2,18 +2,18 @@
     <div class="relative" ref="container">
         <label
             v-if="label"
-            class="block text-sm font-medium text-gray-400 mb-1"
+            class="block text-xs font-medium text-text-muted mb-1"
             >{{ label }}</label
         >
 
         <button
             @click="toggleDropdown"
-            class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white flex justify-between items-center focus:outline-none focus:border-blue-500 hover:border-gray-600 transition-colors"
+            class="w-full bg-canvas-dark border border-canvas-border rounded px-2 py-1.5 text-text-main flex justify-between items-center focus:outline-none focus:border-brand-primary hover:border-text-muted transition-colors text-xs"
         >
             <span class="truncate">{{ selectedLabel }}</span>
             <component
                 :is="ChevronDown"
-                class="w-4 h-4 text-gray-400 transition-transform"
+                class="w-3.5 h-3.5 text-text-muted transition-transform"
                 :class="{ 'rotate-180': isOpen }"
             />
         </button>
@@ -21,20 +21,23 @@
         <Teleport to="body">
             <div
                 v-if="isOpen"
-                class="fixed z-[9999] bg-gray-800 border border-gray-700 rounded shadow-lg overflow-y-auto"
+                class="fixed z-[9999] bg-canvas-lighter border border-canvas-border rounded shadow-lg overflow-y-auto custom-scrollbar"
                 :style="dropdownStyle"
             >
                 <div
                     v-for="option in options"
                     :key="option.value"
                     @click="select(option)"
-                    class="px-3 py-2 text-white hover:bg-gray-700 cursor-pointer text-sm flex items-center justify-between group"
-                    :class="{ 'bg-blue-900/30': modelValue === option.value }"
+                    class="px-2 py-1.5 text-text-main hover:bg-canvas-light text-xs flex items-center justify-between group"
+                    :class="{
+                        'bg-brand-primary/20 text-brand-primary':
+                            modelValue === option.value,
+                    }"
                 >
                     <span>{{ option.label }}</span>
                     <span
                         v-if="option.subLabel"
-                        class="text-xs text-gray-500 group-hover:text-gray-400"
+                        class="text-[10px] text-text-muted group-hover:text-text-main"
                         >{{ option.subLabel }}</span
                     >
                 </div>

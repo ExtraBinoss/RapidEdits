@@ -35,6 +35,23 @@ export interface IPlugin {
     properties?: PluginPropertyDefinition[];
 }
 
+export interface TransitionPlugin extends IPlugin {
+    type: "transition";
+    /**
+     * Apply the transition effect to target objects.
+     * @param clip The transition clip itself (contains properties like duration, easing)
+     * @param targets The ThreeJS objects (video/text/image meshes) this transition affects
+     * @param progress The normalized progress of the transition (0 to 1) based on clip time
+     * @param time The absolute time in the timeline (optional)
+     */
+    apply(
+        clip: Clip,
+        targets: THREE.Object3D[],
+        progress: number,
+        time: number,
+    ): void;
+}
+
 export abstract class BasePlugin implements IPlugin {
     abstract id: string;
     abstract name: string;
@@ -46,7 +63,11 @@ export abstract class BasePlugin implements IPlugin {
 
     abstract createData(): Record<string, any>;
 
-    abstract render(clip: Clip): THREE.Object3D | null;
+    // Default render returns null for transitions/effects as they don't have their own mesh usually.
+    // But they CAN have a mesh if they self-render (like a particle overlay).
+    render(_clip: Clip): THREE.Object3D | null {
+        return null;
+    }
 
     update(
         object: THREE.Object3D,
