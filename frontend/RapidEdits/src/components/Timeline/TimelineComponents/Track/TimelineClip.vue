@@ -189,6 +189,22 @@ const stopDrag = () => {
     }
 };
 
+const handleClipDragOver = (e: DragEvent) => {
+    // Check if we are dragging a plugin that is allowed on clips (e.g. Transitions)
+    const dragged = pluginRegistry.state.draggedPlugin;
+
+    // If it's a transition, or generally any plugin we want to allow ON clips:
+    if (dragged) {
+        // We override the parent Track's restriction
+        e.preventDefault();
+        e.stopImmediatePropagation(); // content > container
+
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = "copy";
+        }
+    }
+};
+
 const handleDrop = (e: DragEvent) => {
     // Only accept drops if not actively using tool blocking it?
     // We want to allow dropping effects on clips.
@@ -263,7 +279,7 @@ const fadeOutWidth = computed(() => {
         @mousedown="startDrag"
         @click="handleClick"
         @contextmenu="handleContextMenu"
-        @dragover.prevent
+        @dragover.prevent="handleClipDragOver"
         @drop="handleDrop"
     >
         <!-- Content -->

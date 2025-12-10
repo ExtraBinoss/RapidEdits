@@ -4,6 +4,8 @@ import TimelineClip from "../Track/TimelineClip.vue";
 // import { useProjectStore } from "../../stores/projectStore";
 
 import { computed } from "vue";
+import { pluginRegistry } from "../../../../core/plugins/PluginRegistry";
+import { Ban } from "lucide-vue-next";
 
 const props = defineProps<{
     track: Track;
@@ -38,7 +40,29 @@ const visibleClips = computed(() => {
 // Store not currently needed in this component
 // const store = useProjectStore();
 
+const isDropAllowed = computed(() => {
+    const dragged = pluginRegistry.state.draggedPlugin;
+    if (dragged && dragged.isTrackDroppable === false) {
+        return false;
+    }
+    return true;
+});
+
+const handleDragOver = (e: DragEvent) => {
+    if (!isDropAllowed.value) {
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = "none";
+        }
+        return;
+    }
+    // Allow drop
+    if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "copy";
+    }
+};
+
 const handleDrop = (e: DragEvent) => {
+    if (!isDropAllowed.value) return;
     emit("drop", e, props.track.id);
 };
 
@@ -60,6 +84,10 @@ const handleContainerClick = (e: MouseEvent) => {
 <template>
     <div
         class="h-24 border-canvas-border/30 relative bg-canvas/20 transition-colors"
+        :class="{
+            'bg-red-500/10 border-red-500/30':
+                !isDropAllowed && pluginRegistry.state.draggedPlugin,
+        }"
         :style="
             track.color
                 ? {
@@ -68,10 +96,17 @@ const handleContainerClick = (e: MouseEvent) => {
                   }
                 : {}
         "
-        @dragover.prevent
+        @dragover.prevent="handleDragOver"
         @drop="handleDrop"
         @click="handleContainerClick"
     >
+        <!-- Invalid Drop Feedback -->
+        <div
+            v-if="!isDropAllowed && pluginRegistry.state.draggedPlugin"
+            class="absolute inset-0 flex items-center justify-center pointer-events-none z-50 bg-black/20"
+        >
+            <Ban class="text-red-500 w-8 h-8 opacity-80" />
+        </div>
         <!-- Clips -->
         <TimelineClip
             v-for="clip in visibleClips"

@@ -14,6 +14,7 @@ export class FadeTransitionPlugin
     id = createPluginId(PluginCategory.Transitions, "fade");
     name = "Fade / Dissolve";
     type = "transition" as const;
+    isTrackDroppable = false;
 
     properties: PluginPropertyDefinition[] = [
         {

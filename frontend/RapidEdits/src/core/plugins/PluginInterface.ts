@@ -33,6 +33,9 @@ export interface IPlugin {
 
     // Data-driven properties definition
     properties?: PluginPropertyDefinition[];
+
+    // Can this plugin be dropped directly onto a track? (Default: true)
+    isTrackDroppable?: boolean;
 }
 
 export interface TransitionPlugin extends IPlugin {

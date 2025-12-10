@@ -44,6 +44,14 @@ const activePlugins = computed(() => {
 });
 
 const addPlugin = (plugin: IPlugin) => {
+    // If logic: If track droppable is false, we generally don't want to create a new track for it.
+    // It's meant to be applied to existing clips.
+    if (plugin.isTrackDroppable === false) {
+        // Option: we could show a toast "Drag this onto a clip"
+        // For now, just silently prevent adding to a new track
+        return;
+    }
+
     const track = editorEngine.addTrack("custom");
 
     // Generate a unique ID for the asset
@@ -78,6 +86,9 @@ const addPlugin = (plugin: IPlugin) => {
 
 const handlePluginDragStart = (e: DragEvent, plugin: IPlugin) => {
     if (e.dataTransfer) {
+        // Track the dragged plugin globally for drop validation
+        pluginRegistry.setDraggedPlugin(plugin);
+
         const payload = {
             type: "plugin",
             pluginId: plugin.id,
@@ -87,6 +98,10 @@ const handlePluginDragStart = (e: DragEvent, plugin: IPlugin) => {
         e.dataTransfer.setData("application/json", JSON.stringify(payload));
         e.dataTransfer.effectAllowed = "copy";
     }
+};
+
+const handlePluginDragEnd = () => {
+    pluginRegistry.clearDraggedPlugin();
 };
 </script>
 
@@ -151,10 +166,21 @@ const handlePluginDragStart = (e: DragEvent, plugin: IPlugin) => {
                         <div
                             v-for="plugin in activePlugins"
                             :key="plugin.id"
-                            class="aspect-square bg-canvas border border-canvas-border rounded-lg hover:border-brand-primary hover:bg-canvas-darker cursor-pointer flex flex-col items-center justify-center gap-2 transition-all group select-none"
+                            class="aspect-square bg-canvas border border-canvas-border rounded-lg hover:border-brand-primary hover:bg-canvas-darker flex flex-col items-center justify-center gap-2 transition-all group select-none"
+                            :class="
+                                plugin.isTrackDroppable !== false
+                                    ? 'cursor-pointer'
+                                    : 'cursor-grab'
+                            "
                             @click="addPlugin(plugin)"
                             draggable="true"
-                            @dragstart="(e) => handlePluginDragStart(e, plugin)"
+                            @dragstart="
+                                handlePluginDragStart(
+                                    $event as DragEvent,
+                                    plugin,
+                                )
+                            "
+                            @dragend="handlePluginDragEnd"
                         >
                             <component
                                 :is="plugin.icon || DefaultPluginIcon"
