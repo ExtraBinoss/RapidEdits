@@ -129,10 +129,9 @@ export class ExportService {
                 throw new Error("Export failed: No output buffer generated");
             }
             const blob = new Blob([target.buffer], { type: mimeType });
-            this.downloadBlob(
-                blob,
-                `rapid_edits_export_${Date.now()}.${config.format}`,
-            );
+            const filename = `rapid_edits_export_${Date.now()}.${config.format}`;
+            this.downloadBlob(blob, filename);
+            return filename;
         } catch (e: any) {
             console.error("Export Failed", e);
             throw e;
