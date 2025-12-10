@@ -58,6 +58,7 @@ export class ThreeSceneManager {
         this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 
         if (this.container && !options.canvas) {
+            this.renderer.domElement.style.display = "block";
             this.container.appendChild(this.renderer.domElement);
         }
 

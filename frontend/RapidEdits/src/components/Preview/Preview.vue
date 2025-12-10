@@ -94,7 +94,7 @@ const handleDrop = (e: DragEvent) => {
         <!-- Main Canvas Container -->
         <div
             ref="canvasContainer"
-            class="w-full h-full overflow-hidden rounded-lg border border-canvas-border relative bg-black z-10"
+            class="w-full h-full overflow-hidden flex items-center justify-center rounded-lg border border-canvas-border relative z-10 bg-transparent"
             @dragover.prevent
             @drop="handleDrop"
         >
