@@ -4,17 +4,15 @@ import { ThreeRenderer } from "../../core/renderer/ThreeRenderer";
 import { useProjectStore } from "../../stores/projectStore";
 import { editorEngine } from "../../core/EditorEngine";
 import OSD from "../UI/Overlay/OSD.vue";
-import Popover from "../UI/Overlay/Popover.vue";
 import AmbientLight from "../UI/AmbientLight.vue";
-import Button from "../UI/Button/Button.vue";
-import Tooltip from "../UI/Overlay/Tooltip.vue";
+import Select from "../UI/Input/Select.vue";
+import { watch } from "vue";
 
 const canvasContainer = ref<HTMLElement | null>(null);
 const store = useProjectStore();
 
 let renderer: ThreeRenderer | null = null;
 const currentScaleMode = ref<"fit" | "fill" | number>("fit");
-const currentLabel = ref("Fit");
 
 const zoomOptions = [
     { label: "Fit", value: "fit" },
@@ -25,16 +23,11 @@ const zoomOptions = [
     { label: "200%", value: 2.0 },
 ];
 
-const setZoom = (
-    option: { label: string; value: string | number },
-    close: () => void,
-) => {
-    if (!renderer) return;
-    currentScaleMode.value = option.value as any;
-    currentLabel.value = option.label;
-    renderer.setScaleMode(currentScaleMode.value);
-    close();
-};
+watch(currentScaleMode, (newMode) => {
+    if (renderer) {
+        renderer.setScaleMode(newMode);
+    }
+});
 
 onMounted(async () => {
     if (!canvasContainer.value) return;
@@ -101,75 +94,12 @@ const handleDrop = (e: DragEvent) => {
             <OSD />
 
             <!-- Zoom Controls -->
-            <div class="absolute top-4 left-4 z-20">
-                <Popover position="bottom-left">
-                    <template #trigger="{ isOpen }">
-                        <Tooltip text="Zoom Level" position="bottom">
-                            <Button
-                                variant="ghost"
-                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 border border-white/10 bg-black/40 backdrop-blur-md shadow-lg hover:bg-black/60 hover:border-white/20 h-auto"
-                                :class="
-                                    isOpen
-                                        ? 'text-brand-primary border-brand-primary/30'
-                                        : 'text-gray-200'
-                                "
-                            >
-                                <span>{{ currentLabel }}</span>
-                                <svg
-                                    class="w-3 h-3 opacity-50"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M19 9l-7 7-7-7"
-                                    />
-                                </svg>
-                            </Button>
-                        </Tooltip>
-                    </template>
-                    <template #content="{ close }">
-                        <div
-                            class="py-1 min-w-[120px] bg-canvas-light border border-canvas-border rounded-lg shadow-xl overflow-hidden"
-                        >
-                            <div
-                                class="px-3 py-2 text-[10px] uppercase font-bold text-text-dim tracking-wider select-none"
-                            >
-                                Zoom Level
-                            </div>
-                            <Button
-                                variant="ghost"
-                                v-for="opt in zoomOptions"
-                                :key="opt.label"
-                                @click="setZoom(opt, close)"
-                                class="w-full text-left px-4 py-2 text-xs text-text-primary hover:bg-brand-primary/10 hover:text-brand-primary transition-colors flex items-center justify-between group h-auto"
-                            >
-                                {{ opt.label }}
-                                <span
-                                    v-if="currentLabel === opt.label"
-                                    class="text-brand-primary"
-                                >
-                                    <svg
-                                        class="w-3 h-3"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M5 13l4 4L19 7"
-                                        />
-                                    </svg>
-                                </span>
-                            </Button>
-                        </div>
-                    </template>
-                </Popover>
+            <div class="absolute top-4 left-4 z-20 w-[50px]">
+                <Select
+                    v-model="currentScaleMode"
+                    :options="zoomOptions"
+                    class="text-xs"
+                />
             </div>
 
             <div

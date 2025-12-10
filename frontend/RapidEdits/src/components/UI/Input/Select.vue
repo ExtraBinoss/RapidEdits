@@ -21,7 +21,7 @@
         <Teleport to="body">
             <div
                 v-if="isOpen"
-                class="fixed z-[9999] bg-canvas-lighter border border-canvas-border rounded shadow-lg overflow-y-auto custom-scrollbar"
+                class="fixed z-[9999] bg-canvas-lighter/80 backdrop-blur-3xl border border-canvas-border rounded shadow-sm overflow-y-auto custom-scrollbar"
                 :style="dropdownStyle"
             >
                 <div

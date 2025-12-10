@@ -136,7 +136,7 @@ defineExpose({
                 <div
                     v-if="isOpen"
                     ref="contentRef"
-                    class="fixed z-40 min-w-[200px] bg-canvas-light border border-canvas-border rounded-lg shadow-2xl p-1"
+                    class="fixed z-40 bg-canvas-light border border-canvas-border rounded-lg shadow-2xl p-1"
                     :style="{
                         top: `${coords.top}px`,
                         left: `${coords.left}px`,
