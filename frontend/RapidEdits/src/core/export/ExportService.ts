@@ -12,18 +12,13 @@ export interface ExportConfig {
 }
 
 export class ExportService {
-    private baseUrl = "http://localhost:4001";
     private abortController: AbortController | null = null;
-    private uploadQueue: Promise<void> = Promise.resolve();
-    private activeUploadCount = 0;
 
     async exportVideo(
         config: ExportConfig,
         onProgress: (progress: number, status: string) => void,
     ) {
         this.abortController = new AbortController();
-        this.uploadQueue = Promise.resolve();
-        this.activeUploadCount = 0;
 
         // 1. Setup Isolated Environment
         const exportResourceManager = new ResourceManager();
@@ -41,42 +36,62 @@ export class ExportService {
 
         await renderer.init();
 
-        let sessionId: string | null = null;
-
         try {
-            // 2. Init Session
-            onProgress(0, "Initializing Server Session...");
-            sessionId = await this.initSession(config);
+            // 2. Setup MediaRecorder
+            const stream = exportCanvas.captureStream(config.fps);
 
-            // 3. Setup Encoder
+            // Check supported types
+            let mimeType = "video/webm;codecs=vp9";
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = "video/webm;codecs=vp8";
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = "video/webm";
+                }
+            }
+
+            const recorder = new MediaRecorder(stream, {
+                mimeType,
+                videoBitsPerSecond: config.bitrate,
+            });
+
+            const chunks: Blob[] = [];
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            const stopPromise = new Promise<void>((resolve) => {
+                recorder.onstop = () => resolve();
+            });
+
+            onProgress(0, "Starting Rendering...");
+
             const duration = this.getProjectDuration();
             if (duration <= 0) throw new Error("Timeline is empty");
 
             const totalFrames = Math.ceil(duration * config.fps);
             const frameDuration = 1 / config.fps;
+            // Start recording
+            recorder.start();
 
-            const { encoder } = this.createEncoder(config, sessionId);
-
-            // 4. Render Loop
-            onProgress(0, "Starting Rendering...");
+            const startRenderTime = performance.now();
             const tracks = editorEngine.getTracks();
 
             for (let i = 0; i < totalFrames; i++) {
-                if (this.abortController.signal.aborted)
+                if (this.abortController.signal.aborted) {
+                    recorder.stop();
                     throw new Error("Export Cancelled");
+                }
 
-                // Seek to the CENTER of the frame (50% offset) to ensure we are safely within the frame boundary
-                // This prevents sampling the previous frame due to floating point jitter.
                 const time = i * frameDuration;
                 const renderTime = time + frameDuration * 0.5;
 
                 // Initial Render to load textures/create meshes
                 renderer.renderFrame(renderTime, tracks);
 
-                // Wait for textures to load (if any new ones appeared)
+                // Wait for textures to load
                 await renderer.waitForPendingLoads();
 
-                // Wait for video seek (syncVideoFrame triggered seek in renderFrame)
+                // Wait for video seek
                 await this.waitForSeek(renderer);
 
                 // Double RAF: Ensure compositor has painted the new video frame to the texture
@@ -87,46 +102,28 @@ export class ExportService {
                 // Final Render for this frame
                 renderer.renderFrame(renderTime, tracks);
 
-                // Create Frame from Canvas
-                // Use microsecond precision for timestamps
-                const frameTimestamp = Math.round((i * 1000000) / config.fps);
-                const frameDurationVal = Math.round(1000000 / config.fps);
+                // Sync Timing: Ensure we don't run faster than real-time
+                const expectedTime = (i + 1) * (1000 / config.fps);
+                const elapsed = performance.now() - startRenderTime;
+                const delay = expectedTime - elapsed;
 
-                const frame = new VideoFrame(exportCanvas, {
-                    timestamp: frameTimestamp,
-                    duration: frameDurationVal,
-                });
-
-                // Encode
-                const keyFrame = i % config.fps === 0;
-                encoder.encode(frame, { keyFrame });
-                frame.close();
+                if (delay > 0) {
+                    await new Promise((r) => setTimeout(r, delay));
+                }
 
                 onProgress(
                     Math.round((i / totalFrames) * 100),
                     `Rendering Frame ${i}/${totalFrames}`,
                 );
-
-                // Backpressure: Check active uploads to prevent memory exhaustion
-                // If we have more than 10 chunks pending upload, wait for the entire queue to drain/catch up.
-                if (this.activeUploadCount > 10) {
-                    await this.uploadQueue;
-                }
             }
 
-            // 5. Finalize
+            // 3. Finalize
             onProgress(100, "Finalizing Encoding...");
-            await encoder.flush();
-            await this.uploadQueue; // Wait for all uploads to finish
+            recorder.stop();
+            await stopPromise;
 
-            onProgress(100, "Muxing on Server...");
-            await this.finishSession(sessionId!);
-
-            // Wait for FFmpeg to finish
-            await this.waitForRender(sessionId!, onProgress);
-
-            // Download
-            this.downloadVideo(sessionId!);
+            const blob = new Blob(chunks, { type: "video/webm" });
+            this.downloadBlob(blob, `rapid_edits_export_${Date.now()}.webm`);
         } catch (e: any) {
             console.error("Export Failed", e);
             throw e;
@@ -141,42 +138,15 @@ export class ExportService {
         this.abortController?.abort();
     }
 
-    // ... (helper methods unchanged) ...
-
-    private async waitForRender(
-        sessionId: string,
-        onProgress: (p: number, s: string) => void,
-    ) {
-        let attempts = 0;
-        while (attempts < 60) {
-            // 60 seconds max wait
-            if (this.abortController?.signal.aborted)
-                throw new Error("Export Cancelled");
-
-            const res = await fetch(
-                `${this.baseUrl}/render/status/${sessionId}`,
-            );
-            if (!res.ok) throw new Error("Failed to check status");
-
-            const data = await res.json();
-            if (data.status === "done") return;
-            if (data.status === "error")
-                throw new Error(`Render Error: ${data.error}`);
-
-            onProgress(
-                100,
-                "Muxing on Server... " +
-                    (attempts % 4 === 0
-                        ? "."
-                        : attempts % 4 === 1
-                          ? ".."
-                          : "..."),
-            );
-
-            await new Promise((r) => setTimeout(r, 1000));
-            attempts++;
-        }
-        throw new Error("Render timed out");
+    private downloadBlob(blob: Blob, filename: string) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     }
 
     private getProjectDuration(): number {
@@ -209,80 +179,6 @@ export class ExportService {
             });
         });
         await Promise.all(promises);
-    }
-
-    private async initSession(config: ExportConfig): Promise<string> {
-        const res = await fetch(`${this.baseUrl}/render/init`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(config),
-        });
-        if (!res.ok) throw new Error("Failed to init session");
-        const data = await res.json();
-        return data.sessionId;
-    }
-
-    private createEncoder(config: ExportConfig, sessionId: string) {
-        const encoder = new VideoEncoder({
-            output: (chunk) => {
-                const buffer = new ArrayBuffer(chunk.byteLength);
-                chunk.copyTo(buffer);
-
-                // STRICT ORDERING: Chain the upload to the queue
-                this.activeUploadCount++;
-                this.uploadQueue = this.uploadQueue.then(async () => {
-                    try {
-                        await this.uploadChunk(sessionId, buffer);
-                    } finally {
-                        this.activeUploadCount--;
-                    }
-                });
-            },
-            error: (e) => {
-                console.error("Encoder Error", e);
-            },
-        });
-
-        const codec = "avc1.4d002a";
-
-        const encoderConfig: any = {
-            codec,
-            width: config.width,
-            height: config.height,
-            bitrate: config.bitrate,
-            framerate: config.fps,
-            latencyMode: "quality", // Prioritize quality/smoothness
-            avc: { format: "annexb" },
-        };
-
-        encoder.configure(encoderConfig);
-
-        return { encoder };
-    }
-
-    private async uploadChunk(sessionId: string, data: ArrayBuffer) {
-        const res = await fetch(`${this.baseUrl}/render/append/${sessionId}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/octet-stream" },
-            body: data,
-        });
-        if (!res.ok) throw new Error("Upload failed");
-    }
-
-    private async finishSession(sessionId: string) {
-        const res = await fetch(`${this.baseUrl}/render/finish/${sessionId}`, {
-            method: "POST",
-        });
-        if (!res.ok) throw new Error("Finish failed");
-    }
-
-    private downloadVideo(sessionId: string) {
-        const link = document.createElement("a");
-        link.href = `${this.baseUrl}/render/download/${sessionId}`;
-        link.download = "";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
     }
 }
 
