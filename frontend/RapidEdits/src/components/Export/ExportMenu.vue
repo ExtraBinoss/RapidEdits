@@ -4,7 +4,7 @@
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
     >
         <div
-            class="bg-canvas-light/95 backdrop-blur-md border border-canvas-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] text-text-main"
+            class="bg-canvas-light border border-canvas-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] text-text-main"
         >
             <!-- Header -->
             <div
@@ -81,7 +81,7 @@
 
                         <!-- Bitrate -->
                         <div
-                            class="bg-canvas-lighter/50 rounded-xl p-5 border border-canvas-border"
+                            class="bg-canvas-lighter rounded-xl p-5 border border-canvas-border"
                         >
                             <div class="flex justify-between items-end mb-4">
                                 <div>
@@ -219,7 +219,7 @@
                                 class="grid grid-cols-2 gap-4"
                             >
                                 <div
-                                    class="bg-canvas-lighter/50 p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
+                                    class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
                                 >
                                     <p
                                         class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
@@ -233,7 +233,7 @@
                                     </p>
                                 </div>
                                 <div
-                                    class="bg-canvas-lighter/50 p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
+                                    class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
                                 >
                                     <p
                                         class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
@@ -247,7 +247,7 @@
                                     </p>
                                 </div>
                                 <div
-                                    class="bg-canvas-lighter/50 p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
+                                    class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
                                 >
                                     <p
                                         class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
@@ -266,7 +266,7 @@
                                     </p>
                                 </div>
                                 <div
-                                    class="bg-canvas-lighter/50 p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
+                                    class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
                                 >
                                     <p
                                         class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
@@ -315,7 +315,7 @@
 
             <!-- Footer -->
             <div
-                class="px-8 py-5 bg-canvas-light/80 backdrop-blur-md flex justify-end space-x-4 shrink-0 border-t border-canvas-border"
+                class="px-8 py-5 bg-canvas-light flex justify-end space-x-4 shrink-0 border-t border-canvas-border"
             >
                 <button
                     v-if="!isExporting || isDone"
