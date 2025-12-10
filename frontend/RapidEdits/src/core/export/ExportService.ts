@@ -2,6 +2,13 @@ import { editorEngine } from "../EditorEngine";
 import { ThreeRenderer } from "../renderer/ThreeRenderer";
 import { ResourceManager } from "../ResourceManager";
 import { TextureAllocator } from "../renderer/textures/TextureAllocator";
+import {
+    Output,
+    BufferTarget,
+    Mp4OutputFormat,
+    WebMOutputFormat,
+    CanvasSource,
+} from "mediabunny";
 
 export interface ExportConfig {
     width: number;
@@ -37,32 +44,33 @@ export class ExportService {
         await renderer.init();
 
         try {
-            // 2. Setup MediaRecorder
-            const stream = exportCanvas.captureStream(config.fps);
+            // 2. Setup Mediabunny Output
+            const target = new BufferTarget();
+            const format =
+                config.format === "mp4"
+                    ? new Mp4OutputFormat()
+                    : new WebMOutputFormat();
 
-            // Check supported types
-            let mimeType = "video/webm;codecs=vp9";
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = "video/webm;codecs=vp8";
-                if (!MediaRecorder.isTypeSupported(mimeType)) {
-                    mimeType = "video/webm";
-                }
-            }
-
-            const recorder = new MediaRecorder(stream, {
-                mimeType,
-                videoBitsPerSecond: config.bitrate,
+            const output = new Output({
+                target,
+                format,
             });
 
-            const chunks: Blob[] = [];
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) chunks.push(e.data);
-            };
+            // Configure Video Source
+            // Use 'avc' (H.264) for MP4 and 'vp9' for WebM
+            const codec = config.format === "mp4" ? "avc" : "vp9";
 
-            const stopPromise = new Promise<void>((resolve) => {
-                recorder.onstop = () => resolve();
+            const videoSource = new CanvasSource(exportCanvas, {
+                codec,
+                bitrate: config.bitrate,
             });
 
+            // Add video track with specified FPS metadata
+            output.addVideoTrack(videoSource, { frameRate: config.fps });
+
+            await output.start();
+
+            // 3. Rendering Loop
             onProgress(0, "Starting Rendering...");
 
             const duration = this.getProjectDuration();
@@ -70,45 +78,39 @@ export class ExportService {
 
             const totalFrames = Math.ceil(duration * config.fps);
             const frameDuration = 1 / config.fps;
-            // Start recording
-            recorder.start();
 
-            const startRenderTime = performance.now();
             const tracks = editorEngine.getTracks();
+
+            let lastYieldTime = performance.now();
 
             for (let i = 0; i < totalFrames; i++) {
                 if (this.abortController.signal.aborted) {
-                    recorder.stop();
                     throw new Error("Export Cancelled");
                 }
 
                 const time = i * frameDuration;
                 const renderTime = time + frameDuration * 0.5;
 
-                // Initial Render to load textures/create meshes
+                // 1. Update Scene & Prepare Resources
+                // This call updates the scene graph based on tracks and triggers texture loads
                 renderer.renderFrame(renderTime, tracks);
 
-                // Wait for textures to load
+                // 2. Wait for resources to be ready
                 await renderer.waitForPendingLoads();
-
-                // Wait for video seek
                 await this.waitForSeek(renderer);
 
-                // Double RAF: Ensure compositor has painted the new video frame to the texture
-                await new Promise((r) =>
-                    requestAnimationFrame(() => requestAnimationFrame(r)),
-                );
-
-                // Final Render for this frame
+                // 3. Final Render
+                // Ensure the GPU has the latest video frames and textures
                 renderer.renderFrame(renderTime, tracks);
 
-                // Sync Timing: Ensure we don't run faster than real-time
-                const expectedTime = (i + 1) * (1000 / config.fps);
-                const elapsed = performance.now() - startRenderTime;
-                const delay = expectedTime - elapsed;
+                // 4. Capture & Encode
+                await videoSource.add(time, frameDuration);
 
-                if (delay > 0) {
-                    await new Promise((r) => setTimeout(r, delay));
+                // 5. Yield occasionally to keep UI responsive (every ~50ms)
+                const now = performance.now();
+                if (now - lastYieldTime > 50) {
+                    await new Promise((r) => setTimeout(r, 0));
+                    lastYieldTime = now;
                 }
 
                 onProgress(
@@ -117,13 +119,20 @@ export class ExportService {
                 );
             }
 
-            // 3. Finalize
+            // 4. Finalize
             onProgress(100, "Finalizing Encoding...");
-            recorder.stop();
-            await stopPromise;
+            await output.finalize();
 
-            const blob = new Blob(chunks, { type: "video/webm" });
-            this.downloadBlob(blob, `rapid_edits_export_${Date.now()}.webm`);
+            const mimeType =
+                config.format === "mp4" ? "video/mp4" : "video/webm";
+            if (!target.buffer) {
+                throw new Error("Export failed: No output buffer generated");
+            }
+            const blob = new Blob([target.buffer], { type: mimeType });
+            this.downloadBlob(
+                blob,
+                `rapid_edits_export_${Date.now()}.${config.format}`,
+            );
         } catch (e: any) {
             console.error("Export Failed", e);
             throw e;

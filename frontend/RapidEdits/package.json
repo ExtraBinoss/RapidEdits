@@ -10,10 +10,11 @@
         "format": "prettier --write \"src/**/*.ts\" \"src/**/*.vue\""
     },
     "dependencies": {
+        "@huggingface/transformers": "^3.0.0",
         "@types/three": "^0.181.0",
         "@types/uuid": "^10.0.0",
-        "@huggingface/transformers": "^3.0.0",
         "lucide-vue-next": "^0.556.0",
+        "mediabunny": "^1.25.8",
         "pinia": "^3.0.4",
         "three": "^0.181.2",
         "three-stdlib": "^2.36.1",
