@@ -19,10 +19,44 @@ const {
 } = useRecorder();
 
 const cameraPreview = ref<HTMLVideoElement | null>(null);
+const sourcePreview = ref<HTMLVideoElement | null>(null);
+let currentSourceStream: MediaStream | null = null;
+
+let refreshInterval: any = null;
 
 onMounted(async () => {
   await fetchSources();
+  // Refresh thumbnails every 3 seconds while picker is open
+  refreshInterval = setInterval(() => {
+    fetchSources();
+  }, 3000);
 });
+
+onUnmounted(() => {
+  recordingSystem.stopCamera();
+  if (refreshInterval) clearInterval(refreshInterval);
+  if (currentSourceStream) {
+    currentSourceStream.getTracks().forEach(t => t.stop());
+  }
+});
+
+// Update source preview when selection changes
+watch(selectedSource, async (val) => {
+  if (currentSourceStream) {
+    currentSourceStream.getTracks().forEach(t => t.stop());
+  }
+  
+  if (val) {
+    try {
+      currentSourceStream = await recordingSystem.getStreamForSource(val.id);
+      if (sourcePreview.value) {
+        sourcePreview.value.srcObject = currentSourceStream;
+      }
+    } catch (e) {
+      console.error('Source preview failed', e);
+    }
+  }
+}, { immediate: true });
 
 // Update camera preview when toggled
 watch(useCamera, async (val) => {
@@ -43,9 +77,6 @@ watch(useCamera, async (val) => {
   }
 });
 
-onUnmounted(() => {
-  recordingSystem.stopCamera();
-});
 
 const handleStart = () => {
   startRecording();
@@ -92,7 +123,10 @@ const emit = defineEmits(['close']);
                  : 'border-white/5 bg-white/5 hover:border-white/20 hover:bg-white/10'
              ]"
           >
-            <img :src="source.thumbnail.toDataURL()" class="w-full aspect-video object-cover rounded-lg mb-2 shadow-sm" />
+            <div class="relative">
+              <img :src="source.thumbnail" class="w-full aspect-video object-cover rounded-lg mb-2 shadow-sm" />
+              <img v-if="source.appIcon" :src="source.appIcon" class="absolute bottom-3 right-1 w-4 h-4 rounded-sm shadow-md bg-canvas/50 backdrop-blur-sm" />
+            </div>
             <div class="flex items-center justify-between">
               <span class="text-xs font-medium truncate pr-2 text-text-main">{{ source.name }}</span>
               <ChevronRight v-if="selectedSource?.id === source.id" class="w-3 h-3 text-brand-primary" />
@@ -102,30 +136,24 @@ const emit = defineEmits(['close']);
       </div>
 
       <!-- Right: Preview & Settings -->
-      <div class="flex-1 flex flex-col p-6 bg-canvas/10">
+        <div class="flex-1 flex flex-col p-6 bg-canvas/10">
+          <!-- Window Header (New Area) -->
+          <div v-if="selectedSource" class="mb-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="px-2 py-1 bg-brand-primary/20 rounded text-[10px] font-bold text-brand-primary uppercase tracking-wider">Selected Window</div>
+              <h3 class="text-sm font-semibold text-text-main truncate max-w-[400px]">{{ selectedSource.name }}</h3>
+            </div>
+          </div>
+
         <!-- Preview Window -->
         <div class="flex-1 relative rounded-2xl bg-black shadow-inner overflow-hidden border border-white/5 group">
-          <div v-if="selectedSource" class="absolute inset-0 flex items-center justify-center">
-             <img :src="selectedSource.thumbnail.toDataURL()" class="w-full h-full object-contain opacity-50 blur-sm" />
-             <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-             <div class="z-10 text-center">
-               <div class="w-16 h-16 bg-brand-primary rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-primary/20">
-                 <Monitor class="w-8 h-8 text-white" />
-               </div>
-               <p class="text-sm font-medium text-white">{{ selectedSource.name }}</p>
-               <p class="text-xs text-text-muted mt-1">Ready to stream</p>
-             </div>
+          <div v-if="selectedSource" class="absolute inset-0">
+             <video ref="sourcePreview" autoplay playsinline muted class="w-full h-full object-contain !opacity-100"></video>
           </div>
           
           <!-- Facecam Overlay Preview -->
           <div v-if="useCamera" class="absolute bottom-4 right-4 w-32 aspect-video bg-canvas-dark rounded-lg border-2 border-brand-primary shadow-xl overflow-hidden flex items-center justify-center">
              <video ref="cameraPreview" autoplay playsinline muted class="w-full h-full object-cover"></video>
-          </div>
-
-          <!-- Status Badge -->
-          <div class="absolute top-4 left-4 px-3 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-            <span class="text-[10px] uppercase tracking-wider font-bold text-white">Live Link</span>
           </div>
         </div>
 
@@ -139,7 +167,6 @@ const emit = defineEmits(['close']);
                 </span>
                 <div class="flex items-center gap-2">
                   <Switch :modelValue="useCamera" @update:modelValue="setCamera" />
-                  <span class="text-xs text-text-main">{{ useCamera ? 'On' : 'Off' }}</span>
                 </div>
              </div>
 
@@ -152,7 +179,6 @@ const emit = defineEmits(['close']);
                 </span>
                 <div class="flex items-center gap-2">
                   <Switch :modelValue="useMic" @update:modelValue="setMic" />
-                  <span class="text-xs text-text-main">{{ useMic ? 'On' : 'Off' }}</span>
                 </div>
              </div>
           </div>

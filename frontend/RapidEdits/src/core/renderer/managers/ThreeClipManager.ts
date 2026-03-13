@@ -67,14 +67,17 @@ export class ThreeClipManager {
             }
         }
 
-        // Separate Content vs Transitions
+        // Separate Content vs Transitions vs Effects
         const contentClips: Clip[] = [];
         const transitionClips: Clip[] = [];
+        const effectClips: Clip[] = [];
 
         visibleClips.forEach((clip) => {
             const plugin = pluginRegistry.get(clip.type);
-            if (plugin && plugin.type === "transition") {
-                transitionClips.push(clip);
+            if (plugin) {
+                if (plugin.type === "transition") transitionClips.push(clip);
+                else if (plugin.type === "effect") effectClips.push(clip);
+                else contentClips.push(clip);
             } else {
                 contentClips.push(clip);
             }
@@ -211,8 +214,8 @@ export class ThreeClipManager {
             }
         });
 
-        // 1.5 Render/Update Transition Meshes (if any)
-        transitionClips.forEach((clip) => {
+        // 1.5 Render/Update Transition and Effect Meshes
+        [...transitionClips, ...effectClips].forEach((clip) => {
             let object = this.clipMeshes.get(clip.id);
             const trackIndex = tracks.findIndex(t => t.id === clip.trackId);
             const plugin = pluginRegistry.get(clip.type);
@@ -230,7 +233,11 @@ export class ThreeClipManager {
                 }
 
                 if (object) {
-                    object.position.z = 1000 + trackIndex;
+                    // Transitions usually go on top, but effects might vary.
+                    // Let's put both high up for now.
+                    const zBase = plugin.type === "transition" ? 1000 : 800;
+                    object.position.z = zBase + trackIndex;
+                    
                     if (object.children.length > 0) {
                         plugin.update(
                             object.children[0]!,
@@ -243,19 +250,26 @@ export class ThreeClipManager {
             }
         });
 
-        // 2. Apply Transitions
+        // 2. Apply Transitions and Effects
+        const contentTargets = contentClips
+            .map((c) => this.clipMeshes.get(c.id))
+            .filter((obj) => obj !== undefined) as THREE.Object3D[];
+
         transitionClips.forEach((tClip) => {
-            const plugin = pluginRegistry.get(tClip.type) as TransitionPlugin;
-            if (!plugin) return;
+            const plugin = pluginRegistry.get(tClip.type) as any;
+            if (!plugin || typeof plugin.apply !== 'function') return;
 
             const progress = (currentTime - tClip.start) / tClip.duration;
             const clampedProgress = Math.max(0, Math.min(1, progress));
 
-            const targets = contentClips
-                .map((c) => this.clipMeshes.get(c.id))
-                .filter((obj) => obj !== undefined) as THREE.Object3D[];
+            plugin.apply(tClip, contentTargets, clampedProgress, currentTime);
+        });
 
-            plugin.apply(tClip, targets, clampedProgress, currentTime);
+        effectClips.forEach((eClip) => {
+            const plugin = pluginRegistry.get(eClip.type) as any;
+            if (!plugin || typeof plugin.apply !== 'function') return;
+
+            plugin.apply(eClip, contentTargets, currentTime - eClip.start, currentTime);
         });
 
         // Capture Mode Update

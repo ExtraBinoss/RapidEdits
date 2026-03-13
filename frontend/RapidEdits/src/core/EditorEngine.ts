@@ -6,6 +6,7 @@ import { PlaybackSystem } from "./systems/PlaybackSystem";
 import { InputSystem } from "./systems/InputSystem";
 import { RecordingSystem } from "./systems/RecordingSystem";
 import { globalEventBus } from "./events/EventBus";
+import type { RecordedCursorPoint } from "../types/Recording";
 import type { Asset } from "../types/Media";
 import type { Track, Clip } from "../types/Timeline";
 
@@ -45,7 +46,12 @@ export class EditorEngine {
         });
     }
 
-    private async handleRecordingFinished(blob: Blob, cursorData: any[]) {
+    private async handleRecordingFinished(blob: Blob, cursorData: RecordedCursorPoint[]) {
+        console.log(`[EditorEngine] Recording finished. Blob size: ${blob.size}, Cursor points: ${cursorData.length}`);
+        if (cursorData.length > 0) {
+            console.log(`[EditorEngine] First cursor point:`, cursorData[0]);
+            console.log(`[EditorEngine] Last cursor point:`, cursorData[cursorData.length - 1]);
+        }
         // 1. Create a File object
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const filename = `Recording-${timestamp}.webm`;
@@ -85,6 +91,7 @@ export class EditorEngine {
                 smoothZoom: true,
                 zoomIntensity: 0.3,
                 zoomDuration: 0.4,
+                debug: true,
                 recordedData: cursorData // Inject the raw recorded points
             }
         };

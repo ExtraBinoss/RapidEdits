@@ -1,21 +1,16 @@
 import { globalEventBus } from '../events/EventBus';
 
-export interface CursorPoint {
-    t: number;
-    x: number;
-    y: number;
-    isClick?: boolean;
-    type?: string; // pointer, text, hand, etc
-}
+import type { RecordedCursorPoint } from "../../types/Recording";
 
 export class RecordingSystem {
     private isRecording: boolean = false;
+    private isPaused: boolean = false;
     private sources: any[] = [];
     private selectedSource: any = null;
     private useCamera: boolean = false;
     private useMic: boolean = true;
     public showPicker: boolean = false;
-    public recordedCursorPositions: CursorPoint[] = [];
+    public recordedCursorPositions: RecordedCursorPoint[] = [];
     
     private mediaRecorder: MediaRecorder | null = null;
     private screenStream: MediaStream | null = null;
@@ -29,6 +24,18 @@ export class RecordingSystem {
         if (this.isElectron) {
             (window as any).ipcRenderer.on('toggle-recording', () => {
                 this.toggleRecording();
+            });
+
+            // Remote commands from toolbar
+            (window as any).ipcRenderer.on('recording-command', (_: any, cmd: string) => {
+                switch(cmd) {
+                    case 'stop': this.stopRecording(); if (this.isElectron) (window as any).ipcRenderer.send('restore-main-window'); break;
+                    case 'pause': this.pauseRecording(); break;
+                    case 'resume': this.resumeRecording(); break;
+                    case 'toggle-mic': this.setMic(!this.useMic); break;
+                    case 'toggle-camera': this.setCamera(!this.useCamera); break;
+                    case 'get-status': this.syncToolbar(); break;
+                }
             });
         }
     }
@@ -51,9 +58,23 @@ export class RecordingSystem {
     public async toggleRecording() {
         if (this.isRecording) {
             await this.stopRecording();
+            if (this.isElectron) (window as any).ipcRenderer.send('restore-main-window');
         } else {
             await this.startRecording();
+            if (this.isElectron) (window as any).ipcRenderer.send('minimize-main-window');
         }
+    }
+
+    public async getStreamForSource(sourceId: string) {
+        return await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+                mandatory: {
+                    chromeMediaSource: 'desktop',
+                    chromeMediaSourceId: sourceId,
+                }
+            } as any
+        });
     }
 
     public async startCamera() {
@@ -136,13 +157,23 @@ export class RecordingSystem {
             const startTime = Date.now();
             if (this.isElectron) {
                 this.cursorInterval = setInterval(async () => {
-                    const state = await (window as any).ipcRenderer.getCursorState();
-                    this.recordedCursorPositions.push({
-                        t: Date.now() - startTime,
-                        x: state.x,
-                        y: state.y,
-                        isClick: state.isClicked
-                    });
+                    try {
+                        const state = await (window as any).ipcRenderer.invoke('get-cursor-state');
+                        const point: RecordedCursorPoint = {
+                            t: Date.now() - startTime,
+                            x: state.x,
+                            y: state.y,
+                            isClick: state.isClicked,
+                            type: state.cursorType || 'default'
+                        };
+                        this.recordedCursorPositions.push(point);
+                        
+                        if (this.recordedCursorPositions.length % 50 === 0) {
+                            console.log(`[RecordingSystem] Captured ${this.recordedCursorPositions.length} points. Current:`, point);
+                        }
+                    } catch (err) {
+                        console.error('[RecordingSystem] Failed to fetch cursor state:', err);
+                    }
                 }, 100);
             }
 
@@ -150,6 +181,7 @@ export class RecordingSystem {
                 if (this.cursorInterval) clearInterval(this.cursorInterval);
                 const blob = new Blob(this.chunks, { type: 'video/webm' });
                 
+                console.log(`[RecordingSystem] Recording stopped. Total cursor points: ${this.recordedCursorPositions.length}`);
                 console.log('Recorded blob size:', blob.size);
                 
                 globalEventBus.emit({
@@ -164,11 +196,15 @@ export class RecordingSystem {
 
                 this.cleanupStreams();
                 this.isRecording = false;
+                this.isPaused = false;
+                this.syncToolbar();
                 globalEventBus.emit({ type: 'RECORDING_STATE_CHANGED', payload: false });
             };
 
             this.mediaRecorder.start();
             this.isRecording = true;
+            this.isPaused = false;
+            this.syncToolbar();
 
             globalEventBus.emit({ type: 'RECORDING_STATE_CHANGED', payload: true });
             globalEventBus.emit({
@@ -180,6 +216,36 @@ export class RecordingSystem {
             console.error('Failed to start recording', err);
             this.isRecording = false;
             globalEventBus.emit({ type: 'RECORDING_STATE_CHANGED', payload: false });
+        }
+    }
+
+    public async pauseRecording() {
+        if (this.mediaRecorder && this.isRecording && !this.isPaused) {
+            this.mediaRecorder.pause();
+            this.isPaused = true;
+            this.syncToolbar();
+        }
+    }
+
+    public async resumeRecording() {
+        if (this.mediaRecorder && this.isRecording && this.isPaused) {
+            this.mediaRecorder.resume();
+            this.isPaused = false;
+            this.syncToolbar();
+        }
+    }
+
+    private syncToolbar() {
+        if (this.isElectron) {
+            (window as any).ipcRenderer.send('to-renderer', {
+                channel: 'recording-status',
+                data: {
+                    isRecording: this.isRecording,
+                    isPaused: this.isPaused,
+                    useMic: this.useMic,
+                    useCamera: this.useCamera
+                }
+            });
         }
     }
 
@@ -200,6 +266,7 @@ export class RecordingSystem {
     public getState() { 
         return {
             isRecording: this.isRecording,
+            isPaused: this.isPaused,
             sources: this.sources,
             selectedSource: this.selectedSource,
             useCamera: this.useCamera,
@@ -214,10 +281,12 @@ export class RecordingSystem {
     }
     public setCamera(v: boolean) { 
         this.useCamera = v; 
+        this.syncToolbar();
         globalEventBus.emit({ type: 'RECORDING_SETTINGS_UPDATED', payload: this.getState() });
     }
     public setMic(v: boolean) { 
         this.useMic = v; 
+        this.syncToolbar();
         globalEventBus.emit({ type: 'RECORDING_SETTINGS_UPDATED', payload: this.getState() });
     }
     public setShowPicker(v: boolean) { 

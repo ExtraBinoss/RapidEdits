@@ -10,6 +10,31 @@ const MAIN_DIST = path.join(process.env.APP_ROOT, "dist");
 const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
 let win = null;
+let toolbarWin = null;
+function createToolbarWindow() {
+  if (toolbarWin) return;
+  toolbarWin = new BrowserWindow({
+    width: 320,
+    height: 64,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: true,
+    skipTaskbar: true,
+    webPreferences: {
+      preload: path.join(__dirname$1, "preload.mjs"),
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+  toolbarWin.setContentProtection(true);
+  const toolbarUrl = VITE_DEV_SERVER_URL ? `${VITE_DEV_SERVER_URL}?mode=toolbar` : `file://${path.join(RENDERER_DIST, "index.html")}?mode=toolbar`;
+  toolbarWin.loadURL(toolbarUrl);
+  toolbarWin.on("closed", () => {
+    toolbarWin = null;
+  });
+}
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC || "", "favicon.ico"),
@@ -36,6 +61,7 @@ function createWindow() {
   });
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
+    win.webContents.openDevTools();
   } else {
     win.loadFile(path.join(RENDERER_DIST, "index.html"));
   }
@@ -45,7 +71,27 @@ function createWindow() {
   });
 }
 ipcMain.handle("get-desktop-sources", async (event, options) => {
-  return await desktopCapturer.getSources(options);
+  const sources = await desktopCapturer.getSources({ ...options, fetchWindowIcons: true });
+  return sources.map((source) => ({
+    id: source.id,
+    name: source.name,
+    thumbnail: source.thumbnail.toDataURL(),
+    display_id: source.display_id,
+    appIcon: source.appIcon ? source.appIcon.toDataURL() : null
+  }));
+});
+ipcMain.on("minimize-main-window", () => {
+  win?.minimize();
+  createToolbarWindow();
+});
+ipcMain.on("restore-main-window", () => {
+  win?.restore();
+  win?.focus();
+  toolbarWin?.close();
+});
+ipcMain.on("to-renderer", (event, { channel, data }) => {
+  win?.webContents.send(channel, data);
+  toolbarWin?.webContents.send(channel, data);
 });
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
@@ -71,7 +117,8 @@ app.whenReady().then(() => {
   ipcMain.handle("get-cursor-state", () => {
     return {
       ...screen.getCursorScreenPoint(),
-      isClicked
+      isClicked,
+      cursorType: isClicked ? "handpointing" : "default"
     };
   });
   const shortcut = "CommandOrControl+Alt+R";

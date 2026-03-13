@@ -55,6 +55,23 @@ export interface TransitionPlugin extends IPlugin {
     ): void;
 }
 
+export interface EffectPlugin extends IPlugin {
+    type: "effect";
+    /**
+     * Apply the effect to target objects.
+     * @param clip The effect clip itself (contains properties/settings)
+     * @param targets The ThreeJS objects (video/text/image meshes) this effect affects
+     * @param time The current relative time within the clip
+     * @param totalTime The absolute time in the timeline
+     */
+    apply(
+        clip: Clip,
+        targets: THREE.Object3D[],
+        time: number,
+        totalTime: number,
+    ): void;
+}
+
 export abstract class BasePlugin implements IPlugin {
     abstract id: string;
     abstract name: string;

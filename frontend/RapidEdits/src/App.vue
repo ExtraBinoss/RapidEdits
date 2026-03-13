@@ -4,7 +4,7 @@ import Sidebar from "./components/Sidebar.vue";
 import Timeline from "./components/Timeline/Timeline.vue";
 import Preview from "./components/Preview/Preview.vue";
 import Properties from "./components/Properties.vue";
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { updateFavicon } from "./utils/faviconUtils";
 import { useThemeStore } from "./stores/themeStore";
 import { TextPlugin } from "./core/plugins/core/TextPlugin";
@@ -14,9 +14,12 @@ import { FadeTransitionPlugin } from "./core/plugins/transitions/FadeTransitionP
 import { CursorZoomPlugin } from "./core/plugins/CursorZoomPlugin";
 import { useRecorder } from "./composables/useRecorder";
 import SourcePicker from "./components/Recorder/SourcePicker.vue";
+import RecordingToolbar from "./components/Recorder/RecordingToolbar.vue";
 
 const themeStore = useThemeStore();
 const { showPicker, setShowPicker } = useRecorder();
+
+const isToolbarMode = ref(window.location.search.includes('mode=toolbar'));
 
 onMounted(() => {
     updateFavicon("#3b82f6"); // Brand primary color
@@ -31,6 +34,7 @@ onMounted(() => {
 
 <template>
     <div
+        v-if="!isToolbarMode"
         class="flex flex-col h-screen w-full bg-canvas text-text-main font-sans overflow-hidden"
     >
         <div v-if="showPicker" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md">
@@ -67,5 +71,8 @@ onMounted(() => {
                 </div>
             </div>
         </div>
+    </div>
+    <div v-else>
+        <RecordingToolbar />
     </div>
 </template>
