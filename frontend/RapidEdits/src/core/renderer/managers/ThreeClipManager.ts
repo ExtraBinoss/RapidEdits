@@ -339,6 +339,8 @@ export class ThreeClipManager {
             else { h = renderHeight; w = h * aspect; }
         }
         mesh.scale.set(w, h, 1);
+        mesh.userData.baseScale = new THREE.Vector3(w, h, 1);
+        mesh.userData.basePosition = new THREE.Vector3(0, 0, mesh.position.z);
     }
 
     public getActiveVideoElements(): HTMLVideoElement[] {

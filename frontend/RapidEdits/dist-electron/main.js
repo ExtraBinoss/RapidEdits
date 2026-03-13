@@ -115,8 +115,14 @@ app.whenReady().then(() => {
     isClicked = false;
   });
   ipcMain.handle("get-cursor-state", () => {
+    const point = screen.getCursorScreenPoint();
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.size;
     return {
-      ...screen.getCursorScreenPoint(),
+      x: point.x,
+      y: point.y,
+      screenWidth: width,
+      screenHeight: height,
       isClicked,
       cursorType: isClicked ? "handpointing" : "default"
     };

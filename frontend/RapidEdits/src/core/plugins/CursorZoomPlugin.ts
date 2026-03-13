@@ -113,23 +113,26 @@ export class CursorZoomPlugin extends BasePlugin {
                 const ease = Math.sin(p * Math.PI); 
                 zoom = 1.0 + (ease * (data.zoomIntensity || 0.3));
                 
-                targetX = (recentClick.x / 1920) * 2 - 1;
-                targetY = -(recentClick.y / 1080) * 2 + 1;
+                targetX = (recentClick.x / recentClick.screenWidth) * 2 - 1;
+                targetY = -(recentClick.y / recentClick.screenHeight) * 2 + 1;
             }
 
             targets.forEach(target => {
                 if (target.name === "cursor_group" || target.name === "cursor_mesh") return;
                 
-                target.scale.set(zoom, zoom, 1);
+                // Use baseScale if available to avoid resetting to 1x1
+                const baseScale = target.userData.baseScale as THREE.Vector3 || new THREE.Vector3(1, 1, 1);
+                target.scale.set(baseScale.x * zoom, baseScale.y * zoom, 1);
+
                 if (recentClick) {
-                    // Coordinates in our Three workspace are roughly based on 1920x1080 if using default size
+                    // Coordinates in our Three workspace are based on 1920x1080 if using default size
                     // We need to move the target in the opposite direction of the click to keep it centered
-                    // The factor 960/540 matches half of 1920/1080
                     target.position.x = -targetX * (zoom - 1) * 960;
                     target.position.y = -targetY * (zoom - 1) * 540;
                 } else {
-                    target.position.x = 0;
-                    target.position.y = 0;
+                    const basePos = target.userData.basePosition as THREE.Vector3 || new THREE.Vector3(0, 0, 0);
+                    target.position.x = basePos.x;
+                    target.position.y = basePos.y;
                 }
             });
         }
@@ -192,8 +195,9 @@ export class CursorZoomPlugin extends BasePlugin {
             console.log("[CursorZoomPlugin] Waiting for texture initialization...");
         }
 
-        const posX = (point.x / 1920) * 2 - 1;
-        const posY = -(point.y / 1080) * 2 + 1;
+        // Normalize using recorded screen size
+        const posX = (point.x / point.screenWidth) * 2 - 1;
+        const posY = -(point.y / point.screenHeight) * 2 + 1;
         const feedback = point.isClick ? 0.8 : 1.0;
 
         object.position.x = posX * 960;

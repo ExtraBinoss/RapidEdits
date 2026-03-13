@@ -163,6 +163,8 @@ export class RecordingSystem {
                             t: Date.now() - startTime,
                             x: state.x,
                             y: state.y,
+                            screenWidth: state.screenWidth || 1920,
+                            screenHeight: state.screenHeight || 1080,
                             isClick: state.isClicked,
                             type: state.cursorType || 'default'
                         };
