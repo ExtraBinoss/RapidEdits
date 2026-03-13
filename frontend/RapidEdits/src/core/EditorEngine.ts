@@ -1,8 +1,10 @@
+import { v4 as uuidv4 } from "uuid";
 import { AssetSystem } from "./systems/AssetSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
 import { SelectionSystem } from "./systems/SelectionSystem";
 import { PlaybackSystem } from "./systems/PlaybackSystem";
 import { InputSystem } from "./systems/InputSystem";
+import { RecordingSystem } from "./systems/RecordingSystem";
 import { globalEventBus } from "./events/EventBus";
 import type { Asset } from "../types/Media";
 import type { Track, Clip } from "../types/Timeline";
@@ -14,6 +16,7 @@ export class EditorEngine {
     public selectionSystem: SelectionSystem;
     public playbackSystem: PlaybackSystem;
     public inputSystem: InputSystem;
+    public recordingSystem: RecordingSystem;
 
     // Tools State
     private activeTool: "select" | "razor" = "select";
@@ -27,6 +30,7 @@ export class EditorEngine {
         this.selectionSystem = new SelectionSystem(this.timelineSystem);
         this.playbackSystem = new PlaybackSystem();
         this.inputSystem = new InputSystem();
+        this.recordingSystem = new RecordingSystem();
 
         // Bind Input System
         this.inputSystem.bindSystems(
@@ -34,6 +38,68 @@ export class EditorEngine {
             this.timelineSystem,
             this.selectionSystem,
         );
+
+        // Listen for recording finished
+        globalEventBus.on('RECORDING_FINISHED', async ({ blob, cursorData }) => {
+            await this.handleRecordingFinished(blob, cursorData);
+        });
+    }
+
+    private async handleRecordingFinished(blob: Blob, cursorData: any[]) {
+        // 1. Create a File object
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `Recording-${timestamp}.webm`;
+        const file = new File([blob], filename, { type: 'video/webm' });
+
+        // 2. Add to Asset System
+        const asset = await this.assetSystem.addAsset(file);
+
+        // 3. Find/Create Video Track
+        let videoTrack = this.timelineSystem.getTracks().find(t => t.type === 'video');
+        if (!videoTrack) videoTrack = this.timelineSystem.addTrack('video');
+
+        // 4. Add Clip to Timeline at Playhead or at end
+        const startTime = this.getCurrentTime();
+        this.timelineSystem.addClip(asset.id, videoTrack.id, startTime);
+
+        // 5. Add Cursor/Zoom effect track above it
+        // We find or create a custom/effect track
+        let effectTrack = this.timelineSystem.getTracks().find(t => t.type === 'custom' || t.name === 'Effects');
+        if (!effectTrack) effectTrack = this.timelineSystem.addTrack('custom');
+
+        // Add the CursorZoomPlugin as a clip overlapping the video
+        const cursorClipId = uuidv4();
+        const cursorClip: Clip = {
+            id: cursorClipId,
+            assetId: asset.id, // We link to asset for duration reference, though it's technically separate
+            trackId: effectTrack.id,
+            name: "Cursor & Zoom",
+            start: startTime,
+            duration: asset.duration || 5,
+            offset: 0,
+            type: "effects.cursor_zoom",
+            speed: 1,
+            data: {
+                enabled: true,
+                cursorScale: 1.0,
+                smoothZoom: true,
+                zoomIntensity: 0.3,
+                zoomDuration: 0.4,
+                recordedData: cursorData // Inject the raw recorded points
+            }
+        };
+
+        this.timelineSystem.addClipsBatch([{
+            assetId: asset.id,
+            trackId: effectTrack.id,
+            start: startTime,
+            extraData: cursorClip
+        }]);
+
+        globalEventBus.emit({
+            type: 'SHOW_FEEDBACK',
+            payload: { icon: 'Check', text: 'Recording added to timeline!' }
+        });
     }
 
     // --- Facade Methods (Delegation) ---

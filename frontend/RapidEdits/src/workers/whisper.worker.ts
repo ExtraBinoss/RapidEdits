@@ -1,4 +1,4 @@
-import { pipeline, TextStreamer, env } from "@huggingface/transformers";
+import { pipeline, TextStreamer } from "@huggingface/transformers";
 
 // Skip local model checks for now to avoid FS errors in browser env if not configured
 // env.allowLocalModels = false;
@@ -15,7 +15,7 @@ class WhisperWorker {
         progress_callback: (progress: any) => void,
         device: "webgpu" | "cpu" = "webgpu",
         modelId: string = "onnx-community/whisper-base",
-    ) {
+    ): Promise<any> {
         // If device changed or no instance or model changed, create new one
         if (
             this.instance === null ||

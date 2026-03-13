@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+const sliderTrack = ref<HTMLElement | null>(null);
 import Input from "../Input/Input.vue";
 
 interface Props {

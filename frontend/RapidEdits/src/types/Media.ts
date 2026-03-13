@@ -53,4 +53,8 @@ export type EditorEvent =
           };
       }
     | { type: "TOOL_CHANGED"; payload: "select" | "razor" }
-    | { type: "PLUGIN_PROPERTY_CHANGED"; payload: { clipId: string } };
+    | { type: "PLUGIN_PROPERTY_CHANGED"; payload: { clipId: string } }
+    | { type: "RECORDING_STATE_CHANGED"; payload: boolean }
+    | { type: "RECORDING_SOURCES_UPDATED"; payload: any[] }
+    | { type: "RECORDING_SETTINGS_UPDATED"; payload: any }
+    | { type: "RECORDING_FINISHED"; payload: { blob: Blob; cursorData: any[] } };

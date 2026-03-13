@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { defineProps } from "vue";
 
 const props = defineProps<{
     size?: string; // Tailwind width/height class e.g. "w-8 h-8"

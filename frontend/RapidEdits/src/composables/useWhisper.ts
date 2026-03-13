@@ -34,7 +34,7 @@ const audioDetails = ref<{
 const currentJobId = ref<string | null>(null);
 
 export function useWhisper() {
-    const { addJob, updateJob, removeJob } = useJobSystem();
+    const { addJob, updateJob } = useJobSystem();
 
     const initWorker = () => {
         if (!worker.value) {

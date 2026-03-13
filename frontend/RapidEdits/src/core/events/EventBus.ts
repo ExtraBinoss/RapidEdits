@@ -13,6 +13,7 @@ export class EventBus {
             this.listeners.set(eventType, []);
         }
         this.listeners.get(eventType)?.push(handler);
+        return () => this.off(eventType, handler);
     }
 
     off<T extends EditorEvent>(

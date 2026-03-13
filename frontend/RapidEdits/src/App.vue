@@ -11,8 +11,12 @@ import { TextPlugin } from "./core/plugins/core/TextPlugin";
 import { pluginRegistry } from "./core/plugins/PluginRegistry";
 
 import { FadeTransitionPlugin } from "./core/plugins/transitions/FadeTransitionPlugin";
+import { CursorZoomPlugin } from "./core/plugins/CursorZoomPlugin";
+import { useRecorder } from "./composables/useRecorder";
+import SourcePicker from "./components/Recorder/SourcePicker.vue";
 
 const themeStore = useThemeStore();
+const { showPicker, setShowPicker } = useRecorder();
 
 onMounted(() => {
     updateFavicon("#3b82f6"); // Brand primary color
@@ -21,6 +25,7 @@ onMounted(() => {
     // Register Core Plugins
     pluginRegistry.register(new TextPlugin());
     pluginRegistry.register(new FadeTransitionPlugin());
+    pluginRegistry.register(new CursorZoomPlugin());
 });
 </script>
 
@@ -28,6 +33,9 @@ onMounted(() => {
     <div
         class="flex flex-col h-screen w-full bg-canvas text-text-main font-sans overflow-hidden"
     >
+        <div v-if="showPicker" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md">
+           <SourcePicker @close="setShowPicker(false)" />
+        </div>
         <!-- Top Header -->
         <Header />
 

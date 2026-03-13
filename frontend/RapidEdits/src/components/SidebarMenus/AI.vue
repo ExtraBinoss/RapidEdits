@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import {
-    Files,
     Mic,
     Square,
     Trash2,
@@ -37,17 +36,11 @@ const {
     isModelReady: whisperReady,
     isTranscribing: whisperTranscribing,
     progress: whisperProgress,
-    statusMessage: whisperStatus,
-    error: whisperError,
     result: whisperResult,
     downloadModel,
     transcribe: transcribeAudio,
-    stop: stopTranscription,
-    transcriptionProgress,
-    tokensPerSecond,
     device,
     model: whisperModel,
-    audioDetails,
 } = useWhisper();
 
 const currentFileName = ref<string>("");
@@ -61,7 +54,6 @@ const drawerState = ref({
 });
 
 const isWebGpuInfoOpen = ref(false);
-const isNerdInfoDialogOpen = ref(false);
 
 const availableModels = [
     { label: "Whisper Tiny (Fastest)", value: "Xenova/whisper-tiny" },

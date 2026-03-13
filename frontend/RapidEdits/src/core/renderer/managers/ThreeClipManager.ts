@@ -166,7 +166,6 @@ export class ThreeClipManager {
             }
 
             // 3. Apply Attached Transitions (Fade In/Out from Drop)
-            // This allows the "Ramp" feature requested by the user, reusing the modular Plugin.
             if (object && clip.data?.transitions) {
                 const transitions = clip.data.transitions;
                 const fadePlugin = pluginRegistry.get(
@@ -179,52 +178,66 @@ export class ThreeClipManager {
                         const duration = transitions.fadeIn.duration || 1.0;
                         const progress = (currentTime - clip.start) / duration;
                         if (progress >= 0 && progress <= 1) {
-                            // Mock a transition clip to pass configuration
-                            // We don't have a real ID, but apply() doesn't strictly need it if we pass data
                             const mockClip = {
                                 ...clip,
                                 data: {
                                     fadeType: "in",
-                                    easing:
-                                        transitions.fadeIn.easing || "linear",
+                                    easing: transitions.fadeIn.easing || "linear",
                                 },
                                 duration: duration,
                             };
-                            fadePlugin.apply(
-                                mockClip,
-                                [object],
-                                progress,
-                                currentTime,
-                            );
+                            fadePlugin.apply(mockClip, [object], progress, currentTime);
                         }
                     }
 
                     // Fade Out
                     if (transitions.fadeOut) {
                         const duration = transitions.fadeOut.duration || 1.0;
-                        // Start time for fade out is End - Duration
-                        const fadeOutStart =
-                            clip.start + clip.duration - duration;
-                        const progress =
-                            (currentTime - fadeOutStart) / duration;
-
+                        const fadeOutStart = clip.start + clip.duration - duration;
+                        const progress = (currentTime - fadeOutStart) / duration;
                         if (progress >= 0 && progress <= 1) {
                             const mockClip = {
                                 ...clip,
                                 data: {
                                     fadeType: "out",
-                                    easing:
-                                        transitions.fadeOut.easing || "linear",
+                                    easing: transitions.fadeOut.easing || "linear",
                                 },
                                 duration: duration,
                             };
-                            fadePlugin.apply(
-                                mockClip,
-                                [object],
-                                progress,
-                                currentTime,
-                            );
+                            fadePlugin.apply(mockClip, [object], progress, currentTime);
                         }
+                    }
+                }
+            }
+        });
+
+        // 1.5 Render/Update Transition Meshes (if any)
+        transitionClips.forEach((clip) => {
+            let object = this.clipMeshes.get(clip.id);
+            const trackIndex = tracks.findIndex(t => t.id === clip.trackId);
+            const plugin = pluginRegistry.get(clip.type);
+
+            if (plugin) {
+                if (!object) {
+                    const contentMesh = plugin.render(clip);
+                    if (contentMesh) {
+                        const group = new THREE.Group();
+                        group.add(contentMesh);
+                        this.scene.add(group);
+                        this.clipMeshes.set(clip.id, group);
+                        object = group;
+                    }
+                }
+
+                if (object) {
+                    object.position.z = 1000 + trackIndex;
+                    if (object.children.length > 0) {
+                        plugin.update(
+                            object.children[0]!,
+                            clip,
+                            currentTime - clip.start,
+                            1 / 60,
+                        );
                     }
                 }
             }
@@ -235,18 +248,6 @@ export class ThreeClipManager {
             const plugin = pluginRegistry.get(tClip.type) as TransitionPlugin;
             if (!plugin) return;
 
-            // Find targets: Clips on tracks BELOW the transition, or overlapping in time
-            // Simplest Model: Transition affects everything "under" it visually (lower Z index / lower track index)
-            // Or typically, transitions in this model might be stuck to a clip.
-            // But valid "Overlay Transition" affects clips on SAME time slice.
-
-            // Let's filter content clips that overlap time frame.
-            // Since we only possess 'visibleClips', we know they overlap time.
-            // We need to decide which tracks it affects.
-            // Strategy: Transition affects ALL content tracks (simple) or specific tracks?
-            // Let's go with ALL visible content for now (global overlay transition).
-
-            // Calculate progress (0 to 1)
             const progress = (currentTime - tClip.start) / tClip.duration;
             const clampedProgress = Math.max(0, Math.min(1, progress));
 
@@ -257,12 +258,11 @@ export class ThreeClipManager {
             plugin.apply(tClip, targets, clampedProgress, currentTime);
         });
 
-        // Capture Mode Update (Texture update)
+        // Capture Mode Update
         if (isCaptureMode) {
             visibleClips.forEach((c) => {
                 const mesh = this.clipMeshes.get(c.id);
                 if (mesh) {
-                    // Check children for plugins or self for default
                     mesh.traverse((child) => {
                         if (child instanceof THREE.Mesh) {
                             const map = (child.material as any).map;
@@ -306,44 +306,24 @@ export class ThreeClipManager {
 
     private fitMeshToScreen(mesh: THREE.Mesh, texture: THREE.Texture) {
         if (!texture.image) return;
-
-        const imgWidth =
-            (texture.image as any).videoWidth || (texture.image as any).width;
-        const imgHeight =
-            (texture.image as any).videoHeight || (texture.image as any).height;
-        const { width: renderWidth, height: renderHeight } =
-            this.getSceneDimensions();
-
+        const imgWidth = (texture.image as any).videoWidth || (texture.image as any).width;
+        const imgHeight = (texture.image as any).videoHeight || (texture.image as any).height;
+        const { width: renderWidth, height: renderHeight } = this.getSceneDimensions();
         if (!imgWidth || !imgHeight) return;
-
         const aspect = imgWidth / imgHeight;
         const screenAspect = renderWidth / renderHeight;
-
         let w, h;
-
         if (this.scaleMode === "fill") {
-            if (aspect > screenAspect) {
-                h = renderHeight;
-                w = h * aspect;
-            } else {
-                w = renderWidth;
-                h = w / aspect;
-            }
+            if (aspect > screenAspect) { h = renderHeight; w = h * aspect; }
+            else { w = renderWidth; h = w / aspect; }
         } else if (typeof this.scaleMode === "number") {
             const scale = this.scaleMode;
             w = imgWidth * scale;
             h = imgHeight * scale;
         } else {
-            // fit
-            if (aspect > screenAspect) {
-                w = renderWidth;
-                h = w / aspect;
-            } else {
-                h = renderHeight;
-                w = h * aspect;
-            }
+            if (aspect > screenAspect) { w = renderWidth; h = w / aspect; }
+            else { h = renderHeight; w = h * aspect; }
         }
-
         mesh.scale.set(w, h, 1);
     }
 
