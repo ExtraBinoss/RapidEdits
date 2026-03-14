@@ -260,8 +260,9 @@ export class CursorZoomPlugin extends BasePlugin {
         
         object.userData.basePosition = new THREE.Vector3(finalX, finalY, object.position.z);
 
+        const baseScaleMultiplier = rH / 1080;
         const feedback = point.isClick ? 0.8 : 1.0;
-        const scale = (data.cursorScale || 1.0) * feedback;
+        const scale = (data.cursorScale || 1.0) * feedback * baseScaleMultiplier;
         object.scale.set(scale, scale, 1);
     }
 }

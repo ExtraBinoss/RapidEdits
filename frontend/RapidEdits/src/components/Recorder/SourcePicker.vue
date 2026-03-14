@@ -4,6 +4,9 @@ import { Monitor, Camera, Mic, Play, ChevronRight } from 'lucide-vue-next';
 import { useRecorder } from '../../composables/useRecorder';
 import Button from '../UI/Button/Button.vue';
 import Switch from '../UI/Switch/Switch.vue';
+import Select from '../UI/Input/Select.vue';
+import Skeleton from '../UI/Skeleton/Skeleton.vue';
+
 
 const { 
   sources, 
@@ -11,12 +14,19 @@ const {
   selectedSource, 
   useCamera, 
   useMic, 
+  videoBitrate,
   startRecording,
   recordingSystem,
   setSource,
   setCamera,
   setMic
 } = useRecorder();
+
+const bitrateOptions = [
+  { label: 'Standard (5 Mbps)', value: 5000000, subLabel: 'Good for basic screen sharing' },
+  { label: 'High (10 Mbps)', value: 10000000, subLabel: 'Recommended. Crisp UI text' },
+  { label: 'Ultra (20 Mbps)', value: 20000000, subLabel: 'For heavy motion & gaming' }
+];
 
 const cameraPreview = ref<HTMLVideoElement | null>(null);
 const sourcePreview = ref<HTMLVideoElement | null>(null);
@@ -26,11 +36,24 @@ let refreshInterval: any = null;
 
 onMounted(async () => {
   await fetchSources();
+  
+  // Auto-select first source if none is selected
+  if (sources.value.length > 0 && !selectedSource.value) {
+    setSource(sources.value[0]);
+  }
+
   // Refresh thumbnails every 3 seconds while picker is open
   refreshInterval = setInterval(() => {
     fetchSources();
   }, 3000);
 });
+
+// Watch sources in case they take a moment to load
+watch(sources, (newSources) => {
+  if (newSources.length > 0 && !selectedSource.value) {
+    setSource(newSources[0]);
+  }
+}, { immediate: true });
 
 onUnmounted(() => {
   recordingSystem.stopCamera();
@@ -112,7 +135,19 @@ const emit = defineEmits(['close']);
       <!-- Left: Source List -->
       <div class="w-72 border-r border-canvas-border flex flex-col bg-canvas/30">
         <div class="p-4 overflow-y-auto flex-1 space-y-2">
-          <div 
+          
+          <!-- Loading Skeleton -->
+          <div v-if="sources.length === 0" class="space-y-4">
+            <div v-for="i in 4" :key="'skel-'+i" class="flex flex-col gap-3 p-2 rounded-xl border border-white/5 bg-white/5">
+              <Skeleton height="130px" border-radius="12px" />
+              <div class="flex items-center justify-between px-1">
+                <Skeleton width="70%" height="14px" border-radius="4px" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Loaded Sources -->
+          <div v-else
              v-for="source in sources" 
              :key="source.id"
              @click="setSource(source)"
@@ -179,6 +214,21 @@ const emit = defineEmits(['close']);
                 </span>
                 <div class="flex items-center gap-2">
                   <Switch :modelValue="useMic" @update:modelValue="setMic" />
+                </div>
+             </div>
+
+             <div class="h-8 w-px bg-canvas-border"></div>
+
+             <!-- Recording Quality -->
+             <div class="flex flex-col gap-2 w-48">
+                <span class="text-xs text-text-muted font-medium flex items-center gap-1">
+                  Video Quality (Bitrate)
+                </span>
+                <div class="flex items-center gap-2">
+                    <Select
+                        v-model="videoBitrate"
+                        :options="bitrateOptions"
+                    />
                 </div>
              </div>
           </div>

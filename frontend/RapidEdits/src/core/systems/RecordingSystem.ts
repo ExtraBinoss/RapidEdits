@@ -10,6 +10,7 @@ export class RecordingSystem {
     private useCamera: boolean = false;
     private useMic: boolean = true;
     public showPicker: boolean = false;
+    public videoBitrate: number = 10000000;
     public recordedCursorPositions: RecordedCursorPoint[] = [];
     
     private mediaRecorder: MediaRecorder | null = null;
@@ -147,7 +148,9 @@ export class RecordingSystem {
             this.recordedCursorPositions = [];
             this.chunks = [];
             this.mediaRecorder = new MediaRecorder(this.screenStream, {
-                mimeType: 'video/webm; codecs=vp9'
+                mimeType: 'video/webm; codecs=vp9',
+                videoBitsPerSecond: this.videoBitrate,
+                audioBitsPerSecond: 128000
             });
 
             this.mediaRecorder.ondataavailable = (e) => {
@@ -282,7 +285,8 @@ export class RecordingSystem {
             selectedSource: this.selectedSource,
             useCamera: this.useCamera,
             useMic: this.useMic,
-            showPicker: this.showPicker
+            showPicker: this.showPicker,
+            videoBitrate: this.videoBitrate
         };
     }
 
@@ -300,8 +304,12 @@ export class RecordingSystem {
         this.syncToolbar();
         globalEventBus.emit({ type: 'RECORDING_SETTINGS_UPDATED', payload: this.getState() });
     }
-    public setShowPicker(v: boolean) { 
-        this.showPicker = v; 
+    public setShowPicker(v: boolean) {
+        this.showPicker = v;
+        globalEventBus.emit({ type: 'RECORDING_SETTINGS_UPDATED', payload: this.getState() });
+    }
+    public setVideoBitrate(v: number) {
+        this.videoBitrate = v;
         globalEventBus.emit({ type: 'RECORDING_SETTINGS_UPDATED', payload: this.getState() });
     }
 }
