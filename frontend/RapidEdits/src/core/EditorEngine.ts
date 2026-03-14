@@ -57,7 +57,15 @@ export class EditorEngine {
         const filename = `Recording-${timestamp}.webm`;
         const file = new File([blob], filename, { type: 'video/webm' });
 
-        // 2. Add to Asset System
+        // Export cursor data as JSON File into the Asset Bin automatically
+        if (cursorData && cursorData.length > 0) {
+            const cursorJson = JSON.stringify({ videoName: filename, cursorData }, null, 2);
+            const jsonBlob = new Blob([cursorJson], { type: 'application/json' });
+            const jsonFile = new File([jsonBlob], `Recording-${timestamp}-cursors.json`, { type: 'application/json' });
+            await this.assetSystem.addAsset(jsonFile);
+        }
+
+        // 2. Add video to Asset System
         const asset = await this.assetSystem.addAsset(file);
 
         // 3. Find/Create Video Track

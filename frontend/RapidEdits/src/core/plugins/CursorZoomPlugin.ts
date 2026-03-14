@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
 import { BasePlugin } from "./PluginInterface";
 import type { Clip } from "../../types/Timeline";
 import type { PluginPropertyDefinition } from "./PluginTypes";
@@ -9,20 +10,22 @@ export class CursorZoomPlugin extends BasePlugin {
     name = "Cursor & Smooth Zoom";
     type = "effect" as const;
 
-    private textures: Map<string, THREE.Texture> = new Map();
+    private cursorGroups: Map<string, THREE.Group> = new Map();
     private isInitialized: boolean = false;
 
     properties: PluginPropertyDefinition[] = [
-        { label: "Cursor Scale", key: "cursorScale", type: "slider", props: { min: 0.1, max: 3.0, step: 0.1 }, defaultValue: 1.0 },
+        { label: "Cursor Scale", key: "cursorScale", type: "slider", props: { min: 0.1, max: 10.0, step: 0.1 }, defaultValue: 1.0 },
         { label: "Smooth Zoom", key: "smoothZoom", type: "boolean", defaultValue: true },
         { label: "Zoom Intensity", key: "zoomIntensity", type: "slider", props: { min: 0, max: 1.0, step: 0.05 }, defaultValue: 0.3 },
         { label: "Zoom Duration", key: "zoomDuration", type: "slider", props: { min: 0.1, max: 2.0, step: 0.1 }, defaultValue: 0.4 },
-        { label: "Debug Mode", key: "debug", type: "boolean", defaultValue: false }
+        { label: "Mirror X", key: "mirrorX", type: "boolean", defaultValue: false },
+        { label: "Invert Y", key: "invertY", type: "boolean", defaultValue: false },
+        { label: "Debug Mode", key: "debug", type: "boolean", defaultValue: true }
     ];
 
     override async init() {
         if (this.isInitialized) return;
-        const loader = new THREE.TextureLoader();
+        const loader = new SVGLoader();
         const cursorNames = [
             "beachball", "busy", "cell", "contextualmenu", "copy", "cross", "default",
             "handgrabbing", "handopen", "handpointing", "help", "makealias", "move",
@@ -35,19 +38,67 @@ export class CursorZoomPlugin extends BasePlugin {
             "zoomin", "zoomout"
         ];
         
-        console.log(`[CursorZoomPlugin] Starting texture loading for ${cursorNames.length} cursors...`);
+        console.log(`[CursorZoomPlugin] Starting SVGLoader for ${cursorNames.length} cursors...`);
 
-        const results = await Promise.allSettled(cursorNames.map(async (name) => {
+        await Promise.allSettled(cursorNames.map(async (name) => {
             const fileName = name.includes(' ') ? encodeURIComponent(name) : name;
             const url = `/macOsCursors/${fileName}.svg`;
-            const tex = await loader.loadAsync(url);
-            tex.colorSpace = THREE.SRGBColorSpace;
-            this.textures.set(name, tex);
-            return name;
+            
+            try {
+                // Pre-process SVG to remove url() references from styles/attributes which crash Three's SVGLoader
+                const svgText = await (await fetch(url)).text();
+                // Replace any fill="url(...)" with fill="#ffffff" directly in the raw SVG text
+                const finalSvgText = svgText.replace(/fill="url\([^)]+\)"/g, 'fill="#dddddd"');
+                
+                const data = loader.parse(finalSvgText);
+                const paths = data.paths;
+                const group = new THREE.Group();
+
+                for (let i = 0; i < paths.length; i++) {
+                    const path = paths[i];
+                    const fillColor = (path as any).userData?.style.fill;
+                    
+                    if (fillColor !== undefined && fillColor !== 'none') {
+                        let finalColor = new THREE.Color().setStyle("#ffffff");
+                        if (typeof fillColor === 'string') {
+                            if (fillColor.startsWith('url(') || fillColor === 'currentColor' || fillColor === 'inherit') {
+                                finalColor = new THREE.Color(0xdddddd); 
+                            } else {
+                                try {
+                                    finalColor = new THREE.Color().setStyle(fillColor);
+                                } catch (err) {
+                                    // Silent catch
+                                }
+                            }
+                        } else if (typeof fillColor === 'number') {
+                            finalColor = new THREE.Color(fillColor);
+                        }
+
+                        const material = new THREE.MeshBasicMaterial({
+                            color: finalColor,
+                            transparent: true,
+                            opacity: (path as any).userData?.style.fillOpacity ?? 1,
+                            depthWrite: false,
+                            side: THREE.DoubleSide
+                        });
+
+                        const shapes = SVGLoader.createShapes(path as any);
+                        for (let j = 0; j < shapes.length; j++) {
+                            const geometry = new THREE.ShapeGeometry(shapes[j]);
+                            const mesh = new THREE.Mesh(geometry, material);
+                            group.add(mesh);
+                        }
+                    }
+                }
+
+                // Normalization: SVG Y is inverted.
+                group.scale.set(0.18, -0.18, 1); 
+                this.cursorGroups.set(name, group);
+            } catch (e) {
+                console.error(`[CursorZoomPlugin] Failed to load SVG: ${name}`, e);
+            }
         }));
 
-        const successCount = results.filter(r => r.status === 'fulfilled').length;
-        console.log(`[CursorZoomPlugin] Loaded ${successCount}/${cursorNames.length} cursor textures.`);
         this.isInitialized = true;
     }
 
@@ -58,28 +109,16 @@ export class CursorZoomPlugin extends BasePlugin {
             smoothZoom: true,
             zoomIntensity: 0.3,
             zoomDuration: 0.4,
+            mirrorX: false,
+            invertY: false,
+            debug: true,
             recordedData: [] as RecordedCursorPoint[]
         };
     }
 
     override render(_clip: Clip): THREE.Object3D | null {
-        // We create a persistent group and mesh. 
-        // Initial texture might be null but update() will fix it.
-        const geometry = new THREE.PlaneGeometry(32, 32);
-        const material = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            depthTest: false,
-            depthWrite: false,
-            side: THREE.DoubleSide
-        });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = "cursor_mesh";
-        mesh.renderOrder = 99999;
-        
         const group = new THREE.Group();
         group.name = "cursor_group";
-        group.add(mesh);
         return group;
     }
 
@@ -115,26 +154,42 @@ export class CursorZoomPlugin extends BasePlugin {
                 
                 targetX = (recentClick.x / recentClick.screenWidth) * 2 - 1;
                 targetY = -(recentClick.y / recentClick.screenHeight) * 2 + 1;
+                
+                if (data.mirrorX) targetX = -targetX;
+                if (data.invertY) targetY = -targetY;
             }
 
             targets.forEach(target => {
-                if (target.name === "cursor_group" || target.name === "cursor_mesh") return;
+                const isCursor = target.name === "cursor_group" || target.name === "cursor_mesh";
                 
-                // Use baseScale if available to avoid resetting to 1x1
-                const baseScale = target.userData.baseScale as THREE.Vector3 || new THREE.Vector3(1, 1, 1);
-                target.scale.set(baseScale.x * zoom, baseScale.y * zoom, 1);
+                // For zooming videos/images, we want to zoom related to their actual size, 
+                // but move them relative to the viewport size so they stay centered under the cursor point natively.
+                let rW = target.userData.logicalWidth || 1920;
+                let rH = target.userData.logicalHeight || 1080;
+
+                const halfW = rW / 2;
+                const halfH = rH / 2;
+
+                if (!isCursor) {
+                    // Les clips vidéo zooment normalement
+                    // Fallback at rW, rH if no baseScale
+                    const baseScale = target.userData.baseScale as THREE.Vector3 || new THREE.Vector3(rW, rH, 1);
+                    target.scale.set(baseScale.x * zoom, baseScale.y * zoom, 1);
+                }
 
                 if (recentClick) {
-                    // Coordinates in our Three workspace are based on 1920x1080 if using default size
-                    // We need to move the target in the opposite direction of the click to keep it centered
-                    target.position.x = -targetX * (zoom - 1) * 960;
-                    target.position.y = -targetY * (zoom - 1) * 540;
+                    // La vidéo ET le curseur doivent se déplacer pour rester synchronisés
+                    // On déplace le mesh pour que le point cliqué (targetX, targetY) soit au centre
+                    const basePos = target.userData.basePosition as THREE.Vector3 || new THREE.Vector3(0, 0, 0);
+                    target.position.x = basePos.x - targetX * (zoom - 1) * halfW;
+                    target.position.y = basePos.y - targetY * (zoom - 1) * halfH;
                 } else {
                     const basePos = target.userData.basePosition as THREE.Vector3 || new THREE.Vector3(0, 0, 0);
                     target.position.x = basePos.x;
                     target.position.y = basePos.y;
                 }
             });
+
         }
     }
 
@@ -150,24 +205,9 @@ export class CursorZoomPlugin extends BasePlugin {
             return;
         }
 
-        if (data.debug && Math.random() < 0.01) {
-            console.log(`[CursorZoomPlugin] Update active. Points: ${data.recordedData.length}, Time: ${time.toFixed(2)}`);
-        }
-
         object.visible = true;
-        
-        const cursorMesh = object.name === "cursor_mesh" 
-            ? object as THREE.Mesh 
-            : (object.children.find(c => c.name === "cursor_mesh") as THREE.Mesh);
-            
-        if (!cursorMesh) {
-            if (data.debug && Math.random() < 0.01) console.warn("[CursorZoomPlugin] cursor_mesh not found!");
-            return;
-        }
-
         const timeMs = time * 1000;
         const points = data.recordedData as RecordedCursorPoint[];
-        
         if (points.length === 0) return;
 
         let point: RecordedCursorPoint = points[0]!;
@@ -184,30 +224,44 @@ export class CursorZoomPlugin extends BasePlugin {
 
         if (this.isInitialized) {
             const type = point.type || 'default';
-            const tex = this.textures.get(type) || this.textures.get('default');
-            const material = cursorMesh.material as THREE.MeshBasicMaterial;
+            const targetGroup = this.cursorGroups.get(type) || this.cursorGroups.get('default');
             
-            if (tex && material.map !== tex) {
-                material.map = tex;
-                material.needsUpdate = true;
+            if (targetGroup) {
+                if (object.children.length === 0 || object.userData.currentType !== type) {
+                    object.clear();
+                    const clone = targetGroup.clone();
+                    object.add(clone);
+                    object.userData.currentType = type;
+                }
             }
-        } else if (data.debug && Math.random() < 0.01) {
-            console.log("[CursorZoomPlugin] Waiting for texture initialization...");
         }
 
-        // Normalize using recorded screen size
-        const posX = (point.x / point.screenWidth) * 2 - 1;
-        const posY = -(point.y / point.screenHeight) * 2 + 1;
+        let posX = (point.x / point.screenWidth) * 2 - 1;
+        let posY = -(point.y / point.screenHeight) * 2 + 1;
+        
+        if (data.mirrorX) posX = -posX;
+        if (data.invertY) posY = -posY;
+
+        let rW = 1920;
+        let rH = 1080;
+        if (object.userData.logicalWidth) {
+            rW = object.userData.logicalWidth;
+            rH = object.userData.logicalHeight;
+        }
+
+        const halfW = rW / 2;
+        const halfH = rH / 2;
+
+        const finalX = posX * halfW;
+        const finalY = posY * halfH;
+
+        object.position.x = finalX;
+        object.position.y = finalY;
+        
+        object.userData.basePosition = new THREE.Vector3(finalX, finalY, object.position.z);
+
         const feedback = point.isClick ? 0.8 : 1.0;
-
-        object.position.x = posX * 960;
-        object.position.y = posY * 540;
-        
-        cursorMesh.scale.set((data.cursorScale || 1.0) * feedback, (data.cursorScale || 1.0) * feedback, 1);
-        
-        if (data.debug && Math.random() < 0.05) {
-            const mat = cursorMesh.material as THREE.MeshBasicMaterial;
-            console.log(`[CursorZoomPlugin] Pos: ${object.position.x.toFixed(0)},${object.position.y.toFixed(0)} | Scale: ${cursorMesh.scale.x.toFixed(2)} | Texture: ${mat.map ? 'Ready' : 'Missing'}`);
-        }
+        const scale = (data.cursorScale || 1.0) * feedback;
+        object.scale.set(scale, scale, 1);
     }
 }

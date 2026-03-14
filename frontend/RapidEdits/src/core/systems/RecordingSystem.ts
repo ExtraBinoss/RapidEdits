@@ -155,23 +155,32 @@ export class RecordingSystem {
             };
 
             const startTime = Date.now();
+            let screenBase = { x: 0, y: 0, width: 1920, height: 1080 };
+            if (this.isElectron) {
+                try {
+                    screenBase = await (window as any).ipcRenderer.invoke('get-primary-display');
+                } catch (e) {
+                    console.error('[RecordingSystem] Failed to get screen base:', e);
+                }
+            }
+
             if (this.isElectron) {
                 this.cursorInterval = setInterval(async () => {
                     try {
                         const state = await (window as any).ipcRenderer.invoke('get-cursor-state');
                         const point: RecordedCursorPoint = {
                             t: Date.now() - startTime,
-                            x: state.x,
-                            y: state.y,
-                            screenWidth: state.screenWidth || 1920,
-                            screenHeight: state.screenHeight || 1080,
+                            x: state.x - screenBase.x,
+                            y: state.y - screenBase.y,
+                            screenWidth: screenBase.width,
+                            screenHeight: screenBase.height,
                             isClick: state.isClicked,
                             type: state.cursorType || 'default'
                         };
                         this.recordedCursorPositions.push(point);
                         
                         if (this.recordedCursorPositions.length % 50 === 0) {
-                            console.log(`[RecordingSystem] Captured ${this.recordedCursorPositions.length} points. Current:`, point);
+                            console.log(`[RecordingSystem] Captured ${this.recordedCursorPositions.length} points. Local: ${point.x},${point.y}`);
                         }
                     } catch (err) {
                         console.error('[RecordingSystem] Failed to fetch cursor state:', err);

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { resourceManager } from "../../ResourceManager";
 import { ResourceManager } from "../../ResourceManager";
+import { editorEngine } from "../../EditorEngine";
 import type { Asset } from "../../../types/Media";
 
 export class TextureAllocator {
@@ -28,9 +29,16 @@ export class TextureAllocator {
             }
 
             if (texture) {
-                // Optimize for 2D/Video usage
-                // USE LINEAR to avoid Chrome/Mac sRGB decode lag
-                texture.colorSpace = THREE.LinearSRGBColorSpace;
+                // Improve quality
+                const renderer = editorEngine.getRenderer();
+                if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function') {
+                    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                } else {
+                    texture.anisotropy = 1; // Fallback
+                }
+                
+                // Use SRGB for high-fidelity color
+                texture.colorSpace = THREE.SRGBColorSpace;
                 this.textureCache.set(asset.id, texture);
             }
             return texture;

@@ -114,15 +114,20 @@ app.whenReady().then(() => {
   uIOhook.on("mouseup", () => {
     isClicked = false;
   });
+  ipcMain.handle("get-primary-display", () => {
+    const primary = screen.getPrimaryDisplay();
+    return {
+      x: primary.bounds.x,
+      y: primary.bounds.y,
+      width: primary.bounds.width,
+      height: primary.bounds.height
+    };
+  });
   ipcMain.handle("get-cursor-state", () => {
     const point = screen.getCursorScreenPoint();
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const { width, height } = primaryDisplay.size;
     return {
       x: point.x,
       y: point.y,
-      screenWidth: width,
-      screenHeight: height,
       isClicked,
       cursorType: isClicked ? "handpointing" : "default"
     };

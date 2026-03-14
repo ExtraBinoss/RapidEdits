@@ -12,7 +12,6 @@ export class ThreeClipManager {
     private pendingLoads: Set<Promise<any>> = new Set();
     private planeGeometry: THREE.PlaneGeometry;
     private getSceneDimensions: () => { width: number; height: number };
-    private scaleMode: "fit" | "fill" | number = "fit";
 
     constructor(
         scene: THREE.Scene,
@@ -23,20 +22,6 @@ export class ThreeClipManager {
         this.allocator = allocator;
         this.getSceneDimensions = getSceneDimensions;
         this.planeGeometry = new THREE.PlaneGeometry(1, 1);
-    }
-
-    public setScaleMode(mode: "fit" | "fill" | number) {
-        this.scaleMode = mode;
-        this.refitAllMeshes();
-    }
-
-    private refitAllMeshes() {
-        this.clipMeshes.forEach((mesh) => {
-            if (mesh instanceof THREE.Mesh) {
-                const mat = mesh.material as THREE.MeshBasicMaterial;
-                if (mat.map) this.fitMeshToScreen(mesh, mat.map);
-            }
-        });
     }
 
     public update(
@@ -233,8 +218,16 @@ export class ThreeClipManager {
                 }
 
                 if (object) {
+                    const { width: rW, height: rH } = this.getSceneDimensions();
+                    object.userData.logicalWidth = rW;
+                    object.userData.logicalHeight = rH;
+                    
+                    if (object.children.length > 0) {
+                        object.children[0]!.userData.logicalWidth = rW;
+                        object.children[0]!.userData.logicalHeight = rH;
+                    }
+
                     // Transitions usually go on top, but effects might vary.
-                    // Let's put both high up for now.
                     const zBase = plugin.type === "transition" ? 1000 : 800;
                     object.position.z = zBase + trackIndex;
                     
@@ -320,27 +313,61 @@ export class ThreeClipManager {
 
     private fitMeshToScreen(mesh: THREE.Mesh, texture: THREE.Texture) {
         if (!texture.image) return;
-        const imgWidth = (texture.image as any).videoWidth || (texture.image as any).width;
-        const imgHeight = (texture.image as any).videoHeight || (texture.image as any).height;
-        const { width: renderWidth, height: renderHeight } = this.getSceneDimensions();
-        if (!imgWidth || !imgHeight) return;
-        const aspect = imgWidth / imgHeight;
-        const screenAspect = renderWidth / renderHeight;
-        let w, h;
-        if (this.scaleMode === "fill") {
-            if (aspect > screenAspect) { h = renderHeight; w = h * aspect; }
-            else { w = renderWidth; h = w / aspect; }
-        } else if (typeof this.scaleMode === "number") {
-            const scale = this.scaleMode;
-            w = imgWidth * scale;
-            h = imgHeight * scale;
-        } else {
-            if (aspect > screenAspect) { w = renderWidth; h = w / aspect; }
-            else { h = renderHeight; w = h * aspect; }
+        
+        // Use SRGB for better quality if not already set
+        if (texture.colorSpace !== THREE.SRGBColorSpace) {
+            texture.colorSpace = THREE.SRGBColorSpace;
         }
+
+        // Handle both Video and Image properties
+        let imgWidth = (texture.image as any).videoWidth || (texture.image as any).width || 0;
+        let imgHeight = (texture.image as any).videoHeight || (texture.image as any).height || 0;
+        
+        // If dimensions are not yet available, use 16:9 as fallback instead of returning
+        if (imgWidth === 0 || imgHeight === 0) {
+            imgWidth = 16;
+            imgHeight = 9;
+        }
+
+        const aspect = imgWidth / imgHeight;
+        const { width: renderWidth, height: renderHeight } = this.getSceneDimensions();
+        
+        // Improve texture quality
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false; 
+        
+        const renderer = editorEngine.getRenderer();
+        if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function') {
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        } else {
+            texture.anisotropy = 1;
+        }
+        texture.needsUpdate = true;
+
+        const currentAspect = renderWidth / renderHeight;
+
+        let w, h;
+        // Letterbox/Pillarbox logic using exact container size
+        if (aspect > currentAspect) {
+            w = renderWidth;
+            h = w / aspect;
+        } else {
+            h = renderHeight;
+            w = h * aspect;
+        }
+        
+        if (Math.random() < 0.05) {
+            console.log(`[ThreeClipManager] FitMesh: ${w.toFixed(0)}x${h.toFixed(0)} | Aspect: ${aspect.toFixed(2)} | RenderW: ${renderWidth.toFixed(0)}`);
+        }
+
         mesh.scale.set(w, h, 1);
         mesh.userData.baseScale = new THREE.Vector3(w, h, 1);
         mesh.userData.basePosition = new THREE.Vector3(0, 0, mesh.position.z);
+        
+        const mat = mesh.material as THREE.MeshBasicMaterial;
+        mat.color.setHex(0xffffff);
+        mat.needsUpdate = true;
     }
 
     public getActiveVideoElements(): HTMLVideoElement[] {

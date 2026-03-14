@@ -29,7 +29,7 @@ export class ThreeSceneManager {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x0b0e14);
 
-        // 2. Init Camera
+        // 2. Init Camera (Logical units: matches container size exactly)
         this.camera = new THREE.OrthographicCamera(
             -this.width / 2,
             this.width / 2,
@@ -46,6 +46,7 @@ export class ThreeSceneManager {
             alpha: false,
             powerPreference: "high-performance",
             preserveDrawingBuffer: true,
+            logarithmicDepthBuffer: true
         };
 
         if (options.canvas) {
@@ -53,9 +54,9 @@ export class ThreeSceneManager {
         }
 
         this.renderer = new THREE.WebGLRenderer(rendererParams);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.toneMapping = THREE.NoToneMapping;
-        this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3)); 
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
         if (this.container && !options.canvas) {
             this.container.appendChild(this.renderer.domElement);
@@ -72,6 +73,7 @@ export class ThreeSceneManager {
             new THREE.MeshBasicMaterial({ color: 0x000000 }),
         );
         this.placeholderMesh.position.z = -10;
+        // Use container size for placeholder scale
         this.placeholderMesh.scale.set(this.width, this.height, 1);
         this.scene.add(this.placeholderMesh);
     }
@@ -80,14 +82,14 @@ export class ThreeSceneManager {
         this.width = width;
         this.height = height;
 
-        this.camera.left = -width / 2;
-        this.camera.right = width / 2;
-        this.camera.top = height / 2;
-        this.camera.bottom = -height / 2;
+        this.camera.left = -this.width / 2;
+        this.camera.right = this.width / 2;
+        this.camera.top = this.height / 2;
+        this.camera.bottom = -this.height / 2;
         this.camera.updateProjectionMatrix();
 
         this.renderer.setSize(width, height, false);
-        this.placeholderMesh.scale.set(width, height, 1);
+        this.placeholderMesh.scale.set(this.width, this.height, 1);
     }
 
     public getWidth() {
