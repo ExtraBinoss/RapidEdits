@@ -67,12 +67,49 @@ export class AudioManager {
                 )
                     continue;
 
-                // Sync Volume
-                element.volume = masterVolume;
-                element.muted = false;
-
                 // Calculate internal time
                 const clipTime = currentTime - clip.start + clip.offset;
+
+                // --- Sync Volume (including transitions) ---
+                let volumeMultiplier = 1.0;
+                const transitions = clip.data?.transitions;
+
+                if (transitions) {
+                    // Fade In
+                    if (transitions.fadeIn) {
+                        const duration = transitions.fadeIn.duration || 1.0;
+                        const progress = (currentTime - clip.start) / duration;
+                        if (progress >= 0 && progress <= 1) {
+                            const alpha = this.applyEasing(
+                                progress,
+                                transitions.fadeIn.easing || "linear",
+                            );
+                            volumeMultiplier *= alpha;
+                        } else if (progress < 0) {
+                            volumeMultiplier = 0;
+                        }
+                    }
+
+                    // Fade Out
+                    if (transitions.fadeOut) {
+                        const duration = transitions.fadeOut.duration || 1.0;
+                        const fadeOutStart =
+                            clip.start + clip.duration - duration;
+                        const progress = (currentTime - fadeOutStart) / duration;
+                        if (progress >= 0 && progress <= 1) {
+                            const alpha = this.applyEasing(
+                                progress,
+                                transitions.fadeOut.easing || "linear",
+                            );
+                            volumeMultiplier *= 1.0 - alpha;
+                        } else if (progress > 1) {
+                            volumeMultiplier = 0;
+                        }
+                    }
+                }
+
+                element.volume = masterVolume * volumeMultiplier;
+                element.muted = false;
 
                 // Sync Threshold
                 // If video, be very passive (let ThreeRenderer drive)
@@ -109,6 +146,22 @@ export class AudioManager {
             } catch (e) {
                 console.error("Audio sync error", e);
             }
+        }
+    }
+
+    private applyEasing(progress: number, easing: string): number {
+        switch (easing) {
+            case "easeIn":
+                return progress * progress;
+            case "easeOut":
+                return progress * (2 - progress);
+            case "easeInOut":
+                return progress < 0.5
+                    ? 2 * progress * progress
+                    : -1 + (4 - 2 * progress) * progress;
+            case "linear":
+            default:
+                return progress;
         }
     }
 }

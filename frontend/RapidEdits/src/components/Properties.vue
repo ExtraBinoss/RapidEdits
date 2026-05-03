@@ -186,18 +186,26 @@ const updateTransition = (
                             />
                         </div>
                         <!-- Easing -->
-                        <div>
+                        <div class="z-20 relative">
                             <label
                                 class="block text-[10px] text-text-muted mb-1"
                                 >Easing</label
-                         <div class="z-20 relative">
-                            <label class="block text-[10px] text-text-muted mb-1">Easing</label>
+                            >
                             <Select
-                                :model-value="selectedClip.data.transitions.fadeIn.easing"
+                                :model-value="
+                                    selectedClip.data.transitions.fadeIn.easing
+                                "
                                 :options="easingOptions"
-                                @update:model-value="(val) => updateTransition('fadeIn', 'easing', val)"
+                                @update:model-value="
+                                    (val) =>
+                                        updateTransition(
+                                            'fadeIn',
+                                            'easing',
+                                            val,
+                                        )
+                                "
                             />
-                         </div>
+                        </div>
                     </div>
                 </div>
 
@@ -243,31 +251,25 @@ const updateTransition = (
                             />
                         </div>
                         <!-- Easing -->
-                        <div>
+                        <div class="z-20 relative">
                             <label
                                 class="block text-[10px] text-text-muted mb-1"
                                 >Easing</label
                             >
-                            <select
-                                :value="
+                            <Select
+                                :model-value="
                                     selectedClip.data.transitions.fadeOut.easing
                                 "
-                                class="w-full bg-canvas-dark border border-canvas-border rounded text-xs px-2 py-1 text-text-main"
-                                @change="
-                                    (e) =>
+                                :options="easingOptions"
+                                @update:model-value="
+                                    (val) =>
                                         updateTransition(
                                             'fadeOut',
                                             'easing',
-                                            (e.target as HTMLSelectElement)
-                                                .value,
+                                            val,
                                         )
                                 "
-                            >
-                                <option value="linear">Linear</option>
-                                <option value="easeIn">Ease In</option>
-                                <option value="easeOut">Ease Out</option>
-                                <option value="easeInOut">Ease In Out</option>
-                            </select>
+                            />
                         </div>
                     </div>
                 </div>

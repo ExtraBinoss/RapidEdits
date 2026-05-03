@@ -139,6 +139,8 @@ export class ThreeClipManager {
                     const material = new THREE.MeshBasicMaterial({
                         color: 0x222222,
                         map: null,
+                        transparent: true,
+                        opacity: 1.0,
                     });
                     const newMesh = new THREE.Mesh(
                         this.planeGeometry,

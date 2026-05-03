@@ -441,6 +441,21 @@ export class TimelineSystem {
         }
 
         if (anythingChanged) {
+            // Propagate transitions to grouped clips if needed
+            if (groupId && updates.data?.transitions) {
+                this.tracks.forEach((t) => {
+                    t.clips.forEach((c) => {
+                        if (c.groupId === groupId && c.id !== id) {
+                            // Link transitions
+                            c.data = {
+                                ...c.data,
+                                transitions: updates.data!.transitions,
+                            };
+                        }
+                    });
+                });
+            }
+
             globalEventBus.emit({
                 type: EditorEventType.TIMELINE_UPDATED,
                 payload: undefined,
