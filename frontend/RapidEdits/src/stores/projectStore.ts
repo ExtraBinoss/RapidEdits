@@ -168,6 +168,7 @@ export const useProjectStore = defineStore("project", () => {
         // Selection Actions
         selectClip: (id: string, toggle: boolean) =>
             editorEngine.selectClip(id, toggle),
+        deselectAll: () => editorEngine.deselectAll(),
         getSelectedClipIds: () => editorEngine.getSelectedClipIds(),
         deleteSelectedClips: () => editorEngine.deleteSelectedClips(),
         unlinkSelectedClips: () => editorEngine.unlinkSelectedClips(),

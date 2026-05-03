@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { editorEngine } from "../../EditorEngine";
 import { TextureAllocator } from "../textures/TextureAllocator";
 import { pluginRegistry } from "../../plugins/PluginRegistry";
-import { createPluginId, PluginCategory, type PluginId } from "../../plugins/PluginTypes";
+import { type PluginId } from "../../plugins/PluginTypes";
 import { isPluginClip, type Clip, type Track } from "../../../types/Timeline";
 
 export class ThreeClipManager {
@@ -332,7 +332,13 @@ export class ThreeClipManager {
             const uniforms = mat.uniforms;
             uniforms.borderRadius.value = clip.data?.borderRadius ?? 0;
             uniforms.edgeSoftness.value = clip.data?.edgeSoftness ?? 0;
-            const crop = clip.data?.crop || { left: 0, right: 0, top: 0, bottom: 0 };
+            const rawCrop = clip.data?.crop || {};
+            const crop = {
+                left: rawCrop.left ?? 0,
+                right: rawCrop.right ?? 0,
+                top: rawCrop.top ?? 0,
+                bottom: rawCrop.bottom ?? 0
+            };
             uniforms.crop.value.set(crop.left, crop.right, crop.top, crop.bottom);
             uniforms.resolution.value.set(object.scale.x, object.scale.y);
             if (clip.data?.opacity !== undefined) uniforms.opacity.value = clip.data.opacity;
@@ -351,52 +357,47 @@ export class ThreeClipManager {
         const transitions = clip.data?.transitions;
         if (!transitions) return;
 
-        // Fade In
-        if (transitions.fadeIn) {
-            const duration = transitions.fadeIn.duration || 1.0;
-            const progress = (currentTime - clip.start) / duration;
-            if (progress >= 0 && progress <= 1) {
-                const type = transitions.fadeIn.type || "fade";
-                const pluginId = createPluginId(PluginCategory.Transitions, type) as PluginId;
+        for (const [pluginId, transitionData] of Object.entries(transitions)) {
+            const plugin = pluginRegistry.get(pluginId as PluginId) as any;
+            if (!plugin || typeof plugin.apply !== "function") continue;
+
+            const metadata = plugin.getMetadata();
+            const duration = (transitionData as any).duration || 1.0;
+            const slot = metadata.transitionSlot || "in";
+
+            let progress = -1;
+            let effectiveSlot: "in" | "out" = "in";
+
+            if (slot === "in") {
+                progress = (currentTime - clip.start) / duration;
+                effectiveSlot = "in";
+            } else if (slot === "out") {
+                const fadeOutStart = clip.start + clip.duration - duration;
+                progress = (currentTime - fadeOutStart) / duration;
+                effectiveSlot = "out";
+            } else {
+                const timeFromStart = currentTime - clip.start;
+                const timeFromEnd = (clip.start + clip.duration) - currentTime;
                 
-                const mockClip = {
-                    ...clip,
-                    data: {
-                        ...transitions.fadeIn,
-                        fadeType: "in",
-                        easing: transitions.fadeIn.easing || "linear",
-                    },
-                    duration: duration,
-                };
-                const plugin = pluginRegistry.getTransition(pluginId);
-                if (plugin) {
-                    plugin.apply(mockClip, [object], progress, currentTime);
+                if (timeFromStart <= duration) {
+                    progress = timeFromStart / duration;
+                    effectiveSlot = "in";
+                } else if (timeFromEnd <= duration) {
+                    progress = 1.0 - (timeFromEnd / duration);
+                    effectiveSlot = "out";
                 }
             }
-        }
 
-        // Fade Out
-        if (transitions.fadeOut) {
-            const duration = transitions.fadeOut.duration || 1.0;
-            const fadeOutStart = clip.start + clip.duration - duration;
-            const progress = (currentTime - fadeOutStart) / duration;
             if (progress >= 0 && progress <= 1) {
-                const type = transitions.fadeOut.type || "fade";
-                const pluginId = createPluginId(PluginCategory.Transitions, type) as PluginId;
-
                 const mockClip = {
                     ...clip,
                     data: {
-                        ...transitions.fadeOut,
-                        fadeType: "out",
-                        easing: transitions.fadeOut.easing || "linear",
+                        ...(transitionData as any),
+                        __slot: effectiveSlot
                     },
                     duration: duration,
                 };
-                const plugin = pluginRegistry.getTransition(pluginId);
-                if (plugin) {
-                    plugin.apply(mockClip, [object], progress, currentTime);
-                }
+                plugin.apply(mockClip, [object], progress, currentTime);
             }
         }
     }

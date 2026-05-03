@@ -10,8 +10,14 @@ import { useThemeStore } from "./stores/themeStore";
 import { TextPlugin } from "./core/plugins/core/TextPlugin";
 import { pluginRegistry } from "./core/plugins/PluginRegistry";
 
-import { FadeTransitionPlugin } from "./core/plugins/transitions/FadeTransitionPlugin";
-import { MotionTransitionPlugin } from "./core/plugins/transitions/MotionTransitionPlugin";
+import { FadeInPlugin } from "./core/plugins/transitions/FadeInPlugin";
+import { FadeOutPlugin } from "./core/plugins/transitions/FadeOutPlugin";
+import { SlideUpPlugin } from "./core/plugins/transitions/SlideUpPlugin";
+import { ZoomInPlugin } from "./core/plugins/transitions/ZoomInPlugin";
+import { ZoomOutPlugin } from "./core/plugins/transitions/ZoomOutPlugin";
+import { TransformPlugin } from "./core/plugins/inspector/TransformPlugin";
+import { AppearancePlugin } from "./core/plugins/inspector/AppearancePlugin";
+import { CropPlugin } from "./core/plugins/inspector/CropPlugin";
 import { CursorZoomPlugin } from "./core/plugins/effects/CursorZoomPlugin";
 import { useRecorder } from "./composables/useRecorder";
 import SourcePicker from "./components/Recorder/SourcePicker.vue";
@@ -64,46 +70,28 @@ onMounted(async () => {
 
     console.log("[App] Starting plugin registration...");
 
-    // Register Core Plugins
-    // The new registry validates metadata and types at registration time
-    try {
-        console.log("[App] Creating TextPlugin instance...");
-        const textPlugin = new TextPlugin();
-        console.log("[App] TextPlugin metadata:", textPlugin.getMetadata());
-        pluginRegistry.register(textPlugin);
-        console.log("[App] ✅ TextPlugin registered");
-    } catch (e) {
-        console.error("[App] ❌ Failed to register TextPlugin:", e);
-    }
+    // Register Plugins
+    const pluginsToRegister = [
+        new TextPlugin(),
+        new FadeInPlugin(),
+        new FadeOutPlugin(),
+        new SlideUpPlugin(),
+        new ZoomInPlugin(),
+        new ZoomOutPlugin(),
+        new TransformPlugin(),
+        new AppearancePlugin(),
+        new CropPlugin(),
+        new CursorZoomPlugin()
+    ];
 
-    try {
-        console.log("[App] Creating FadeTransitionPlugin instance...");
-        const fadePlugin = new FadeTransitionPlugin();
-        console.log("[App] FadeTransitionPlugin metadata:", fadePlugin.getMetadata());
-        pluginRegistry.register(fadePlugin);
-        console.log("[App] ✅ FadeTransitionPlugin registered");
-    } catch (e) {
-        console.error("[App] ❌ Failed to register FadeTransitionPlugin:", e);
-    }
-
-    try {
-        console.log("[App] Creating MotionTransitionPlugin instance...");
-        const motionPlugin = new MotionTransitionPlugin();
-        pluginRegistry.register(motionPlugin);
-        console.log("[App] ✅ MotionTransitionPlugin registered");
-    } catch (e) {
-        console.error("[App] ❌ Failed to register MotionTransitionPlugin:", e);
-    }
-
-    try {
-        console.log("[App] Creating CursorZoomPlugin instance...");
-        const cursorPlugin = new CursorZoomPlugin();
-        console.log("[App] CursorZoomPlugin metadata:", cursorPlugin.getMetadata());
-        pluginRegistry.register(cursorPlugin);
-        console.log("[App] ✅ CursorZoomPlugin registered");
-    } catch (e) {
-        console.error("[App] ❌ Failed to register CursorZoomPlugin:", e);
-    }
+    pluginsToRegister.forEach(p => {
+        try {
+            pluginRegistry.register(p);
+            console.log(`[App] ✅ Registered: ${p.getMetadata().id}`);
+        } catch (e) {
+            console.error(`[App] ❌ Failed to register ${p.getMetadata().id}:`, e);
+        }
+    });
 
     // Log any registration errors (e.g., duplicate IDs, failed init)
     setTimeout(() => {

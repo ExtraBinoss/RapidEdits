@@ -295,6 +295,10 @@ export class EditorEngine {
         this.selectionSystem.selectClip(id, toggle);
     }
 
+    public deselectAll() {
+        this.selectionSystem.deselectAll();
+    }
+
     public getSelectedClipIds() {
         return this.selectionSystem.getSelectedClipIds();
     }

@@ -51,6 +51,14 @@ export interface PluginMetadata {
     icon?: any;
     /** Can this plugin be dragged directly onto a track? (default: true for objects, false for effects/transitions) */
     isTrackDroppable?: boolean;
+    /** Can this plugin be attached to other clips as a transition? */
+    isAttachedTransition?: boolean;
+    /** For attached transitions, which slot does it occupy? "in" | "out" | "any" */
+    transitionSlot?: "in" | "out" | "any";
+    /** Should this plugin's properties be shown globally for all applicable clips? */
+    isGlobalInspector?: boolean;
+    /** Rendering priority for global inspectors (lower = higher up) */
+    priority?: number;
     /** Dependencies on other plugins, if any */
     dependencies?: PluginId[];
 }

@@ -53,6 +53,10 @@ const isDropAllowed = computed(() => {
     // Plugin restrictions
     if (draggedPlugin) {
         const meta = draggedPlugin.getMetadata();
+        // Allow transitions even if isTrackDroppable is false, 
+        // because we handle attaching them to clips in the drop handler
+        if (meta.type === 'transition') return true;
+        
         if (meta.isTrackDroppable === false) return false;
         return true;
     }
@@ -95,15 +99,20 @@ const ghostData = computed(() => {
     }
     if (store.draggedPlugin) {
         const meta = store.draggedPlugin.getMetadata();
+        const isTransition = meta.type === 'transition';
         return {
-            duration: 5,
-            color: "bg-indigo-600",
+            duration: 1.0,
+            color: isTransition ? "bg-emerald-500" : "bg-indigo-600",
             icon: meta.icon || Box,
             name: meta.name,
+            type: meta.type,
+            transitionSlot: meta.transitionSlot
         };
     }
     return null;
 });
+
+const ghostDuration = ref(5.0);
 
 const handleDragOver = (e: DragEvent) => {
     if (!isDropAllowed.value) {
@@ -119,18 +128,38 @@ const handleDragOver = (e: DragEvent) => {
 
     // Snapping Logic
     let finalTime = rawTime;
-    if (editorEngine.getIsSnappingEnabled()) {
-        const thresholdSeconds = 15 / props.zoomLevel; // 15px threshold
+    let finalDuration = ghostData.value?.duration || 5.0;
+
+    const meta = store.draggedPlugin?.getMetadata();
+    if (meta?.type === 'transition') {
+        // Find clip at drop position with small epsilon
+        const epsilon = 0.01;
+        const clip = props.track.clips.find(c => 
+            rawTime >= (c.start - epsilon) && rawTime <= (c.start + c.duration + epsilon)
+        );
+
+        if (clip) {
+            const slot = meta.transitionSlot || 'in';
+            const duration = meta.defaultData?.duration || 1.0;
+            
+            if (slot === 'in') {
+                finalTime = clip.start;
+            } else if (slot === 'out') {
+                finalTime = clip.start + clip.duration - duration;
+            }
+            finalDuration = duration;
+        }
+    } else if (editorEngine.getIsSnappingEnabled()) {
+        const thresholdSeconds = 15 / props.zoomLevel;
         const snapPoint = editorEngine.getClosestSnapPoint(
             rawTime,
             thresholdSeconds,
         );
-        if (snapPoint !== null) {
-            finalTime = snapPoint;
-        }
+        if (snapPoint !== null) finalTime = snapPoint;
     }
 
     ghostX.value = finalTime * props.zoomLevel;
+    ghostDuration.value = finalDuration;
     isOver.value = true;
 
     // Allow drop
@@ -180,8 +209,8 @@ const handleContainerClick = (e: MouseEvent) => {
     >
         <!-- Ghost Preview Clip -->
         <GhostClip 
-            v-if="isOver && isDropAllowed"
-            :ghost-data="ghostData" 
+            v-if="isOver && isDropAllowed && ghostData"
+            :ghost-data="ghostData ? { ...ghostData, duration: ghostDuration } : null" 
             :x="ghostX" 
             :zoom-level="zoomLevel" 
         />

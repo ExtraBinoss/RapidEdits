@@ -166,6 +166,7 @@ import Button from "../UI/Button/Button.vue";
 const props = defineProps<{
     clip: Clip;
     properties: PluginPropertyDefinition[] | undefined;
+    disableDirectUpdate?: boolean;
 }>();
 
 const clipData = computed(() => props.clip.data || {});
@@ -201,11 +202,35 @@ const plugin = computed(() => {
 });
 
 const getValue = (key: string) => {
-    return clipData.value[key];
+    // Handle dot notation (e.g. "crop.left")
+    const parts = key.split('.');
+    let value: any = clipData.value;
+    for (const part of parts) {
+        if (value === undefined || value === null) break;
+        value = value[part];
+    }
+    
+    if (value !== undefined) return value;
+    
+    // Fallback to prop default if missing in data
+    const prop = safeProperties.value.find(p => p.key === key);
+    if (prop && prop.defaultValue !== undefined) return prop.defaultValue;
+
+    // Fallback to plugin default data
+    const pluginDefault = getDefaultFromPlugin(parts[0]);
+    if (parts.length > 1 && pluginDefault !== undefined) {
+        let nested = pluginDefault;
+        for (let i = 1; i < parts.length; i++) {
+            if (nested === undefined || nested === null) break;
+            nested = nested[parts[i]];
+        }
+        return nested;
+    }
+    return pluginDefault;
 };
 
 const getPropId = (prop: PluginPropertyDefinition) => {
-    return `${props.clip.id}-${prop.key}`;
+    return `${props.clip.id}-${prop.key.replace(/\./g, '-')}`;
 };
 
 const shouldShow = (prop: PluginPropertyDefinition) => {
@@ -241,7 +266,22 @@ const resetProperty = (prop: PluginPropertyDefinition) => {
 };
 
 const updateProperty = (key: string, value: any) => {
-    const newData = { ...clipData.value, [key]: value };
+    const parts = key.split('.');
+    const newData = { ...clipData.value };
+    
+    if (parts.length === 1) {
+        newData[key] = value;
+    } else {
+        // Nested update
+        let current = newData;
+        for (let i = 0; i < parts.length - 1; i++) {
+            const part = parts[i];
+            current[part] = { ...(current[part] || {}) };
+            current = current[part];
+        }
+        current[parts[parts.length - 1]] = value;
+    }
+    
     applyUpdate(newData);
 };
 
@@ -251,13 +291,23 @@ const updateVector = (key: string, axis: string, value: number) => {
     if (prop?.type === 'vector3') defaultVector = { x: 0, y: 0, z: 0 };
     if (prop?.type === 'vector4') defaultVector = { x: 0, y: 0, z: 0, w: 0 };
 
-    const currentVector = clipData.value[key] || defaultVector;
+    const currentVector = getValue(key) || defaultVector;
     const newVector = { ...currentVector, [axis]: value };
     updateProperty(key, newVector);
 };
 
+const emit = defineEmits<{
+    (e: "update:clip-data", newData: any): void;
+}>();
+
 const applyUpdate = (newData: any) => {
-    editorEngine.updateClip(props.clip.id, { data: newData });
+    // Emit for parent handling (e.g. for transitions)
+    emit("update:clip-data", newData);
+
+    // Only update engine directly if not disabled
+    if (!props.disableDirectUpdate) {
+        editorEngine.updateClip(props.clip.id, { data: newData });
+    }
 
     globalEventBus.emit({
         type: EditorEventType.PLUGIN_PROPERTY_CHANGED,

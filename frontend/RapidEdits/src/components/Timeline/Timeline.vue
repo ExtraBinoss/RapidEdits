@@ -65,8 +65,9 @@ const customTracks = computed(() => {
 });
 import { onMounted, onUnmounted } from "vue";
 import { Video, Music, Image as ImageIcon, Box, Plus } from "lucide-vue-next";
-import { MediaType } from "../../types/Media";
+import { EditorEventType, MediaType } from "../../types/Media";
 import GhostClip from "./TimelineComponents/Track/GhostClip.vue";
+import { globalEventBus } from "../../core/events/EventBus";
 
 // Ghost Preview for New Track Zones
 const hoverZone = ref<"video" | "audio" | null>(null);
@@ -92,11 +93,14 @@ const ghostData = computed(() => {
     }
     if (store.draggedPlugin) {
         const meta = store.draggedPlugin.getMetadata();
+        const isTransition = meta.type === 'transition';
         return {
-            duration: 5,
-            color: "bg-indigo-600",
+            duration: 1.0,
+            color: isTransition ? "bg-emerald-500" : "bg-indigo-600",
             icon: meta.icon || Box,
             name: meta.name,
+            type: meta.type,
+            transitionSlot: meta.transitionSlot
         };
     }
     return null;
@@ -212,27 +216,71 @@ const {} = useDragDrop(() => {
 
 const handleTrackDrop = (e: DragEvent, trackId: number) => {
     e.preventDefault();
+    
+    // Calculate drop time
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const rawTime = Math.max(0, offsetX / zoomLevel.value);
+
+    // Snapping Logic
+    let finalTime = rawTime;
+    if (editorEngine.getIsSnappingEnabled()) {
+        const thresholdSeconds = 15 / zoomLevel.value;
+        const snapPoint = editorEngine.getClosestSnapPoint(
+            rawTime,
+            thresholdSeconds,
+        );
+        if (snapPoint !== null) finalTime = snapPoint;
+    }
+
+    // 1. Handle Plugin Drop (Transitions/Effects)
+    if (store.draggedPlugin) {
+        const meta = store.draggedPlugin.getMetadata();
+        
+        if (meta.type === 'transition') {
+            // Find clip at drop position with small epsilon
+            const epsilon = 0.01;
+            const track = store.tracks.find(t => t.id === trackId);
+            if (track) {
+                const clip = track.clips.find(c => 
+                    rawTime >= (c.start - epsilon) && rawTime <= (c.start + c.duration + epsilon)
+                );
+                
+                if (clip) {
+                    const currentData = { ...(clip.data || {}) };
+                    const transitions = { ...(currentData.transitions || {}) };
+                    
+                    // Create default data for this transition
+                    const defaultData = store.draggedPlugin.createData?.() || { duration: 1.0 };
+                    transitions[meta.id] = defaultData;
+                    
+                    store.updateClip(clip.id, {
+                        data: { ...currentData, transitions }
+                    });
+
+                    // FORCE auto-select the clip to show properties
+                    // We deselect then select to ensure a reactive change if it was already selected
+                    store.deselectAll();
+                    setTimeout(() => {
+                        store.selectClip(clip.id, false);
+                    }, 50);
+                    
+                    globalEventBus.emit({
+                        type: EditorEventType.SHOW_FEEDBACK,
+                        payload: { icon: "Zap", text: `${meta.name} added to clip` }
+                    });
+                }
+            }
+        }
+        // Handle other plugin types if needed...
+        return;
+    }
+
+    // 2. Handle Asset Drop
     const data = e.dataTransfer?.getData("application/json");
     if (data) {
         try {
             const assetData = JSON.parse(data);
-            const rect = (
-                e.currentTarget as HTMLElement
-            ).getBoundingClientRect();
-            const offsetX = e.clientX - rect.left;
-            const rawTime = Math.max(0, offsetX / zoomLevel.value);
-
-            // Snapping Logic (same as ghost)
-            let finalTime = rawTime;
-            if (editorEngine.getIsSnappingEnabled()) {
-                const thresholdSeconds = 15 / zoomLevel.value;
-                const snapPoint = editorEngine.getClosestSnapPoint(
-                    rawTime,
-                    thresholdSeconds,
-                );
-                if (snapPoint !== null) finalTime = snapPoint;
-            }
-
             store.addClipToTimeline(assetData.id, trackId, finalTime);
         } catch (err) {
             console.error("Invalid drop data", err);
