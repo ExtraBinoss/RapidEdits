@@ -41,6 +41,7 @@
                                         type="number"
                                         class="!pl-5 !pr-1 !text-[12px] !font-mono !h-8 !bg-canvas-dark/50"
                                         :model-value="getValue(prop.key)?.[axis]"
+                                        v-bind="prop.props"
                                         @update:model-value="(val) => updateVector(prop.key, axis, Number(val))"
                                     />
                                 </div>

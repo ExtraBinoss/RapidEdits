@@ -46,11 +46,11 @@ const handleMouseMove = (e: MouseEvent) => {
     if (!isDragging.value) return;
     
     const delta = e.clientX - startX.value;
-    let sensitivity = props.step || 0.2; // Default to 0.2 as requested
+    let sensitivity = props.step || 1.0; // Default to 1.0 for faster dragging
     
     // Modifier keys for speed
-    if (e.shiftKey) sensitivity *= 5;
-    if (e.altKey) sensitivity *= 0.1;
+    if (e.shiftKey) sensitivity *= 10; // 10x faster with Shift
+    if (e.altKey) sensitivity *= 0.1; // 10x slower with Alt
     
     const change = delta * sensitivity;
     let newValue = startValue.value + change;
@@ -105,5 +105,6 @@ input::-webkit-inner-spin-button {
 
 input[type=number] {
   -moz-appearance: textfield;
+  appearance: none;
 }
 </style>
