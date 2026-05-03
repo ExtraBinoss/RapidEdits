@@ -6,6 +6,8 @@ import { MediaType } from "../../types/Media";
 import AssetPreview from "./AssetPreview.vue";
 import Button from "../UI/Button/Button.vue";
 import { formatDuration } from "../../utils/time";
+import { useProjectStore } from "../../stores/projectStore";
+import { markRaw } from "vue";
 
 const props = defineProps<{
     asset: Asset;
@@ -14,7 +16,9 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: "delete", id: string): void;
 }>();
-// ... (keep existing computed/methods)
+
+const store = useProjectStore();
+
 const typeIcon = computed(() => {
     switch (props.asset.type) {
         case MediaType.VIDEO:
@@ -42,6 +46,7 @@ const typeColor = computed(() => {
 });
 
 const onDragStart = (e: DragEvent) => {
+    store.draggedAsset = markRaw(props.asset);
     if (e.dataTransfer) {
         e.dataTransfer.effectAllowed = "copy";
         e.dataTransfer.setData(
@@ -56,6 +61,10 @@ const onDragStart = (e: DragEvent) => {
         e.dataTransfer.setData("text/plain", props.asset.id);
     }
 };
+
+const onDragEnd = () => {
+    store.draggedAsset = null;
+};
 </script>
 
 <template>
@@ -63,6 +72,7 @@ const onDragStart = (e: DragEvent) => {
         class="group relative aspect-square bg-canvas-lighter rounded-lg overflow-hidden border border-transparent hover:border-brand-primary transition-all cursor-grab active:cursor-grabbing"
         draggable="true"
         @dragstart="onDragStart"
+        @dragend="onDragEnd"
     >
         <!-- Preview Image/Placeholder -->
         <div

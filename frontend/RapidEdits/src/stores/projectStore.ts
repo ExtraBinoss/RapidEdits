@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { ref, computed, shallowRef, markRaw } from "vue";
 import { editorEngine } from "../core/EditorEngine";
 import { globalEventBus } from "../core/events/EventBus";
 import { EditorEventType, type Asset } from "../types/Media";
@@ -10,6 +10,8 @@ export const useProjectStore = defineStore("project", () => {
     const tracks = computed(() => editorEngine.getTracks());
     const currentTime = ref(0);
     const isPlaying = ref(false);
+    const draggedAsset = shallowRef<Asset | null>(null);
+    const draggedPlugin = shallowRef<any | null>(null);
 
     // Dynamic duration based on content
     const duration = computed(() => {
@@ -87,6 +89,8 @@ export const useProjectStore = defineStore("project", () => {
         currentTime,
         duration,
         isPlaying,
+        draggedAsset,
+        draggedPlugin,
         uploadFiles,
         deleteAsset,
         addClipToTimeline,

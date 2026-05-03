@@ -19,9 +19,12 @@ import { pluginRegistry } from "../core/plugins/PluginRegistry";
 import { editorEngine } from "../core/EditorEngine";
 import type { IPlugin } from "../core/plugins/PluginInterface";
 import AI from "./SidebarMenus/AI.vue";
+import { useProjectStore } from "../stores/projectStore";
+import { markRaw } from "vue";
 
 const activeTab = ref("media");
 const themeStore = useThemeStore();
+const projectStore = useProjectStore();
 
 const tabs = [
     { id: "media", icon: Files, label: "Media" },
@@ -89,6 +92,7 @@ const addPlugin = (plugin: IPlugin) => {
 };
 
 const handlePluginDragStart = (e: DragEvent, plugin: IPlugin) => {
+    projectStore.draggedPlugin = markRaw(plugin);
     if (e.dataTransfer) {
         // Track the dragged plugin globally for drop validation
         pluginRegistry.setDraggedPlugin(plugin);
@@ -106,6 +110,7 @@ const handlePluginDragStart = (e: DragEvent, plugin: IPlugin) => {
 };
 
 const handlePluginDragEnd = () => {
+    projectStore.draggedPlugin = null;
     pluginRegistry.clearDraggedPlugin();
 };
 </script>

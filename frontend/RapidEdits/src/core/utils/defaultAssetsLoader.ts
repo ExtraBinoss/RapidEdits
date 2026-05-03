@@ -5,7 +5,7 @@ export const DEFAULT_ASSETS = {
     audio: [
         "Schrandy-Cash-Out-_NCS-Release_.ogg",
         "TWISTED_-STM_-kellapsage_-glossier-ISORIA-_NCS-Release_.ogg",
-        "youthé-stuckinmyhead_-_NCS-Release_.ogg",
+        "youth-stuckinmyhead_-_NCS-Release_.ogg",
     ],
     image: [
         "Clione.jpg",

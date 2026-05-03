@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { Track } from "../../../../types/Timeline";
 import TimelineClip from "../Track/TimelineClip.vue";
-// import { useProjectStore } from "../../stores/projectStore";
-
-import { computed } from "vue";
+import { ref, computed } from "vue";
 import { pluginRegistry } from "../../../../core/plugins/PluginRegistry";
-import { Ban } from "lucide-vue-next";
+import { Ban, Video, Music, Image as ImageIcon, Box } from "lucide-vue-next";
+import { useProjectStore } from "../../../../stores/projectStore";
+import { MediaType } from "../../../../types/Media";
+import { editorEngine } from "../../../../core/EditorEngine";
 
 const props = defineProps<{
     track: Track;
@@ -20,6 +21,12 @@ const emit = defineEmits<{
     (e: "contextmenu", event: MouseEvent, clipId: string): void;
     (e: "razor-click", event: MouseEvent, trackId: number, time: number): void;
 }>();
+
+const store = useProjectStore();
+
+// Ghost Clip State
+const ghostX = ref(0);
+const isOver = ref(false);
 
 // Virtualization: Only render clips that intersect with the visible range
 const visibleClips = computed(() => {
@@ -37,9 +44,6 @@ const visibleClips = computed(() => {
 });
 // ... (rest of filtering logic implemented implicitly via computed above)
 
-// Store not currently needed in this component
-// const store = useProjectStore();
-
 const isDropAllowed = computed(() => {
     const dragged = pluginRegistry.state.draggedPlugin;
     if (dragged) {
@@ -51,6 +55,36 @@ const isDropAllowed = computed(() => {
     return true;
 });
 
+const ghostData = computed(() => {
+    if (store.draggedAsset) {
+        let color = "bg-brand-primary";
+        let icon = Video;
+        if (store.draggedAsset.type === MediaType.AUDIO) {
+            color = "bg-green-600";
+            icon = Music;
+        } else if (store.draggedAsset.type === MediaType.IMAGE) {
+            color = "bg-purple-600";
+            icon = ImageIcon;
+        }
+        return {
+            duration: store.draggedAsset.duration || 5,
+            color,
+            icon,
+            name: store.draggedAsset.name,
+        };
+    }
+    if (store.draggedPlugin) {
+        const meta = store.draggedPlugin.getMetadata();
+        return {
+            duration: 5,
+            color: "bg-indigo-600",
+            icon: meta.icon || Box,
+            name: meta.name,
+        };
+    }
+    return null;
+});
+
 const handleDragOver = (e: DragEvent) => {
     if (!isDropAllowed.value) {
         if (e.dataTransfer) {
@@ -58,24 +92,44 @@ const handleDragOver = (e: DragEvent) => {
         }
         return;
     }
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    const rawTime = rawX / props.zoomLevel;
+
+    // Snapping Logic
+    let finalTime = rawTime;
+    if (editorEngine.getIsSnappingEnabled()) {
+        const thresholdSeconds = 15 / props.zoomLevel; // 15px threshold
+        const snapPoint = editorEngine.getClosestSnapPoint(
+            rawTime,
+            thresholdSeconds,
+        );
+        if (snapPoint !== null) {
+            finalTime = snapPoint;
+        }
+    }
+
+    ghostX.value = finalTime * props.zoomLevel;
+    isOver.value = true;
+
     // Allow drop
     if (e.dataTransfer) {
         e.dataTransfer.dropEffect = "copy";
     }
 };
 
+const handleDragLeave = () => {
+    isOver.value = false;
+};
+
 const handleDrop = (e: DragEvent) => {
+    isOver.value = false;
     if (!isDropAllowed.value) return;
     emit("drop", e, props.track.id);
 };
 
 const handleContainerClick = (e: MouseEvent) => {
-    // If Razor tool is active (parent handles this check), emit razor click
-    // However, if we clicked specifically on a clip, the clip might have handled it.
-    // Ideally this only fires for clicking EMPTY space if clips stop propagation.
-    // BUT we want to support clicking ON a clip to split it.
-    // So TimelineClip must allow bubbling when tool is razor.
-
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const offsetX = e.clientX - rect.left;
     const time = Math.max(0, offsetX / props.zoomLevel);
@@ -89,7 +143,7 @@ const handleContainerClick = (e: MouseEvent) => {
         class="h-24 border-canvas-border/30 relative bg-canvas/20 transition-colors"
         :class="{
             'bg-red-500/10 border-red-500/30':
-                !isDropAllowed && pluginRegistry.state.draggedPlugin,
+                !isDropAllowed && (store.draggedPlugin || store.draggedAsset),
         }"
         :style="
             track.color
@@ -100,12 +154,33 @@ const handleContainerClick = (e: MouseEvent) => {
                 : {}
         "
         @dragover.prevent="handleDragOver"
+        @dragleave="handleDragLeave"
         @drop="handleDrop"
         @click="handleContainerClick"
     >
+        <!-- Ghost Preview Clip -->
+        <div
+            v-if="isOver && ghostData"
+            class="absolute top-0 h-full opacity-40 pointer-events-none z-10 border-2 border-white/30 rounded-md overflow-hidden flex flex-col"
+            :class="ghostData.color"
+            :style="{
+                left: `${ghostX}px`,
+                width: `${ghostData.duration * zoomLevel}px`,
+            }"
+        >
+            <div
+                class="flex-1 flex items-center justify-center bg-black/20"
+            >
+                <component :is="ghostData.icon" class="w-6 h-6 text-white opacity-60" />
+            </div>
+            <div class="px-2 py-1 bg-black/40 text-[10px] text-white font-medium truncate">
+                {{ ghostData.name }}
+            </div>
+        </div>
+
         <!-- Invalid Drop Feedback -->
         <div
-            v-if="!isDropAllowed && pluginRegistry.state.draggedPlugin"
+            v-if="!isDropAllowed && (store.draggedPlugin || store.draggedAsset)"
             class="absolute inset-0 flex items-center justify-center pointer-events-none z-50 bg-black/20"
         >
             <Ban class="text-red-500 w-8 h-8 opacity-80" />

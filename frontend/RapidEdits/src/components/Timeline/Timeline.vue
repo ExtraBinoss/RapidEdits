@@ -156,9 +156,20 @@ const handleTrackDrop = (e: DragEvent, trackId: number) => {
                 e.currentTarget as HTMLElement
             ).getBoundingClientRect();
             const offsetX = e.clientX - rect.left;
-            const startTime = Math.max(0, offsetX / zoomLevel.value);
+            const rawTime = Math.max(0, offsetX / zoomLevel.value);
 
-            store.addClipToTimeline(assetData.id, trackId, startTime);
+            // Snapping Logic (same as ghost)
+            let finalTime = rawTime;
+            if (editorEngine.getIsSnappingEnabled()) {
+                const thresholdSeconds = 15 / zoomLevel.value;
+                const snapPoint = editorEngine.getClosestSnapPoint(
+                    rawTime,
+                    thresholdSeconds,
+                );
+                if (snapPoint !== null) finalTime = snapPoint;
+            }
+
+            store.addClipToTimeline(assetData.id, trackId, finalTime);
         } catch (err) {
             console.error("Invalid drop data", err);
         }
@@ -180,10 +191,21 @@ const handleNewTrackDrop = (e: DragEvent, type: "video" | "audio") => {
                 e.currentTarget as HTMLElement
             ).getBoundingClientRect();
             const offsetX = e.clientX - rect.left;
-            const startTime = Math.max(0, offsetX / zoomLevel.value);
+            const rawTime = Math.max(0, offsetX / zoomLevel.value);
+
+            // Snapping Logic
+            let finalTime = rawTime;
+            if (editorEngine.getIsSnappingEnabled()) {
+                const thresholdSeconds = 15 / zoomLevel.value;
+                const snapPoint = editorEngine.getClosestSnapPoint(
+                    rawTime,
+                    thresholdSeconds,
+                );
+                if (snapPoint !== null) finalTime = snapPoint;
+            }
 
             // We must add to the SPECIFIC track we just created
-            store.addClipToTimeline(assetData.id, newTrack.id, startTime);
+            store.addClipToTimeline(assetData.id, newTrack.id, finalTime);
         } catch (err) {
             console.error("Invalid drop data", err);
         }
@@ -426,6 +448,7 @@ const handleTimelineClick = () => {
                         :active-tool="activeTool"
                         :visible-start="visibleStart"
                         :visible-end="visibleEnd"
+                        @drop="handleTrackDrop"
                         @contextmenu="handleClipContextMenu"
                         @razor-click="handleRazorClick"
                     />
@@ -445,6 +468,7 @@ const handleTimelineClick = () => {
                         :active-tool="activeTool"
                         :visible-start="visibleStart"
                         :visible-end="visibleEnd"
+                        @drop="handleTrackDrop"
                         @contextmenu="handleClipContextMenu"
                         @razor-click="handleRazorClick"
                     />
