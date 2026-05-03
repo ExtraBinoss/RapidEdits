@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import type { Clip, Track } from "../../../../types/Timeline";
 import { isPluginClip } from "../../../../types/Timeline";
 import type { PluginId } from "../../../../core/plugins/PluginTypes";
@@ -52,7 +52,6 @@ const clipStyle = computed(() => {
 });
 
 // Sync tempStart when prop updates (e.g. undo/redo or external change)
-import { watch } from "vue";
 watch(
     () => props.clip.start,
     (newStart) => {
@@ -223,35 +222,47 @@ const handleDrop = (e: DragEvent) => {
             e.preventDefault();
             e.stopPropagation();
 
-            // Logic: If Fade, determine In or Out based on drop position
-            if (data.pluginId.includes("fade")) {
-                const rect = (
-                    e.currentTarget as HTMLElement
-                ).getBoundingClientRect();
-                const offsetX = e.clientX - rect.left;
-                const percentage = offsetX / rect.width;
+            const rect = (
+                e.currentTarget as HTMLElement
+            ).getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const percentage = offsetX / rect.width;
 
-                const currentTransitions = props.clip.data?.transitions || {};
-                let updates = {};
+            const currentTransitions = props.clip.data?.transitions || {};
+            let updates = {};
 
-                if (percentage < 0.5) {
-                    // Fade In
-                    updates = {
-                        ...currentTransitions,
-                        fadeIn: { duration: 1.0, easing: "linear" },
-                    };
-                } else {
-                    // Fade Out
-                    updates = {
-                        ...currentTransitions,
-                        fadeOut: { duration: 1.0, easing: "linear" },
-                    };
-                }
+            // Extract generic transition type from pluginId
+            // Example: "transitions:motion" -> type: "motion"
+            const pluginIdParts = data.pluginId.split(":");
+            const transitionType = pluginIdParts[pluginIdParts.length - 1] || "fade";
 
-                store.updateClip(props.clip.id, {
-                    data: { ...props.clip.data, transitions: updates },
-                });
+            if (percentage < 0.5) {
+                // Attach to start (Fade In)
+                updates = {
+                    ...currentTransitions,
+                    fadeIn: { 
+                        type: transitionType,
+                        duration: 1.0, 
+                        easing: "linear",
+                        ...(transitionType === "motion" ? { motionType: "slide-up" } : {})
+                    },
+                };
+            } else {
+                // Attach to end (Fade Out)
+                updates = {
+                    ...currentTransitions,
+                    fadeOut: { 
+                        type: transitionType,
+                        duration: 1.0, 
+                        easing: "linear",
+                        ...(transitionType === "motion" ? { motionType: "slide-up" } : {})
+                    },
+                };
             }
+
+            store.updateClip(props.clip.id, {
+                data: { ...props.clip.data, transitions: updates },
+            });
         }
     } catch (e) {
         console.error("Drop error", e);

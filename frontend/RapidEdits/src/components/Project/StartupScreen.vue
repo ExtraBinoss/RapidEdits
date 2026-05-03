@@ -84,7 +84,7 @@ const animateLanding = (force = false) => {
     if (hasPlayedInitialAnimation.value && !force) return;
     
     const tl = gsap.timeline({ defaults: { ease: "expo.out", duration: 0.4 } });
-    tl.fromTo(".startup-bg", { opacity: 0, scale: 1.08 }, { opacity: 0.2, scale: 1.05 })
+    tl.fromTo(".animated-gradient", { opacity: 0, scale: 1.08 }, { opacity: 0.3, scale: 1.05 })
       .fromTo(logoRef.value, { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1 }, "-=0.25")
       .fromTo(".action-card", { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, stagger: 0.05 }, "-=0.3");
     

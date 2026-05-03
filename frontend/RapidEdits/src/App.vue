@@ -11,6 +11,7 @@ import { TextPlugin } from "./core/plugins/core/TextPlugin";
 import { pluginRegistry } from "./core/plugins/PluginRegistry";
 
 import { FadeTransitionPlugin } from "./core/plugins/transitions/FadeTransitionPlugin";
+import { MotionTransitionPlugin } from "./core/plugins/transitions/MotionTransitionPlugin";
 import { CursorZoomPlugin } from "./core/plugins/effects/CursorZoomPlugin";
 import { useRecorder } from "./composables/useRecorder";
 import SourcePicker from "./components/Recorder/SourcePicker.vue";
@@ -83,6 +84,15 @@ onMounted(async () => {
         console.log("[App] ✅ FadeTransitionPlugin registered");
     } catch (e) {
         console.error("[App] ❌ Failed to register FadeTransitionPlugin:", e);
+    }
+
+    try {
+        console.log("[App] Creating MotionTransitionPlugin instance...");
+        const motionPlugin = new MotionTransitionPlugin();
+        pluginRegistry.register(motionPlugin);
+        console.log("[App] ✅ MotionTransitionPlugin registered");
+    } catch (e) {
+        console.error("[App] ❌ Failed to register MotionTransitionPlugin:", e);
     }
 
     try {

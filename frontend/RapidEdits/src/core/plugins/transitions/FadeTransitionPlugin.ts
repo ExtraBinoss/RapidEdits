@@ -134,11 +134,16 @@ export class FadeTransitionPlugin extends BasePlugin implements TransitionPlugin
                         // Ensure transparent is true so opacity works
                         if (!mat.transparent) {
                             mat.transparent = true;
-                            mat.needsUpdate = true;
                         }
 
-                        // We MULTIPLY opacity so we don't override other fades
+                        // Set opacity on the material
                         mat.opacity = opacity;
+
+                        // CRITICAL: If this is a ShaderMaterial (used by Video/Image clips),
+                        // we MUST update the 'opacity' uniform for the transition to show up.
+                        if (mat instanceof THREE.ShaderMaterial && mat.uniforms.opacity) {
+                            mat.uniforms.opacity.value = opacity;
+                        }
                     });
                 }
             });

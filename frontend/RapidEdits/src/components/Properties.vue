@@ -557,7 +557,46 @@ const updateTransition = (
                         <div class="w-6"></div>
                     </div>
                     
-                    <div v-if="selectedClip.data?.transitions?.fadeIn" class="space-y-0.5 mt-0.5 ml-2 pl-2 border-l border-canvas-border">
+                    <div v-if="selectedClip.data?.transitions?.fadeIn" class="space-y-1.5 mt-1 ml-2 pl-2 border-l border-canvas-border pb-2">
+                        <!-- Transition Type -->
+                        <div class="flex items-center gap-2 py-0.5 min-h-[28px] z-30 relative">
+                            <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Type</label>
+                            <div class="flex-1">
+                                <Select
+                                    :model-value="selectedClip.data.transitions.fadeIn.type || 'fade'"
+                                    :options="[
+                                        { label: 'Fade / Dissolve', value: 'fade' },
+                                        { label: 'Motion', value: 'motion' },
+                                    ]"
+                                    size="tiny"
+                                    @update:model-value="(val) => updateTransition('fadeIn', 'type', val)"
+                                />
+                            </div>
+                            <div class="w-6"></div>
+                        </div>
+
+                        <!-- Motion Type (if motion) -->
+                        <div v-if="selectedClip.data.transitions.fadeIn.type === 'motion'" class="flex items-center gap-2 py-0.5 min-h-[28px] z-20 relative">
+                            <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Preset</label>
+                            <div class="flex-1">
+                                <Select
+                                    :model-value="selectedClip.data.transitions.fadeIn.motionType || 'slide-up'"
+                                    :options="[
+                                        { label: 'Slide Up', value: 'slide-up' },
+                                        { label: 'Slide Down', value: 'slide-down' },
+                                        { label: 'Slide Left', value: 'slide-left' },
+                                        { label: 'Slide Right', value: 'slide-right' },
+                                        { label: 'Zoom In', value: 'zoom-in' },
+                                        { label: 'Zoom Out', value: 'zoom-out' },
+                                        { label: 'Elastic', value: 'elastic-in' },
+                                    ]"
+                                    size="tiny"
+                                    @update:model-value="(val) => updateTransition('fadeIn', 'motionType', val)"
+                                />
+                            </div>
+                            <div class="w-6"></div>
+                        </div>
+
                         <!-- Duration -->
                         <div class="flex items-center gap-2 py-0.5 min-h-[28px]">
                             <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Duration</label>
@@ -574,11 +613,11 @@ const updateTransition = (
                             <div class="w-6"></div>
                         </div>
                         <!-- Easing -->
-                        <div class="flex items-center gap-2 py-0.5 min-h-[28px] z-20 relative">
+                        <div class="flex items-center gap-2 py-0.5 min-h-[28px] z-10 relative">
                             <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Easing</label>
                             <div class="flex-1">
                                 <Select
-                                    :model-value="selectedClip.data.transitions.fadeIn.easing"
+                                    :model-value="selectedClip.data.transitions.fadeIn.easing || 'linear'"
                                     :options="easingOptions"
                                     size="tiny"
                                     @update:model-value="(val) => updateTransition('fadeIn', 'easing', val)"
@@ -602,7 +641,46 @@ const updateTransition = (
                         <div class="w-6"></div>
                     </div>
                     
-                    <div v-if="selectedClip.data?.transitions?.fadeOut" class="space-y-0.5 mt-0.5 ml-2 pl-2 border-l border-canvas-border">
+                    <div v-if="selectedClip.data?.transitions?.fadeOut" class="space-y-1.5 mt-1 ml-2 pl-2 border-l border-canvas-border pb-2">
+                        <!-- Transition Type -->
+                        <div class="flex items-center gap-2 py-0.5 min-h-[28px] z-30 relative">
+                            <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Type</label>
+                            <div class="flex-1">
+                                <Select
+                                    :model-value="selectedClip.data.transitions.fadeOut.type || 'fade'"
+                                    :options="[
+                                        { label: 'Fade / Dissolve', value: 'fade' },
+                                        { label: 'Motion', value: 'motion' },
+                                    ]"
+                                    size="tiny"
+                                    @update:model-value="(val) => updateTransition('fadeOut', 'type', val)"
+                                />
+                            </div>
+                            <div class="w-6"></div>
+                        </div>
+
+                        <!-- Motion Type (if motion) -->
+                        <div v-if="selectedClip.data.transitions.fadeOut.type === 'motion'" class="flex items-center gap-2 py-0.5 min-h-[28px] z-20 relative">
+                            <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Preset</label>
+                            <div class="flex-1">
+                                <Select
+                                    :model-value="selectedClip.data.transitions.fadeOut.motionType || 'slide-up'"
+                                    :options="[
+                                        { label: 'Slide Up', value: 'slide-up' },
+                                        { label: 'Slide Down', value: 'slide-down' },
+                                        { label: 'Slide Left', value: 'slide-left' },
+                                        { label: 'Slide Right', value: 'slide-right' },
+                                        { label: 'Zoom In', value: 'zoom-in' },
+                                        { label: 'Zoom Out', value: 'zoom-out' },
+                                        { label: 'Elastic', value: 'elastic-in' },
+                                    ]"
+                                    size="tiny"
+                                    @update:model-value="(val) => updateTransition('fadeOut', 'motionType', val)"
+                                />
+                            </div>
+                            <div class="w-6"></div>
+                        </div>
+
                         <!-- Duration -->
                         <div class="flex items-center gap-2 py-0.5 min-h-[28px]">
                             <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Duration</label>
@@ -619,11 +697,11 @@ const updateTransition = (
                             <div class="w-6"></div>
                         </div>
                         <!-- Easing -->
-                        <div class="flex items-center gap-2 py-0.5 min-h-[28px] z-20 relative">
+                        <div class="flex items-center gap-2 py-0.5 min-h-[28px] z-10 relative">
                             <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Easing</label>
                             <div class="flex-1">
                                 <Select
-                                    :model-value="selectedClip.data.transitions.fadeOut.easing"
+                                    :model-value="selectedClip.data.transitions.fadeOut.easing || 'linear'"
                                     :options="easingOptions"
                                     size="tiny"
                                     @update:model-value="(val) => updateTransition('fadeOut', 'easing', val)"

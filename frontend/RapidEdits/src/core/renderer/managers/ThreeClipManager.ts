@@ -105,10 +105,20 @@ export class ThreeClipManager {
                         const mat = child.material;
                         if (Array.isArray(mat)) {
                             mat.forEach((m) => {
-                                if (m.transparent) m.opacity = 1.0;
+                                if (m.transparent) {
+                                    m.opacity = 1.0;
+                                    if (m instanceof THREE.ShaderMaterial && m.uniforms.opacity) {
+                                        m.uniforms.opacity.value = 1.0;
+                                    }
+                                }
                             });
                         } else {
-                            if (mat.transparent) mat.opacity = 1.0;
+                            if (mat.transparent) {
+                                mat.opacity = 1.0;
+                                if (mat instanceof THREE.ShaderMaterial && mat.uniforms.opacity) {
+                                    mat.uniforms.opacity.value = 1.0;
+                                }
+                            }
                         }
                     }
                 });
@@ -160,21 +170,26 @@ export class ThreeClipManager {
                     this.clipMeshes.set(clip.id, newMesh);
                     object = newMesh;
 
-                    const promise = this.allocator
-                        .getTexture(editorEngine.getAsset(clip.assetId)!)
-                        .then((texture) => {
-                            const currentObj = this.clipMeshes.get(clip.id);
-                            if (texture && currentObj instanceof THREE.Mesh) {
-                                const mat = currentObj.material;
-                                if (mat instanceof THREE.ShaderMaterial) {
-                                    mat.uniforms.map.value = texture;
-                                    mat.uniforms.resolution.value.set(currentObj.scale.x, currentObj.scale.y);
-                                    mat.needsUpdate = true;
+                    const asset = editorEngine.getAsset(clip.assetId);
+                    if (asset) {
+                        const promise = this.allocator
+                            .getTexture(asset)
+                            .then((texture) => {
+                                const currentObj = this.clipMeshes.get(clip.id);
+                                if (texture && currentObj instanceof THREE.Mesh) {
+                                    const mat = currentObj.material;
+                                    if (mat instanceof THREE.ShaderMaterial) {
+                                        mat.uniforms.map.value = texture;
+                                        mat.uniforms.resolution.value.set(currentObj.scale.x, currentObj.scale.y);
+                                        mat.needsUpdate = true;
+                                    }
+                                    this.fitMeshToScreen(currentObj, texture);
                                 }
-                                this.fitMeshToScreen(currentObj, texture);
-                            }
-                        });
-                    this.pendingLoads.add(promise);
+                            });
+                        this.pendingLoads.add(promise);
+                    } else {
+                        console.warn("[ThreeClipManager] Asset not found for clip:", clip.assetId);
+                    }
                 }
 
                 const track = tracks.find((t) => t.id === clip.trackId);
@@ -336,24 +351,26 @@ export class ThreeClipManager {
         const transitions = clip.data?.transitions;
         if (!transitions) return;
 
-        const fadeId = createPluginId(PluginCategory.Transitions, "fade") as PluginId;
-
         // Fade In
         if (transitions.fadeIn) {
             const duration = transitions.fadeIn.duration || 1.0;
             const progress = (currentTime - clip.start) / duration;
             if (progress >= 0 && progress <= 1) {
+                const type = transitions.fadeIn.type || "fade";
+                const pluginId = createPluginId(PluginCategory.Transitions, type) as PluginId;
+                
                 const mockClip = {
                     ...clip,
                     data: {
+                        ...transitions.fadeIn,
                         fadeType: "in",
                         easing: transitions.fadeIn.easing || "linear",
                     },
                     duration: duration,
                 };
-                const fadePlugin = pluginRegistry.getTransition(fadeId);
-                if (fadePlugin) {
-                    fadePlugin.apply(mockClip, [object], progress, currentTime);
+                const plugin = pluginRegistry.getTransition(pluginId);
+                if (plugin) {
+                    plugin.apply(mockClip, [object], progress, currentTime);
                 }
             }
         }
@@ -364,17 +381,21 @@ export class ThreeClipManager {
             const fadeOutStart = clip.start + clip.duration - duration;
             const progress = (currentTime - fadeOutStart) / duration;
             if (progress >= 0 && progress <= 1) {
+                const type = transitions.fadeOut.type || "fade";
+                const pluginId = createPluginId(PluginCategory.Transitions, type) as PluginId;
+
                 const mockClip = {
                     ...clip,
                     data: {
+                        ...transitions.fadeOut,
                         fadeType: "out",
                         easing: transitions.fadeOut.easing || "linear",
                     },
                     duration: duration,
                 };
-                const fadePlugin = pluginRegistry.getTransition(fadeId);
-                if (fadePlugin) {
-                    fadePlugin.apply(mockClip, [object], progress, currentTime);
+                const plugin = pluginRegistry.getTransition(pluginId);
+                if (plugin) {
+                    plugin.apply(mockClip, [object], progress, currentTime);
                 }
             }
         }
