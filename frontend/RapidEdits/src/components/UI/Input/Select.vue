@@ -117,7 +117,7 @@ const handleOptionLeave = () => {
                     type="button"
                     class="w-full flex items-center gap-2 bg-canvas-dark border border-canvas-border rounded transition-all hover:bg-canvas-lighter group overflow-hidden"
                     :class="[
-                        size === 'tiny' ? 'h-6 px-1.5 py-0 min-w-[40px]' : size === 'small' ? 'h-7 px-2 py-0 min-w-[60px]' : 'h-9 px-3 min-w-[80px]',
+                        size === 'tiny' ? 'h-7 px-1.5 py-0 min-w-[50px]' : size === 'small' ? 'h-8 px-2 py-0 min-w-[70px]' : 'h-10 px-3 min-w-[90px]',
                         isOpen ? 'ring-1 ring-brand-primary border-brand-primary shadow-[0_0_0_2px_rgba(49,110,160,0.15)]' : 'hover:border-text-muted/30',
                         disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                     ]"
@@ -131,7 +131,7 @@ const handleOptionLeave = () => {
                         <div
                             class="select-text-inner text-left w-full transition-transform duration-300"
                             :class="[
-                                size === 'tiny' ? 'text-[10px]' : 'text-[11px]',
+                                size === 'tiny' ? 'text-[11px]' : 'text-[12px]',
                                 isTriggerScrolling ? 'is-scrolling whitespace-nowrap' : 'truncate whitespace-nowrap',
                                 !selectedOption ? 'text-text-muted/50 font-normal' : 'text-text-main font-semibold'
                             ]"

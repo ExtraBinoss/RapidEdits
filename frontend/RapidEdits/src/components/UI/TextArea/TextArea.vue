@@ -29,7 +29,7 @@ const updateValue = (event: Event) => {
             :value="modelValue"
             :rows="rows || 2"
             :placeholder="placeholder"
-            class="w-full bg-transparent border-none outline-none text-text-main px-2 py-1.5 text-[11px] font-semibold tracking-tight placeholder-text-muted/20 resize-y min-h-[40px]"
+            class="w-full bg-transparent border-none outline-none text-text-main px-2 py-1.5 text-[12px] font-semibold tracking-tight placeholder-text-muted/20 resize-y min-h-[40px]"
             @input="updateValue"
         ></textarea>
         

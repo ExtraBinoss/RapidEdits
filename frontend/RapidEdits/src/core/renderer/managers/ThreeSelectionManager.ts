@@ -22,6 +22,9 @@ export class ThreeSelectionManager {
         this.transformControls = controls;
     }
 
+    private lastWidth = 0;
+    private lastHeight = 0;
+
     public update() {
         if (this.selectionHelper) {
             const selectedIds = editorEngine.getSelectedClipIds();
@@ -36,6 +39,16 @@ export class ThreeSelectionManager {
                             objGroup.children.length > 0
                         ) {
                             target = objGroup.children[0] as THREE.Object3D;
+                        }
+
+                        // Check if bounds changed
+                        const box = new THREE.Box3().setFromObject(target);
+                        const width = box.max.x - box.min.x;
+                        const height = box.max.y - box.min.y;
+
+                        if (Math.abs(width - this.lastWidth) > 0.1 || Math.abs(height - this.lastHeight) > 0.1) {
+                            this.createSelectionHelper(target);
+                            return; // createSelectionHelper handles position/rotation/scale
                         }
 
                         this.selectionHelper.position.copy(target.position);
@@ -107,7 +120,9 @@ export class ThreeSelectionManager {
 
         const width = box.max.x - box.min.x;
         const height = box.max.y - box.min.y;
-        const radius = 10;
+        this.lastWidth = width;
+        this.lastHeight = height;
+        const radius = Math.max(2, Math.min(width, height) * 0.1); // Minimum radius of 2
 
         // Create Rounded Rect Path
         const shape = new THREE.Shape();
@@ -129,20 +144,22 @@ export class ThreeSelectionManager {
         shape.lineTo(x + radius, y);
         shape.quadraticCurveTo(x, y, x, y + radius);
 
-        const points = shape.getPoints();
+        const points = shape.getPoints(12); // Smoother rounded corners
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
         const material = new THREE.LineDashedMaterial({
             color: 0xffff00,
-            dashSize: 10,
-            gapSize: 5,
+            dashSize: 4,
+            gapSize: 2,
             linewidth: 2,
             depthTest: false,
             depthWrite: false,
+            transparent: true,
+            opacity: 0.9
         });
 
         const line = new THREE.Line(geometry, material);
-        line.renderOrder = 9999; // Ensure it renders on top
+        line.renderOrder = 999999; // Ultra-high priority
         line.computeLineDistances();
         this.selectionHelper = line;
 

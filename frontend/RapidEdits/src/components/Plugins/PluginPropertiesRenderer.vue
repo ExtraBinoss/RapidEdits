@@ -13,11 +13,37 @@
                     </div>
                 </div>
 
+                <!-- Vector3 (Dedicated multi-row layout) -->
+                <div v-else-if="prop.type === 'vector3'" class="flex flex-col gap-1.5 py-2 px-1 hover:bg-white/[0.02] rounded-sm transition-colors group/vec">
+                    <div class="flex items-center justify-between px-1">
+                        <label
+                            class="text-[12px] font-semibold text-text-muted transition-colors group-hover/vec:text-text-main cursor-default select-none"
+                            @dblclick="resetProperty(prop)"
+                        >
+                            {{ prop.label }}
+                        </label>
+                    </div>
+                    
+                    <div class="flex gap-2 w-full">
+                        <div v-for="axis in ['x', 'y', 'z']" :key="axis" class="relative flex-1 group/axis">
+                            <div class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                                <span class="text-[9px] font-black text-text-muted/40 uppercase">{{ axis }}</span>
+                            </div>
+                            <Input
+                                type="number"
+                                class="!pl-5 !pr-1 !text-[12px] !font-mono !h-8 !bg-canvas-dark/50"
+                                :model-value="getValue(prop.key)?.[axis]"
+                                @update:model-value="(val) => updateVector(prop.key, axis, Number(val))"
+                            />
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Regular Property Wrapper -->
                 <div v-else class="group flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px]">
                     <label
                         :for="getPropId(prop)"
-                        class="w-28 shrink-0 text-[11px] font-semibold text-text-muted transition-colors group-hover:text-text-main cursor-default truncate select-none"
+                        class="w-28 shrink-0 text-[12px] font-semibold text-text-muted transition-colors group-hover:text-text-main cursor-default truncate select-none"
                         :title="prop.label"
                         @dblclick="resetProperty(prop)"
                     >
@@ -80,21 +106,7 @@
                             />
                         </div>
 
-                        <!-- Vector3 -->
-                        <div v-else-if="prop.type === 'vector3'" class="flex gap-1 w-full">
-                            <div v-for="axis in ['x', 'y', 'z']" :key="axis" class="relative flex-1 group/axis">
-                                <Input
-                                    type="number"
-                                    class="!pl-4 !pr-1 !py-0 !text-[10px] !font-mono !h-6 !bg-canvas-dark/50"
-                                    :model-value="getValue(prop.key)?.[axis]"
-                                    @update:model-value="(val) => updateVector(prop.key, axis, Number(val))"
-                                >
-                                    <template #prepend>
-                                        <span class="text-[9px] font-bold text-text-muted/60 uppercase">{{ axis }}</span>
-                                    </template>
-                                </Input>
-                            </div>
-                        </div>
+
 
                         <!-- Select -->
                         <div v-else-if="prop.type === 'select'" class="w-full">
