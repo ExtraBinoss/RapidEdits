@@ -24,7 +24,7 @@ const isPlugin = computed(() => {
 
 // Only run filmstrip logic if NOT a plugin and has valid asset
 const shouldLoadFilmstrip = computed(
-    () => !isPlugin.value && asset?.url && asset.type === "video",
+    () => !isPlugin.value && asset?.url && (asset.type === "video" || asset.type === "image"),
 );
 
 const { thumbnails: videoThumbnails } = useFilmstrip(

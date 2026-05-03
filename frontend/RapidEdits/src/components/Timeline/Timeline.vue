@@ -428,7 +428,7 @@ const handleTimelineClick = () => {
             <!-- Track Headers -->
             <div
                 ref="headersContainer"
-                class="w-32 flex-shrink-0 border-r border-canvas-border bg-canvas-light z-20 flex flex-col pt-8 shadow-lg overflow-hidden"
+                class="w-32 flex-shrink-0 border-r border-canvas-border bg-canvas-light z-50 flex flex-col pt-8 shadow-lg overflow-hidden"
             >
                 <!-- Section: Overlays & Effects Label -->
                 <div v-if="customTracks.length > 0" class="h-10 flex-shrink-0 px-3 flex items-center gap-2 border-b border-canvas-border/30 bg-indigo-500/5">
@@ -500,7 +500,7 @@ const handleTimelineClick = () => {
             >
                 <!-- Ruler -->
                 <div
-                    class="h-8 sticky top-0 bg-canvas-light border-canvas-border z-10 flex items-end cursor-pointer hover:bg-canvas-lighter"
+                    class="h-8 sticky top-0 bg-canvas-light border-canvas-border z-40 flex items-end cursor-pointer hover:bg-canvas-lighter shadow-sm"
                     @mousedown="startScrubbing"
                     :style="{
                         minWidth: '100%',
@@ -605,7 +605,7 @@ const handleTimelineClick = () => {
                             :zoom-level="zoomLevel" 
                         />
                         <div 
-                            class="sticky left-0 h-full flex flex-col items-center justify-center gap-2 pointer-events-none transition-all group-hover:scale-105 z-10"
+                            class="sticky left-0 h-full flex flex-col items-center justify-center gap-2 pointer-events-none transition-all group-hover:scale-105 z-20"
                             :style="{ width: `${containerWidth}px` }"
                         >
                             <div class="w-8 h-8 rounded-xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center shadow-md backdrop-blur-sm group-hover:bg-brand-primary/20 transition-colors">
@@ -675,7 +675,7 @@ const handleTimelineClick = () => {
                             :zoom-level="zoomLevel" 
                         />
                         <div 
-                            class="sticky left-0 h-full flex flex-col items-center justify-center gap-2 pointer-events-none transition-all group-hover:scale-105 z-10"
+                            class="sticky left-0 h-full flex flex-col items-center justify-center gap-2 pointer-events-none transition-all group-hover:scale-105 z-20"
                             :style="{ width: `${containerWidth}px` }"
                         >
                             <div class="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-md backdrop-blur-sm group-hover:bg-emerald-500/20 transition-colors">
