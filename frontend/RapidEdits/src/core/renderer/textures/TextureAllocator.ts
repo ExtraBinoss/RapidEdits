@@ -18,6 +18,12 @@ export class TextureAllocator {
         if (this.textureCache.has(asset.id)) {
             return this.textureCache.get(asset.id)!;
         }
+        
+        // 1.5. Safety: If URL is empty, we can't load anything
+        if (!asset.url) {
+            console.warn(`[TextureAllocator] Missing URL for asset: ${asset.name}`);
+            return null;
+        }
 
         try {
             let texture: THREE.Texture | null = null;

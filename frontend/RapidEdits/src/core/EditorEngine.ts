@@ -370,6 +370,7 @@ export class EditorEngine {
                 type: a.type,
                 size: a.size,
                 duration: a.duration,
+                url: a.url,
                 // We store the name, but in a real app we'd store a path or use a persistent storage like IndexedDB
                 path: (a.file as any)?.path || a.name 
             })),
@@ -383,16 +384,24 @@ export class EditorEngine {
         this.assetSystem.destroy();
 
         // 2. Restore Assets
-        // Note: Without real files, we can only restore metadata. 
-        // In a production app, we'd need a way to re-link or load from disk.
         for (const assetData of data.assets) {
+            let restoredUrl = assetData.url || "";
+            
+            // Auto-link default assets if URL is missing/empty
+            if (!restoredUrl || restoredUrl.startsWith("blob:")) {
+                const name = assetData.name;
+                if (assetData.type === "video") restoredUrl = `/defaultAssets/video/${name}`;
+                else if (assetData.type === "image") restoredUrl = `/defaultAssets/image/${name}`;
+                else if (assetData.type === "audio") restoredUrl = `/defaultAssets/audio/${name}`;
+            }
+
             this.assetSystem.registerAsset({
                 id: assetData.id,
                 name: assetData.name,
                 type: assetData.type,
                 size: assetData.size,
                 duration: assetData.duration,
-                url: "", // Will be empty until re-linked or loaded
+                url: restoredUrl,
                 createdAt: Date.now()
             });
         }
