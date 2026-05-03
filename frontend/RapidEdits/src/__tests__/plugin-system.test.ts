@@ -8,7 +8,7 @@
  * 4. Plugin interface contract is implemented
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createPluginId, PluginCategory } from "../core/plugins/PluginTypes";
 import { pluginRegistry } from "../core/plugins/PluginRegistry";
 import { isPluginClip, isMediaClip } from "../types/Timeline";

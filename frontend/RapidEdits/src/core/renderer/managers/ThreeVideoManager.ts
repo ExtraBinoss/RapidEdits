@@ -30,11 +30,17 @@ export class ThreeVideoManager {
         globalTime: number,
         isCaptureMode: boolean,
     ) {
-        const material = mesh.material as THREE.MeshBasicMaterial;
-        if (!material.map || !(material.map instanceof THREE.VideoTexture))
+        let texture: THREE.Texture | null = null;
+        if (mesh.material instanceof THREE.ShaderMaterial) {
+            texture = mesh.material.uniforms.map.value;
+        } else if (mesh.material instanceof THREE.MeshBasicMaterial) {
+            texture = mesh.material.map;
+        }
+
+        if (!texture || !(texture instanceof THREE.VideoTexture))
             return;
 
-        const video = material.map.image as HTMLVideoElement;
+        const video = texture.image as HTMLVideoElement;
         if (!video) return;
 
         if (!video.muted) video.muted = true;

@@ -44,6 +44,7 @@ export class CursorZoomPlugin extends BasePlugin implements EffectPlugin {
     }
 
     getProperties(data?: any): PluginPropertyDefinition[] {
+        void data;
         return [
             { label: "Show Cursor", key: "showCursor", type: "boolean", defaultValue: true },
             { label: "Cursor Scale", key: "cursorScale", type: "slider", props: { min: 0.1, max: 10.0, step: 0.1 }, defaultValue: 1.0 },

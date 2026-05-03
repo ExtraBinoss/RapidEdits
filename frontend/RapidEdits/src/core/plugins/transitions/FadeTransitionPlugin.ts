@@ -40,6 +40,7 @@ export class FadeTransitionPlugin extends BasePlugin implements TransitionPlugin
     }
 
     getProperties(data?: any): PluginPropertyDefinition[] {
+        void data;
         return [
             {
                 label: "Fade Type",

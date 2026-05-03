@@ -5,7 +5,10 @@
             class="w-full flex items-center justify-between px-3 py-2.5 bg-canvas-dark/30 hover:bg-canvas-dark/60 transition-colors select-none"
         >
             <span class="text-xs font-bold uppercase tracking-wider text-text-main/80">{{ title }}</span>
-            <component :is="isOpen ? ChevronUp : ChevronDown" class="w-4 h-4 text-text-muted/70 transition-transform duration-200" />
+            <div class="flex items-center gap-2">
+                <slot name="action"></slot>
+                <component :is="isOpen ? ChevronUp : ChevronDown" class="w-4 h-4 text-text-muted/70 transition-transform duration-200" />
+            </div>
         </button>
         
         <div 

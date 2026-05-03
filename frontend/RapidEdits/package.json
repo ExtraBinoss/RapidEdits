@@ -13,7 +13,7 @@
         "start": "electron .",
         "build": "vue-tsc --noEmit && vite build && electron-builder",
         "preview": "vite preview",
-        "typecheck": "vue-tsc --noEmit",
+        "typecheck": "vue-tsc --noEmit && tsc -p tsconfig.app.json --noEmit",
         "lint": "eslint .",
         "format": "prettier --write \"src/**/*.ts\" \"src/**/*.vue\""
     },

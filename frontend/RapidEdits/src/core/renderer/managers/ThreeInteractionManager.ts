@@ -312,10 +312,13 @@ export class ThreeInteractionManager {
             y: actualObj.rotation.y,
             z: actualObj.rotation.z,
         };
+
+        // Calculate relative scale multiplier
+        const baseScale = actualObj.userData.baseScale || new THREE.Vector3(1, 1, 1);
         const scale = {
-            x: actualObj.scale.x,
-            y: actualObj.scale.y,
-            z: actualObj.scale.z,
+            x: actualObj.scale.x / baseScale.x,
+            y: actualObj.scale.y / baseScale.y,
+            z: actualObj.scale.z / baseScale.z,
         };
 
         const clip = editorEngine.timelineSystem.getClip(selectedClipId);

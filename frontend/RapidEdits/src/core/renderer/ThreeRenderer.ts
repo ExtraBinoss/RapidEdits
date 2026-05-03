@@ -7,6 +7,7 @@ import { ThreeInteractionManager } from "./managers/ThreeInteractionManager";
 import { ThreeSelectionManager } from "./managers/ThreeSelectionManager";
 import { ThreeClipManager } from "./managers/ThreeClipManager";
 import { ThreeVideoManager } from "./managers/ThreeVideoManager";
+import { ThreeCropManager } from "./managers/ThreeCropManager";
 import { EditorEventType } from "../../types/Media";
 
 export interface ThreeRendererOptions {
@@ -23,6 +24,7 @@ export class ThreeRenderer {
     public sceneManager: ThreeSceneManager;
     public interactionManager: ThreeInteractionManager | null = null;
     public selectionManager: ThreeSelectionManager | null = null;
+    public cropManager: ThreeCropManager | null = null;
     public clipManager: ThreeClipManager;
     public videoManager: ThreeVideoManager;
 
@@ -104,6 +106,13 @@ export class ThreeRenderer {
                     this.interactionManager.transformControls,
                     (clipId) => this.clipManager.getClipMesh(clipId),
                 );
+
+                this.cropManager = new ThreeCropManager(
+                    this.sceneManager.scene,
+                    this.sceneManager.camera,
+                    this.sceneManager.renderer.domElement,
+                    (clipId) => this.clipManager.getClipMesh(clipId),
+                );
             }
         }
     }
@@ -126,6 +135,7 @@ export class ThreeRenderer {
     public render() {
         if (this.interactionManager) this.interactionManager.update();
         if (this.selectionManager) this.selectionManager.update();
+        if (this.cropManager) this.cropManager.update();
 
         const currentTime = editorEngine.getCurrentTime();
         const tracks = editorEngine.getTracks();

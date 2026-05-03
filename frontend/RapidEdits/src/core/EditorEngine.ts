@@ -24,6 +24,7 @@ export class EditorEngine {
 
     // Tools State
     private activeTool: "select" | "razor" = "select";
+    private isCropMode: boolean = false;
 
     // Renderer Access
     private _renderer: ThreeRenderer | null = null;
@@ -277,6 +278,16 @@ export class EditorEngine {
 
     public getTool() {
         return this.activeTool;
+    }
+
+    // Crop Mode
+    public toggleCropMode() {
+        this.isCropMode = !this.isCropMode;
+        globalEventBus.emit({ type: EditorEventType.TOOL_CHANGED, payload: this.activeTool });
+    }
+
+    public getIsCropMode() {
+        return this.isCropMode;
     }
 
     // Selection

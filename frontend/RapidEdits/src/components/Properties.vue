@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { Sliders } from "lucide-vue-next";
+import { Sliders, Crop } from "lucide-vue-next";
 import { useProjectStore } from "../stores/projectStore";
 import { computed, ref, onUnmounted } from "vue";
 import { pluginRegistry } from "../core/plugins/PluginRegistry";
 import { createPluginId, PluginCategory } from "../core/plugins/PluginTypes";
 import type { PluginId } from "../core/plugins/PluginTypes";
+import { isMediaClip } from "../types/Timeline";
+import { editorEngine } from "../core/EditorEngine";
 import PluginPropertiesRenderer from "./Plugins/PluginPropertiesRenderer.vue";
 import Switch from "./UI/Switch/Switch.vue";
 import Slider from "./UI/Slider/Slider.vue";
 import Select from "./UI/Input/Select.vue";
+import Input from "./UI/Input/Input.vue";
+import Accordion from "./UI/Accordion/Accordion.vue";
+import Button from "./UI/Button/Button.vue";
 
 const store = useProjectStore();
 
@@ -108,6 +113,35 @@ const updateClipData = (newData: any) => {
     }
 };
 
+const updateProperty = (key: string, value: any) => {
+    const currentData = selectedClip.value?.data || {};
+    updateClipData({ ...currentData, [key]: value });
+};
+
+const updateCrop = (side: string, value: number) => {
+    const currentData = selectedClip.value?.data || {};
+    const currentCrop = currentData.crop || { left: 0, right: 0, top: 0, bottom: 0 };
+    updateClipData({
+        ...currentData,
+        crop: { ...currentCrop, [side]: value },
+    });
+};
+
+const updateVector = (key: string, axis: string, value: number) => {
+    const currentData = selectedClip.value?.data || {};
+    const currentVector = currentData[key] || { x: 0, y: 0, z: 0 };
+    updateClipData({
+        ...currentData,
+        [key]: { ...currentVector, [axis]: value },
+    });
+};
+
+const isCropMode = ref(editorEngine.getIsCropMode());
+const toggleCropMode = () => {
+    editorEngine.toggleCropMode();
+    isCropMode.value = editorEngine.getIsCropMode();
+};
+
 /**
  * Get properties from the plugin.
  * Handles the optional nature of getProperties().
@@ -187,6 +221,136 @@ const updateTransition = (
                 :clip="selectedClip"
                 :properties="pluginProperties"
             />
+
+            <!-- Media Clip Properties -->
+            <div v-else-if="isMediaClip(selectedClip)" class="space-y-2">
+                <Accordion title="Transform" :defaultOpen="true">
+                    <div class="space-y-1 py-1">
+                        <!-- Position -->
+                        <div class="flex flex-col gap-1.5 py-2 px-1 hover:bg-white/[0.02] rounded-sm transition-colors group/vec">
+                            <div class="flex items-center justify-between px-1">
+                                <label class="text-[11px] font-semibold text-text-muted transition-colors group-hover/vec:text-text-main">Position</label>
+                            </div>
+                            <div class="flex gap-2 w-full">
+                                <div v-for="axis in ['x', 'y']" :key="axis" class="relative flex-1 group/axis">
+                                    <div class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                                        <span class="text-[9px] font-black text-text-muted/40 uppercase">{{ axis }}</span>
+                                    </div>
+                                    <Input
+                                        type="number"
+                                        class="!pl-5 !pr-1 !text-[10px] !font-mono !h-7 !bg-canvas-dark/50"
+                                        :model-value="selectedClip.data?.position?.[axis] ?? 0"
+                                        @update:model-value="(val) => updateVector('position', axis, Number(val))"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Rotation -->
+                        <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
+                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Rotation</label>
+                            <div class="flex-1">
+                                <Slider
+                                    :model-value="selectedClip.data?.rotation?.z ?? 0"
+                                    :min="-3.14159"
+                                    :max="3.14159"
+                                    :step="0.01"
+                                    class="!gap-2"
+                                    @update:model-value="(val) => updateVector('rotation', 'z', val)"
+                                />
+                            </div>
+                        </div>
+                        <!-- Scale -->
+                        <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
+                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Scale</label>
+                            <div class="flex-1">
+                                <Slider
+                                    :model-value="selectedClip.data?.scale?.x ?? 1"
+                                    :min="0.1"
+                                    :max="5"
+                                    :step="0.01"
+                                    class="!gap-2"
+                                    @update:model-value="(val) => { updateVector('scale', 'x', val); updateVector('scale', 'y', val); }"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </Accordion>
+
+                <Accordion title="Appearance">
+                    <div class="space-y-1 py-1">
+                        <!-- Opacity -->
+                        <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
+                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Opacity</label>
+                            <div class="flex-1">
+                                <Slider
+                                    :model-value="selectedClip.data?.opacity ?? 1"
+                                    :min="0"
+                                    :max="1"
+                                    :step="0.01"
+                                    class="!gap-2"
+                                    @update:model-value="(val) => updateProperty('opacity', val)"
+                                />
+                            </div>
+                        </div>
+                        <!-- Border Radius -->
+                        <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
+                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Round Edges</label>
+                            <div class="flex-1">
+                                <Slider
+                                    :model-value="selectedClip.data?.borderRadius ?? 0"
+                                    :min="0"
+                                    :max="1"
+                                    :step="0.01"
+                                    class="!gap-2"
+                                    @update:model-value="(val) => updateProperty('borderRadius', val)"
+                                />
+                            </div>
+                        </div>
+                        <!-- Edge Softness -->
+                        <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
+                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Edge Softness</label>
+                            <div class="flex-1">
+                                <Slider
+                                    :model-value="selectedClip.data?.edgeSoftness ?? 0"
+                                    :min="0"
+                                    :max="1"
+                                    :step="0.01"
+                                    class="!gap-2"
+                                    @update:model-value="(val) => updateProperty('edgeSoftness', val)"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </Accordion>
+
+                <Accordion title="Crop">
+                    <template #action>
+                        <Button
+                            variant="icon"
+                            size="xs"
+                            :icon="Crop"
+                            :class="{ 'text-brand-primary': isCropMode }"
+                            title="Toggle Crop Mode"
+                            @click.stop="toggleCropMode"
+                        />
+                    </template>
+                    <div class="space-y-1 py-1">
+                        <div v-for="side in ['left', 'right', 'top', 'bottom']" :key="side" class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
+                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors capitalize">{{ side }}</label>
+                            <div class="flex-1">
+                                <Slider
+                                    :model-value="selectedClip.data?.crop?.[side] ?? 0"
+                                    :min="0"
+                                    :max="1"
+                                    :step="0.01"
+                                    class="!gap-2"
+                                    @update:model-value="(val) => updateCrop(side, val)"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </Accordion>
+            </div>
 
             <!-- Fallback / Default Properties (for video/images) -->
             <div v-else-if="!pluginProperties" class="py-10 text-center">

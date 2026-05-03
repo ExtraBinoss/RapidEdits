@@ -31,8 +31,11 @@ export class TextureAllocator {
             if (texture) {
                 // Improve quality
                 const renderer = editorEngine.getRenderer();
-                if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function') {
-                    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                if (renderer) {
+                    const nativeRenderer = renderer.sceneManager.renderer;
+                    if (nativeRenderer.capabilities && typeof nativeRenderer.capabilities.getMaxAnisotropy === 'function') {
+                        texture.anisotropy = nativeRenderer.capabilities.getMaxAnisotropy();
+                    }
                 } else {
                     texture.anisotropy = 1; // Fallback
                 }

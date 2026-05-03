@@ -2,10 +2,8 @@ import * as THREE from "three";
 import { editorEngine } from "../../EditorEngine";
 import { TextureAllocator } from "../textures/TextureAllocator";
 import { pluginRegistry } from "../../plugins/PluginRegistry";
-import type { EffectPlugin, TransitionPlugin } from "../../plugins/PluginInterface";
-import type { PluginId } from "../../plugins/PluginTypes";
-import { createPluginId, PluginCategory } from "../../plugins/PluginTypes";
-import { isMediaClip, isPluginClip, type Clip, type Track } from "../../../types/Timeline";
+import { createPluginId, PluginCategory, type PluginId } from "../../plugins/PluginTypes";
+import { isPluginClip, type Clip, type Track } from "../../../types/Timeline";
 
 export class ThreeClipManager {
     private scene: THREE.Scene;
@@ -55,12 +53,13 @@ export class ThreeClipManager {
         }
 
         // Separate Content vs Transitions vs Effects
-        // Use type-safe classification based on plugin metadata
         const contentClips: Clip[] = [];
         const transitionClips: Clip[] = [];
         const effectClips: Clip[] = [];
 
         visibleClips.forEach((clip) => {
+            if (clip.type === "audio") return; // Skip audio tracks for rendering
+
             if (isPluginClip(clip)) {
                 const pluginId = clip.type as PluginId;
                 const plugin = pluginRegistry.get(pluginId);
@@ -74,11 +73,9 @@ export class ThreeClipManager {
                         contentClips.push(clip);
                     }
                 } else {
-                    // Plugin not found, treat as content (will render as placeholder)
                     contentClips.push(clip);
                 }
             } else {
-                // Media clip
                 contentClips.push(clip);
             }
         });
@@ -90,16 +87,27 @@ export class ThreeClipManager {
                 (t: Track) => t.id === clip.trackId,
             );
 
-            // Reset Opacity (important if it was faded before but now transition is gone)
+            // Reset Opacity & Migration for Media Clips
             if (object) {
                 object.traverse((child) => {
                     if (child instanceof THREE.Mesh) {
-                        const materials = Array.isArray(child.material)
-                            ? child.material
-                            : [child.material];
-                        materials.forEach((mat) => {
+                        // Migration: If media clip has MeshBasicMaterial, replace it with ShaderMaterial
+                        if (!isPluginClip(clip) && child.material instanceof THREE.MeshBasicMaterial) {
+                            const oldMat = child.material;
+                            const newMat = this.createMediaMaterial();
+                            newMat.uniforms.map.value = oldMat.map;
+                            child.material = newMat;
+                            oldMat.dispose();
+                        }
+
+                        const mat = child.material;
+                        if (Array.isArray(mat)) {
+                            mat.forEach((m) => {
+                                if (m.transparent) m.opacity = 1.0;
+                            });
+                        } else {
                             if (mat.transparent) mat.opacity = 1.0;
-                        });
+                        }
                     }
                 });
             }
@@ -135,16 +143,8 @@ export class ThreeClipManager {
             } else {
                 // Media clip
                 if (!object) {
-                    const material = new THREE.MeshBasicMaterial({
-                        color: 0x222222,
-                        map: null,
-                        transparent: true,
-                        opacity: 1.0,
-                    });
-                    const newMesh = new THREE.Mesh(
-                        this.planeGeometry,
-                        material,
-                    );
+                    const shaderMaterial = this.createMediaMaterial();
+                    const newMesh = new THREE.Mesh(this.planeGeometry, shaderMaterial);
                     this.scene.add(newMesh);
                     this.clipMeshes.set(clip.id, newMesh);
                     object = newMesh;
@@ -152,26 +152,28 @@ export class ThreeClipManager {
                     const promise = this.allocator
                         .getTexture(editorEngine.getAsset(clip.assetId)!)
                         .then((texture) => {
-                            const currentMesh = this.clipMeshes.get(clip.id);
-                            if (texture && currentMesh === object) {
-                                const mesh = object as THREE.Mesh;
-                                const mat =
-                                    mesh.material as THREE.MeshBasicMaterial;
-                                mat.map = texture;
-                                mat.color.setHex(0xffffff);
-                                mat.needsUpdate = true;
-                                this.fitMeshToScreen(mesh, texture);
+                            const currentObj = this.clipMeshes.get(clip.id);
+                            if (texture && currentObj instanceof THREE.Mesh) {
+                                const mat = currentObj.material;
+                                if (mat instanceof THREE.ShaderMaterial) {
+                                    mat.uniforms.map.value = texture;
+                                    mat.uniforms.resolution.value.set(currentObj.scale.x, currentObj.scale.y);
+                                    mat.needsUpdate = true;
+                                }
+                                this.fitMeshToScreen(currentObj, texture);
                             }
                         });
                     this.pendingLoads.add(promise);
                 }
 
                 const track = tracks.find((t) => t.id === clip.trackId);
-                const isOverlayTrack =
-                    track && track.type !== "video" && track.type !== "audio";
+                const isOverlayTrack = track && track.type !== "video" && track.type !== "audio";
                 const zLayer = isOverlayTrack ? 500 : 0;
 
-                if (object) object.position.z = zLayer + trackIndex;
+                if (object) {
+                    object.position.z = zLayer + trackIndex;
+                    this.updateMediaClipProperties(object, clip);
+                }
             }
 
             // 3. Apply Attached Transitions (Fade In/Out from Drop)
@@ -229,7 +231,7 @@ export class ThreeClipManager {
         // 2. Apply Transitions and Effects
         const contentTargets = contentClips
             .map((c) => this.clipMeshes.get(c.id))
-            .filter((obj) => obj !== undefined) as THREE.Object3D[];
+            .filter((obj): obj is THREE.Object3D => obj !== undefined);
 
         transitionClips.forEach((tClip) => {
             const pluginId = tClip.type as PluginId;
@@ -257,8 +259,11 @@ export class ThreeClipManager {
                 if (mesh) {
                     mesh.traverse((child) => {
                         if (child instanceof THREE.Mesh) {
-                            const map = (child.material as any).map;
-                            if (map) map.needsUpdate = true;
+                            const mat = child.material;
+                            if (mat instanceof THREE.MeshBasicMaterial || mat instanceof THREE.ShaderMaterial) {
+                                const map = (mat as any).map || (mat instanceof THREE.ShaderMaterial ? mat.uniforms.map.value : null);
+                                if (map) map.needsUpdate = true;
+                            }
                         }
                     });
                 }
@@ -268,10 +273,55 @@ export class ThreeClipManager {
         return visibleClips;
     }
 
-    /**
-     * Apply attached transitions (fade in/out) to a clip.
-     * These are metadata transitions stored in clip.data.transitions.
-     */
+    private updateMediaClipProperties(object: THREE.Object3D, clip: Clip) {
+        let contentMesh: THREE.Mesh | undefined;
+        if (object instanceof THREE.Mesh) {
+            contentMesh = object;
+        } else {
+            object.traverse((child) => {
+                if (!contentMesh && child instanceof THREE.Mesh) {
+                    contentMesh = child;
+                }
+            });
+        }
+
+        if (!contentMesh) return;
+
+        // Apply Transform
+        const { position, rotation, scale } = clip.data || {};
+        const baseScale = (contentMesh.userData.baseScale as THREE.Vector3) || new THREE.Vector3(1, 1, 1);
+
+        if (position) contentMesh.position.set(position.x, position.y, contentMesh.position.z);
+        if (rotation) contentMesh.rotation.set(rotation.x, rotation.y, rotation.z);
+        
+        if (scale) {
+            contentMesh.scale.set(baseScale.x * scale.x, baseScale.y * scale.y, baseScale.z * scale.z);
+        } else {
+            contentMesh.scale.copy(baseScale);
+        }
+
+        // Apply Shader Uniforms
+        const mat = contentMesh.material;
+        if (mat instanceof THREE.ShaderMaterial) {
+            const uniforms = mat.uniforms;
+            uniforms.borderRadius.value = clip.data?.borderRadius ?? 0;
+            uniforms.edgeSoftness.value = clip.data?.edgeSoftness ?? 0;
+            
+            const crop = clip.data?.crop || { left: 0, right: 0, top: 0, bottom: 0 };
+            uniforms.crop.value.set(crop.left, crop.right, crop.top, crop.bottom);
+            uniforms.resolution.value.set(contentMesh.scale.x, contentMesh.scale.y);
+            
+            if (clip.data?.opacity !== undefined) {
+                uniforms.opacity.value = clip.data.opacity;
+            }
+
+            if (uniforms.map.value instanceof THREE.VideoTexture) {
+                uniforms.map.value.needsUpdate = true;
+                uniforms.map.value.updateMatrix();
+            }
+        }
+    }
+
     private applyAttachedTransitions(
         clip: Clip,
         object: THREE.Object3D,
@@ -326,18 +376,28 @@ export class ThreeClipManager {
 
     private disposeObject(object: THREE.Object3D) {
         if (object instanceof THREE.Mesh) {
-            const mat = object.material as THREE.MeshBasicMaterial;
-            if (mat.map && mat.map instanceof THREE.VideoTexture) {
-                const video = mat.map.image;
-                if (video && !video.paused) {
+            const mat = object.material;
+            
+            let texture: THREE.Texture | null = null;
+            if (mat instanceof THREE.MeshBasicMaterial) {
+                texture = mat.map;
+            } else if (mat instanceof THREE.ShaderMaterial) {
+                texture = mat.uniforms.map.value;
+            }
+
+            if (texture instanceof THREE.VideoTexture) {
+                const video = texture.image;
+                if (video instanceof HTMLVideoElement && !video.paused) {
                     video.pause();
                 }
             }
+
             object.geometry.dispose();
-            if (Array.isArray(object.material)) {
-                object.material.forEach((m) => m.dispose());
-            } else {
-                (object.material as THREE.Material).dispose();
+            
+            if (Array.isArray(mat)) {
+                mat.forEach((m) => m.dispose());
+            } else if (mat instanceof THREE.Material) {
+                mat.dispose();
             }
         }
 
@@ -355,16 +415,13 @@ export class ThreeClipManager {
     private fitMeshToScreen(mesh: THREE.Mesh, texture: THREE.Texture) {
         if (!texture.image) return;
         
-        // Use SRGB for better quality if not already set
         if (texture.colorSpace !== THREE.SRGBColorSpace) {
             texture.colorSpace = THREE.SRGBColorSpace;
         }
 
-        // Handle both Video and Image properties
         let imgWidth = (texture.image as any).videoWidth || (texture.image as any).width || 0;
         let imgHeight = (texture.image as any).videoHeight || (texture.image as any).height || 0;
         
-        // If dimensions are not yet available, use 16:9 as fallback instead of returning
         if (imgWidth === 0 || imgHeight === 0) {
             imgWidth = 16;
             imgHeight = 9;
@@ -373,7 +430,6 @@ export class ThreeClipManager {
         const aspect = imgWidth / imgHeight;
         const { width: renderWidth, height: renderHeight } = this.getSceneDimensions();
         
-        // Improve texture quality
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         texture.generateMipmaps = false; 
@@ -384,15 +440,12 @@ export class ThreeClipManager {
             if (nativeRenderer.capabilities) {
                 texture.anisotropy = nativeRenderer.capabilities.getMaxAnisotropy();
             }
-        } else {
-            texture.anisotropy = 1;
         }
         texture.needsUpdate = true;
 
         const currentAspect = renderWidth / renderHeight;
 
         let w, h;
-        // Default "fit" (Letterbox/Pillarbox) logic relative to 1920x1080
         if (aspect > currentAspect) {
             w = renderWidth;
             h = w / aspect;
@@ -401,37 +454,137 @@ export class ThreeClipManager {
             w = h * aspect;
         }
         
-        if (Math.random() < 0.05) {
-            console.log(`[ThreeClipManager] FitMesh: ${w.toFixed(0)}x${h.toFixed(0)} | Aspect: ${aspect.toFixed(2)} | RenderW: ${renderWidth.toFixed(0)}`);
-        }
-
         mesh.scale.set(w, h, 1);
         mesh.userData.baseScale = new THREE.Vector3(w, h, 1);
         mesh.userData.basePosition = new THREE.Vector3(0, 0, mesh.position.z);
         
-        const mat = mesh.material as THREE.MeshBasicMaterial;
-        mat.color.setHex(0xffffff);
-        mat.needsUpdate = true;
+        const mat = mesh.material;
+        if (mat instanceof THREE.MeshBasicMaterial) {
+            mat.color.setHex(0xffffff);
+            mat.needsUpdate = true;
+        } else if (mat instanceof THREE.ShaderMaterial) {
+            if (mat.uniforms.color) {
+                mat.uniforms.color.value.setHex(0xffffff);
+            }
+            mat.uniforms.resolution.value.set(w, h);
+            mat.needsUpdate = true;
+        }
     }
 
     public getActiveVideoElements(): HTMLVideoElement[] {
         const videos: HTMLVideoElement[] = [];
-        this.clipMeshes.forEach((mesh) => {
-            if (mesh instanceof THREE.Mesh) {
-                const mat = mesh.material as THREE.MeshBasicMaterial;
-                if (mat.map && mat.map instanceof THREE.VideoTexture) {
-                    const video = mat.map.image;
-                    if (video instanceof HTMLVideoElement) {
-                        videos.push(video);
+        this.clipMeshes.forEach((object) => {
+            object.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    const mat = child.material;
+                    let texture: THREE.Texture | null = null;
+                    
+                    if (mat instanceof THREE.ShaderMaterial) {
+                        texture = mat.uniforms.map.value;
+                    } else if (mat instanceof THREE.MeshBasicMaterial) {
+                        texture = mat.map;
+                    }
+
+                    if (texture instanceof THREE.VideoTexture) {
+                        const video = texture.image;
+                        if (video instanceof HTMLVideoElement) {
+                            videos.push(video);
+                        }
                     }
                 }
-            }
+            });
         });
         return videos;
     }
 
     public getClipMesh(clipId: string): THREE.Object3D | undefined {
         return this.clipMeshes.get(clipId);
+    }
+
+    private createMediaMaterial(): THREE.ShaderMaterial {
+        return new THREE.ShaderMaterial({
+            uniforms: {
+                map: { value: null },
+                color: { value: new THREE.Color(0xffffff) },
+                opacity: { value: 1.0 },
+                borderRadius: { value: 0.0 },
+                edgeSoftness: { value: 0.0 },
+                crop: { value: new THREE.Vector4(0, 0, 0, 0) },
+                resolution: { value: new THREE.Vector2(1, 1) }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D map;
+                uniform vec3 color;
+                uniform float opacity;
+                uniform float borderRadius;
+                uniform float edgeSoftness;
+                uniform vec4 crop;
+                uniform vec2 resolution;
+                varying vec2 vUv;
+
+                // Signed Distance Function for a rounded box
+                float sdRoundedBox(vec2 p, vec2 b, float r) {
+                    vec2 q = abs(p) - b + r;
+                    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+                }
+
+                void main() {
+                    // Crop check
+                    if (vUv.x < crop.x || vUv.x > (1.0 - crop.y) || vUv.y < crop.w || vUv.y > (1.0 - crop.z)) {
+                        discard;
+                    }
+
+                    vec4 texColor = texture2D(map, vUv);
+                    
+                    // Map UV to 0-1 within the cropped area
+                    vec2 croppedUv = vec2(
+                        (vUv.x - crop.x) / max(0.0001, 1.0 - crop.x - crop.y),
+                        (vUv.y - crop.w) / max(0.0001, 1.0 - crop.z - crop.w)
+                    );
+                    
+                    // Actual rendered size after crop
+                    vec2 actualRes = vec2(
+                        resolution.x * (1.0 - crop.x - crop.y),
+                        resolution.y * (1.0 - crop.z - crop.w)
+                    );
+                    
+                    vec2 pos = croppedUv * actualRes;
+                    vec2 halfSize = actualRes * 0.5;
+                    vec2 centerPos = pos - halfSize;
+                    
+                    float minDim = min(actualRes.x, actualRes.y);
+                    float absRadius = borderRadius * minDim * 0.5;
+                    
+                    // Distance to perimeter (negative inside)
+                    float d = sdRoundedBox(centerPos, halfSize, absRadius);
+                    
+                    float alpha = 1.0;
+                    
+                    // Handle edge softness (inward)
+                    if (edgeSoftness > 0.0) {
+                        float softPixels = max(1.0, edgeSoftness * minDim * 0.5);
+                        // smoothstep(edge_start, edge_end, x)
+                        // We want 0 at d=0 (edge) and 1 at d=-softPixels (inside)
+                        alpha = smoothstep(0.0, -softPixels, d);
+                    } else {
+                        // Standard AA or hard cut
+                        if (d > 0.0) discard;
+                    }
+                    
+                    if (alpha <= 0.0) discard;
+
+                    gl_FragColor = vec4(texColor.rgb * color, texColor.a * opacity * alpha);
+                }
+            `,
+            transparent: true,
+        });
     }
 
     public async waitForPendingLoads() {

@@ -15,7 +15,6 @@ import type {
     FilmstripConfig,
     PluginPropertyDefinition,
     PluginMetadata,
-    PluginId,
 } from "./PluginTypes";
 
 /**
