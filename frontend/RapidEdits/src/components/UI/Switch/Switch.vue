@@ -25,11 +25,11 @@ const updateValue = (event: Event) => {
                 @change="updateValue"
             />
             <div
-                class="w-9 h-5 bg-canvas-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-primary border border-transparent"
+                class="w-7 h-4 bg-canvas-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-3 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-brand-primary border border-transparent"
             ></div>
-            <span class="ml-3 text-sm text-text-main select-none">
+            <span v-if="$slots.default || labelOn || labelOff" class="ml-2 text-[10px] text-text-muted select-none">
                 <slot>
-                    {{ modelValue ? labelOn || "On" : labelOff || "Off" }}
+                    {{ modelValue ? labelOn || "" : labelOff || "" }}
                 </slot>
             </span>
         </label>

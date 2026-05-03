@@ -5,6 +5,7 @@ defineProps<{
     modelValue: string | number;
     placeholder?: string;
     type?: string;
+    size?: "tiny" | "small" | "medium";
 }>();
 
 const emit = defineEmits<{
@@ -21,19 +22,20 @@ const updateValue = (event: Event) => {
 
 <template>
     <div
-        class="flex items-center bg-canvas-dark border border-canvas-border rounded-md px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all"
+        class="group flex items-center bg-canvas-dark border border-canvas-border rounded transition-all hover:bg-canvas-lighter focus-within:ring-1 focus-within:ring-brand-primary/50 focus-within:border-brand-primary/50 focus-within:shadow-[0_0_0_2px_rgba(49,110,160,0.15)]"
+        :class="size === 'tiny' ? 'h-6 px-1.5' : 'h-7 px-2'"
     >
-        <div v-if="slots.prepend" class="mr-2 text-text-muted">
+        <div v-if="slots.prepend" class="mr-1.5 text-text-muted/40 flex items-center select-none">
             <slot name="prepend"></slot>
         </div>
         <input
             :type="type || 'text'"
             :value="modelValue"
             :placeholder="placeholder"
-            class="bg-transparent border-none outline-none text-text-main w-full placeholder-text-muted/50"
+            class="bg-transparent border-none outline-none text-text-main w-full placeholder-text-muted/20 text-[11px] font-semibold tracking-tight"
             @input="updateValue"
         />
-        <div v-if="slots.append" class="ml-2 text-text-muted">
+        <div v-if="slots.append" class="ml-1.5 text-text-muted/40 flex items-center select-none">
             <slot name="append"></slot>
         </div>
     </div>

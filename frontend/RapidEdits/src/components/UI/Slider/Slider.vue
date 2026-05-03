@@ -29,19 +29,19 @@ const handleRangeInput = (event: Event) => {
 </script>
 
 <template>
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2">
         <input
             type="range"
             :value="modelValue"
             :min="min"
             :max="max"
             :step="step"
-            class="flex-1 h-1.5 bg-canvas-border rounded-lg appearance-none cursor-pointer accent-brand-primary hover:accent-brand-accent transition-all"
+            class="flex-1 h-1 bg-canvas-border rounded-lg appearance-none cursor-pointer accent-brand-primary hover:accent-brand-accent transition-all"
             @input="handleRangeInput"
         />
         <Input
             type="number"
-            class="w-20 shrink-0 text-right font-mono"
+            class="w-14 shrink-0 !text-right !font-mono !px-1"
             :model-value="modelValue"
             :min="min"
             :max="max"

@@ -1,25 +1,66 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from "vue";
 
-const isOpen = ref(false);
+const internalIsOpen = ref(false);
 const triggerRef = ref<HTMLElement | null>(null);
 const contentRef = ref<HTMLElement | null>(null);
-const coords = ref({ top: 0, left: 0 });
+const coords = ref({ top: 0, left: 0, width: 0 });
+let resizeObserver: ResizeObserver | null = null;
 
 const props = withDefaults(
     defineProps<{
-        position?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+        isOpen?: boolean;
+        position?: "bottom-right" | "bottom-left" | "top-right" | "top-left" | "bottom" | "top";
         trigger?: "click" | "hover" | "manual";
+        matchWidth?: boolean;
+        offset?: number;
+        zIndex?: number;
     }>(),
     {
-        position: "bottom-right",
+        isOpen: undefined,
+        position: "bottom-left",
         trigger: "click",
+        matchWidth: false,
+        offset: 8,
+        zIndex: 40,
     },
 );
 
+const emit = defineEmits(["update:isOpen"]);
+
+const isActuallyOpen = computed({
+    get: () => (props.isOpen !== undefined ? props.isOpen : internalIsOpen.value),
+    set: (val) => {
+        if (props.isOpen !== undefined) {
+            emit("update:isOpen", val);
+        } else {
+            internalIsOpen.value = val;
+        }
+    },
+});
+
+watch(isActuallyOpen, (val) => {
+    if (val) {
+        nextTick(() => {
+            if (contentRef.value) {
+                updatePosition(); // Immediate manual call
+                resizeObserver = new ResizeObserver(() => {
+                    updatePosition();
+                });
+                resizeObserver.observe(contentRef.value);
+                if (triggerRef.value) {
+                    resizeObserver.observe(triggerRef.value);
+                }
+            }
+        });
+    } else {
+        resizeObserver?.disconnect();
+    }
+});
+
 const toggle = () => {
     if (props.trigger !== "manual") {
-        if (isOpen.value) {
+        if (isActuallyOpen.value) {
             close();
         } else {
             open();
@@ -28,65 +69,60 @@ const toggle = () => {
 };
 
 const open = async () => {
-    isOpen.value = true;
-    await nextTick();
-    updatePosition();
+    isActuallyOpen.value = true;
 };
 
 const close = () => {
-    isOpen.value = false;
+    isActuallyOpen.value = false;
 };
 
 const updatePosition = () => {
     if (!triggerRef.value || !contentRef.value) return;
     const triggerRect = triggerRef.value.getBoundingClientRect();
-    const contentRect = contentRef.value.getBoundingClientRect();
-    const gap = 8;
+    
+    // Use offsetWidth/Height to avoid transform interference (like scale-95 in transition)
+    const contentWidth = contentRef.value.offsetWidth;
+    const contentHeight = contentRef.value.offsetHeight;
+    
+    const gap = props.offset;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // Default to bottom-left relative to trigger for track headers (usually better than right)
-    // But let's respect the prop first
-
     let top = 0;
     let left = 0;
+    let width = props.matchWidth ? triggerRect.width : 0;
 
-    // Basic calculation based on prop
     if (props.position === "bottom-right") {
         top = triggerRect.bottom + gap;
-        left = triggerRect.right - contentRect.width;
-    } else if (props.position === "bottom-left") {
+        left = triggerRect.right - contentWidth;
+    } else if (props.position === "bottom-left" || props.position === "bottom") {
         top = triggerRect.bottom + gap;
         left = triggerRect.left;
     } else if (props.position === "top-right") {
-        top = triggerRect.top - contentRect.height - gap;
-        left = triggerRect.right - contentRect.width;
-    } else if (props.position === "top-left") {
-        top = triggerRect.top - contentRect.height - gap;
+        top = triggerRect.top - contentHeight - gap;
+        left = triggerRect.right - contentWidth;
+    } else if (props.position === "top-left" || props.position === "top") {
+        top = triggerRect.top - contentHeight - gap;
         left = triggerRect.left;
     }
 
     // Smart adjustment: Vertical
-    // If it goes below viewport, flip to top
-    if (top + contentRect.height > viewportHeight) {
-        top = triggerRect.top - contentRect.height - gap;
+    if (top + contentHeight > viewportHeight - gap) {
+        top = triggerRect.top - contentHeight - gap;
     }
-    // If it goes above viewport (after flipping or initially), flip to bottom (if there's space) or clamp
-    if (top < 0) {
+    if (top < gap) {
         top = triggerRect.bottom + gap;
     }
 
     // Smart adjustment: Horizontal
-    // If it goes off right edge
-    if (left + contentRect.width > viewportWidth) {
-        left = viewportWidth - contentRect.width - gap;
+    if (left + contentWidth > viewportWidth - gap) {
+        left = viewportWidth - contentWidth - gap;
     }
-    // If it goes off left edge
     if (left < gap) {
-        left = gap; // Clamp to left edge
+        left = gap;
     }
 
-    coords.value = { top, left };
+    coords.value = { top, left, width };
 };
 
 // Click outside to close
@@ -101,14 +137,22 @@ const handleClickOutside = (event: MouseEvent) => {
     }
 };
 
+const handleScroll = () => {
+    if (isActuallyOpen.value) {
+        updatePosition();
+    }
+};
+
 onMounted(() => {
     document.addEventListener("click", handleClickOutside);
     window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", handleScroll, true);
 });
 
 onUnmounted(() => {
     document.removeEventListener("click", handleClickOutside);
     window.removeEventListener("resize", updatePosition);
+    window.removeEventListener("scroll", handleScroll, true);
 });
 
 defineExpose({
@@ -119,9 +163,9 @@ defineExpose({
 </script>
 
 <template>
-    <div class="relative inline-block">
-        <div ref="triggerRef" @click="toggle">
-            <slot name="trigger" :isOpen="isOpen"></slot>
+    <div class="relative inline-block w-full">
+        <div ref="triggerRef" @click="toggle" class="w-full">
+            <slot name="trigger" :isOpen="isActuallyOpen"></slot>
         </div>
 
         <Teleport to="body">
@@ -134,12 +178,16 @@ defineExpose({
                 leave-to-class="transform scale-95 opacity-0"
             >
                 <div
-                    v-if="isOpen"
+                    v-if="isActuallyOpen"
                     ref="contentRef"
-                    class="fixed z-40 bg-canvas-light border border-canvas-border rounded-lg shadow-2xl p-1"
+                    class="fixed bg-canvas-light border border-canvas-border rounded-lg shadow-2xl overflow-hidden"
                     :style="{
                         top: `${coords.top}px`,
                         left: `${coords.left}px`,
+                        minWidth: props.matchWidth ? `max(${coords.width}px, 180px)` : '200px',
+                        width: 'auto',
+                        maxWidth: 'min(90vw, 400px)',
+                        zIndex: props.zIndex
                     }"
                 >
                     <slot name="content" :close="close"></slot>
@@ -148,3 +196,4 @@ defineExpose({
         </Teleport>
     </div>
 </template>
+

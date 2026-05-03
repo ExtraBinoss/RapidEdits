@@ -20,7 +20,8 @@ const FADE_TRANSITION_ID = createPluginId(PluginCategory.Transitions, "fade") as
 const easingOptions = computed(() => {
     const fadePlugin = pluginRegistry.get(FADE_TRANSITION_ID);
     if (fadePlugin) {
-        const properties = fadePlugin.getProperties?.();
+        // Find the active transition data if any, or just pass empty
+        const properties = fadePlugin.getProperties?.(selectedClip.value?.data);
         if (properties) {
             const easingProp = properties.find(p => p.key === "easing");
             if (easingProp && easingProp.type === "select" && easingProp.options) {
@@ -64,7 +65,7 @@ const updateClipData = (newData: any) => {
  */
 const pluginProperties = computed(() => {
     if (!plugin.value) return undefined;
-    return plugin.value.getProperties?.();
+    return plugin.value.getProperties?.(selectedClip.value?.data);
 });
 
 const toggleTransition = (type: "fadeIn" | "fadeOut", enabled: boolean) => {
@@ -109,21 +110,19 @@ const updateTransition = (
     <div
         class="w-72 bg-canvas-light border-l border-canvas-border flex flex-col shrink-0 z-10 overflow-y-auto"
     >
-        <div class="p-4 border-b border-canvas-border">
+        <div class="px-3 py-2 border-b border-canvas-border flex items-center justify-between bg-canvas-dark/30">
             <h3
-                class="text-sm font-semibold text-text-main flex items-center gap-2"
+                class="text-[11px] font-bold text-text-main flex items-center gap-2 uppercase tracking-widest"
             >
-                <Sliders :size="16" class="text-brand-primary" />
-                Properties
+                <Sliders :size="12" class="text-brand-primary" />
+                Inspector
             </h3>
-        </div>
-
-        <div v-if="selectedClip" class="p-4 space-y-4">
-            <div class="text-xs text-gray-500 font-mono mb-2">
+            <div v-if="selectedClip" class="text-[10px] text-text-muted font-mono truncate max-w-[120px]">
                 {{ selectedClip.name }}
             </div>
+        </div>
 
-            <!-- Plugin Specific Properties -->
+        <div v-if="selectedClip" class="p-2 space-y-1">
             <!-- Plugin Specific Properties -->
             <PluginPropertiesRenderer
                 v-if="plugin && pluginProperties"
@@ -132,152 +131,116 @@ const updateTransition = (
             />
 
             <!-- Fallback / Default Properties (for video/images) -->
-            <div v-else class="text-sm text-gray-400">
-                <!-- No specific plugin properties -->
+            <div v-else-if="!pluginProperties" class="py-10 text-center">
+                <p class="text-[11px] text-text-muted">No properties available</p>
             </div>
 
             <!-- Attached Transitions Section -->
-            <div class="border-t border-canvas-border pt-4 mt-4">
-                <h4
-                    class="text-xs font-semibold text-text-main mb-3 uppercase tracking-wider"
-                >
-                    Transitions
-                </h4>
+            <div class="mt-4 pt-2 border-t border-canvas-border">
+                <div class="px-1 py-2">
+                    <div class="flex items-center gap-2">
+                        <div class="h-px flex-1 bg-canvas-border"></div>
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-text-muted/40 whitespace-nowrap">
+                            Transitions
+                        </span>
+                        <div class="h-px flex-1 bg-canvas-border"></div>
+                    </div>
+                </div>
 
                 <!-- Fade In -->
-                <div class="mb-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs text-text-muted">Fade In</span>
-                        <Switch
-                            :model-value="
-                                !!selectedClip.data?.transitions?.fadeIn
-                            "
-                            @update:model-value="
-                                (val) => toggleTransition('fadeIn', val)
-                            "
-                        />
-                    </div>
-                    <div
-                        v-if="selectedClip.data?.transitions?.fadeIn"
-                        class="space-y-2 pl-2 border-l-2 border-canvas-border"
-                    >
-                        <!-- Duration -->
-                        <div>
-                            <label
-                                class="block text-[10px] text-text-muted mb-1"
-                                >Duration (s)</label
-                            >
-                            <Slider
-                                :model-value="
-                                    selectedClip.data.transitions.fadeIn
-                                        .duration
-                                "
-                                :min="0.1"
-                                :max="5.0"
-                                :step="0.1"
-                                @update:model-value="
-                                    (val) =>
-                                        updateTransition(
-                                            'fadeIn',
-                                            'duration',
-                                            val,
-                                        )
-                                "
+                <div class="group px-1">
+                    <div class="flex items-center gap-2 py-1 min-h-[32px] hover:bg-white/[0.02] rounded-sm transition-colors">
+                        <span class="w-28 shrink-0 text-[11px] font-semibold text-text-muted transition-colors group-hover:text-text-main select-none">Fade In</span>
+                        <div class="flex-1 flex justify-end">
+                            <Switch
+                                :model-value="!!selectedClip.data?.transitions?.fadeIn"
+                                @update:model-value="(val) => toggleTransition('fadeIn', val)"
                             />
                         </div>
+                        <div class="w-6"></div>
+                    </div>
+                    
+                    <div v-if="selectedClip.data?.transitions?.fadeIn" class="space-y-0.5 mt-0.5 ml-2 pl-2 border-l border-canvas-border">
+                        <!-- Duration -->
+                        <div class="flex items-center gap-2 py-0.5 min-h-[28px]">
+                            <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Duration</label>
+                            <div class="flex-1">
+                                <Slider
+                                    :model-value="selectedClip.data.transitions.fadeIn.duration"
+                                    :min="0.1"
+                                    :max="5.0"
+                                    :step="0.1"
+                                    class="!gap-2"
+                                    @update:model-value="(val) => updateTransition('fadeIn', 'duration', val)"
+                                />
+                            </div>
+                            <div class="w-6"></div>
+                        </div>
                         <!-- Easing -->
-                        <div class="z-20 relative">
-                            <label
-                                class="block text-[10px] text-text-muted mb-1"
-                                >Easing</label
-                            >
-                            <Select
-                                :model-value="
-                                    selectedClip.data.transitions.fadeIn.easing
-                                "
-                                :options="easingOptions"
-                                @update:model-value="
-                                    (val) =>
-                                        updateTransition(
-                                            'fadeIn',
-                                            'easing',
-                                            val,
-                                        )
-                                "
-                            />
+                        <div class="flex items-center gap-2 py-0.5 min-h-[28px] z-20 relative">
+                            <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Easing</label>
+                            <div class="flex-1">
+                                <Select
+                                    :model-value="selectedClip.data.transitions.fadeIn.easing"
+                                    :options="easingOptions"
+                                    size="tiny"
+                                    @update:model-value="(val) => updateTransition('fadeIn', 'easing', val)"
+                                />
+                            </div>
+                            <div class="w-6"></div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Fade Out -->
-                <div class="mb-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs text-text-muted">Fade Out</span>
-                        <Switch
-                            :model-value="
-                                !!selectedClip.data?.transitions?.fadeOut
-                            "
-                            @update:model-value="
-                                (val) => toggleTransition('fadeOut', val)
-                            "
-                        />
-                    </div>
-                    <div
-                        v-if="selectedClip.data?.transitions?.fadeOut"
-                        class="space-y-2 pl-2 border-l-2 border-canvas-border"
-                    >
-                        <!-- Duration -->
-                        <div>
-                            <label
-                                class="block text-[10px] text-text-muted mb-1"
-                                >Duration (s)</label
-                            >
-                            <Slider
-                                :model-value="
-                                    selectedClip.data.transitions.fadeOut
-                                        .duration
-                                "
-                                :min="0.1"
-                                :max="5.0"
-                                :step="0.1"
-                                @update:model-value="
-                                    (val) =>
-                                        updateTransition(
-                                            'fadeOut',
-                                            'duration',
-                                            val,
-                                        )
-                                "
+                <div class="group px-1 mt-1">
+                    <div class="flex items-center gap-2 py-1 min-h-[32px] hover:bg-white/[0.02] rounded-sm transition-colors">
+                        <span class="w-28 shrink-0 text-[11px] font-semibold text-text-muted transition-colors group-hover:text-text-main select-none">Fade Out</span>
+                        <div class="flex-1 flex justify-end">
+                            <Switch
+                                :model-value="!!selectedClip.data?.transitions?.fadeOut"
+                                @update:model-value="(val) => toggleTransition('fadeOut', val)"
                             />
                         </div>
+                        <div class="w-6"></div>
+                    </div>
+                    
+                    <div v-if="selectedClip.data?.transitions?.fadeOut" class="space-y-0.5 mt-0.5 ml-2 pl-2 border-l border-canvas-border">
+                        <!-- Duration -->
+                        <div class="flex items-center gap-2 py-0.5 min-h-[28px]">
+                            <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Duration</label>
+                            <div class="flex-1">
+                                <Slider
+                                    :model-value="selectedClip.data.transitions.fadeOut.duration"
+                                    :min="0.1"
+                                    :max="5.0"
+                                    :step="0.1"
+                                    class="!gap-2"
+                                    @update:model-value="(val) => updateTransition('fadeOut', 'duration', val)"
+                                />
+                            </div>
+                            <div class="w-6"></div>
+                        </div>
                         <!-- Easing -->
-                        <div class="z-20 relative">
-                            <label
-                                class="block text-[10px] text-text-muted mb-1"
-                                >Easing</label
-                            >
-                            <Select
-                                :model-value="
-                                    selectedClip.data.transitions.fadeOut.easing
-                                "
-                                :options="easingOptions"
-                                @update:model-value="
-                                    (val) =>
-                                        updateTransition(
-                                            'fadeOut',
-                                            'easing',
-                                            val,
-                                        )
-                                "
-                            />
+                        <div class="flex items-center gap-2 py-0.5 min-h-[28px] z-20 relative">
+                            <label class="w-24 shrink-0 text-[10px] text-text-muted/80">Easing</label>
+                            <div class="flex-1">
+                                <Select
+                                    :model-value="selectedClip.data.transitions.fadeOut.easing"
+                                    :options="easingOptions"
+                                    size="tiny"
+                                    @update:model-value="(val) => updateTransition('fadeOut', 'easing', val)"
+                                />
+                            </div>
+                            <div class="w-6"></div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div v-else class="p-4 text-xs text-text-muted text-center mt-auto">
-            Select a clip to edit properties
+        <div v-else class="p-10 text-[11px] text-text-muted text-center uppercase tracking-widest opacity-30 mt-auto">
+            No Selection
         </div>
     </div>
 </template>

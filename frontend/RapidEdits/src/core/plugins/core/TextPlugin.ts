@@ -17,8 +17,8 @@ import {
  * Supports system fonts and advanced 3D stacking extrusion with tapering and glow.
  */
 export class TextPlugin extends BasePlugin {
-    private static systemFonts: { label: string; value: string }[] = [];
-    private static fontDataMap: Map<string, any> = new Map();
+    private static systemFamilies: { label: string; value: string }[] = [];
+    private static fontsByFamily: Map<string, any[]> = new Map();
     private static isFontsLoading = false;
     private static blobUrls: Map<string, string> = new Map();
 
@@ -26,8 +26,8 @@ export class TextPlugin extends BasePlugin {
         id: createPluginId(PluginCategory.Core, "text"),
         name: "Text 3D",
         type: "object",
-        version: "1.5.0",
-        description: "Advanced 3D text with glow, curve, and extrusion tapering",
+        version: "1.6.0",
+        description: "Advanced 3D text with dynamic font weight and style selection",
         isTrackDroppable: true,
     };
 
@@ -36,54 +36,61 @@ export class TextPlugin extends BasePlugin {
     }
 
     async init() {
-        if (TextPlugin.systemFonts.length === 0 && !TextPlugin.isFontsLoading) {
+        if (TextPlugin.systemFamilies.length === 0 && !TextPlugin.isFontsLoading) {
             TextPlugin.isFontsLoading = true;
             try {
                 // @ts-ignore
                 if ('queryLocalFonts' in window) {
                     // @ts-ignore
                     const fonts = await window.queryLocalFonts();
-                    TextPlugin.systemFonts = fonts.map((f: any) => {
-                        TextPlugin.fontDataMap.set(f.family, f);
-                        return {
-                            label: f.fullName,
-                            value: f.family
-                        };
-                    }).sort((a: any, b: any) => a.label.localeCompare(b.label));
+                    fonts.forEach((f: any) => {
+                        if (!TextPlugin.fontsByFamily.has(f.family)) {
+                            TextPlugin.fontsByFamily.set(f.family, []);
+                        }
+                        TextPlugin.fontsByFamily.get(f.family)!.push(f);
+                    });
+
+                    TextPlugin.systemFamilies = Array.from(TextPlugin.fontsByFamily.keys()).map(family => ({
+                        label: family,
+                        value: family
+                    })).sort((a, b) => a.label.localeCompare(b.label));
                 }
             } catch (e) {
                 console.warn("Failed to fetch local fonts:", e);
             } finally {
-                const defaults = [
-                    { label: "Arial", value: "Arial" },
-                    { label: "Helvetica", value: "Helvetica" },
-                    { label: "Times New Roman", value: "Times New Roman" },
-                    { label: "Courier New", value: "Courier New" },
-                ];
-                
-                if (TextPlugin.systemFonts.length === 0) {
-                    TextPlugin.systemFonts = defaults;
+                const defaults = ["Arial", "Helvetica", "Times New Roman", "Courier New"];
+                if (TextPlugin.systemFamilies.length === 0) {
+                    TextPlugin.systemFamilies = defaults.map(f => ({ label: f, value: f }));
                 }
-                
                 TextPlugin.isFontsLoading = false;
             }
         }
     }
 
-    private async getFontUrl(family: string): Promise<string> {
-        if (TextPlugin.blobUrls.has(family)) {
-            return TextPlugin.blobUrls.get(family)!;
+    private async getFontUrl(family: string, weight?: number, style?: string): Promise<string> {
+        const key = `${family}-${weight}-${style}`;
+        if (TextPlugin.blobUrls.has(key)) {
+            return TextPlugin.blobUrls.get(key)!;
         }
 
-        const fontData = TextPlugin.fontDataMap.get(family);
-        if (fontData && typeof fontData.blob === 'function') {
-            try {
-                const blob = await fontData.blob();
-                const url = URL.createObjectURL(blob);
-                TextPlugin.blobUrls.set(family, url);
-                return url;
-            } catch (e) {
-                console.error("Failed to get font blob for", family, e);
+        const familyFonts = TextPlugin.fontsByFamily.get(family);
+        if (familyFonts) {
+            // Try to find exact match
+            let bestMatch = familyFonts.find(f => f.weight === weight && f.style === style);
+            // Fallback to closest weight if style matches
+            if (!bestMatch) bestMatch = familyFonts.find(f => f.style === style);
+            // Fallback to first font in family
+            if (!bestMatch) bestMatch = familyFonts[0];
+
+            if (bestMatch && typeof bestMatch.blob === 'function') {
+                try {
+                    const blob = await bestMatch.blob();
+                    const url = URL.createObjectURL(blob);
+                    TextPlugin.blobUrls.set(key, url);
+                    return url;
+                } catch (e) {
+                    console.error("Failed to get font blob for", family, e);
+                }
             }
         }
         return family;
@@ -93,6 +100,8 @@ export class TextPlugin extends BasePlugin {
         return {
             text: "3D STYLE",
             fontFamily: "Arial",
+            fontWeight: 400,
+            fontStyle: "normal",
             fontSize: 60,
             color: "#ffffff",
             depthColor: "#3b82f6",
@@ -113,7 +122,19 @@ export class TextPlugin extends BasePlugin {
         };
     }
 
-    getProperties(): PluginPropertyDefinition[] {
+    getProperties(data?: any): PluginPropertyDefinition[] {
+        const selectedFamily = data?.fontFamily || "Arial";
+        const familyFonts = TextPlugin.fontsByFamily.get(selectedFamily) || [];
+
+        // Get unique weights for the selected family
+        const weights = Array.from(new Set(familyFonts.map(f => f.weight)))
+            .sort((a, b) => a - b)
+            .map(w => ({ label: this.getWeightLabel(w), value: w }));
+
+        // Get unique styles for the selected family
+        const styles = Array.from(new Set(familyFonts.map(f => f.style)))
+            .map(s => ({ label: s.charAt(0).toUpperCase() + s.slice(1), value: s }));
+
         return [
             {
                 label: "Content",
@@ -125,7 +146,21 @@ export class TextPlugin extends BasePlugin {
                 label: "Font Family",
                 key: "fontFamily",
                 type: "select",
-                options: TextPlugin.systemFonts,
+                options: TextPlugin.systemFamilies,
+            },
+            {
+                label: "Weight",
+                key: "fontWeight",
+                type: "select",
+                options: weights.length > 0 ? weights : [{ label: "Normal", value: 400 }],
+                showIf: () => weights.length > 1,
+            },
+            {
+                label: "Style",
+                key: "fontStyle",
+                type: "select",
+                options: styles.length > 0 ? styles : [{ label: "Normal", value: "normal" }],
+                showIf: () => styles.length > 1,
             },
             {
                 label: "Typography",
@@ -231,6 +266,21 @@ export class TextPlugin extends BasePlugin {
         ];
     }
 
+    private getWeightLabel(weight: number): string {
+        const weights: Record<number, string> = {
+            100: "Thin",
+            200: "Extra Light",
+            300: "Light",
+            400: "Normal",
+            500: "Medium",
+            600: "Semi Bold",
+            700: "Bold",
+            800: "Extra Bold",
+            900: "Black",
+        };
+        return weights[weight] || `Weight ${weight}`;
+    }
+
     render(clip: Clip): THREE.Object3D | null {
         const data = clip.data || this.createData();
         const group = new THREE.Group();
@@ -254,7 +304,7 @@ export class TextPlugin extends BasePlugin {
         textObj.position.z = z;
         this.updateLayerProperties(textObj, data, color);
         
-        this.getFontUrl(data.fontFamily).then(url => {
+        this.getFontUrl(data.fontFamily, data.fontWeight, data.fontStyle).then(url => {
             textObj.font = url;
             textObj.sync();
         });
@@ -319,12 +369,13 @@ export class TextPlugin extends BasePlugin {
             }
             
             // Check if font changed
-            if (layer.userData.lastFont !== data.fontFamily) {
-                this.getFontUrl(data.fontFamily).then(url => {
+            const fontKey = `${data.fontFamily}-${data.fontWeight}-${data.fontStyle}`;
+            if (layer.userData.lastFontKey !== fontKey) {
+                this.getFontUrl(data.fontFamily, data.fontWeight, data.fontStyle).then(url => {
                     layer.font = url;
                     layer.sync();
                 });
-                layer.userData.lastFont = data.fontFamily;
+                layer.userData.lastFontKey = fontKey;
             }
 
             layer.sync();
@@ -350,6 +401,8 @@ export class TextPlugin extends BasePlugin {
             prevData.text !== data.text ||
             prevData.textAlign !== data.textAlign ||
             prevData.fontFamily !== data.fontFamily ||
+            prevData.fontWeight !== data.fontWeight ||
+            prevData.fontStyle !== data.fontStyle ||
             prevData.fontSize !== data.fontSize ||
             prevData.letterSpacing !== data.letterSpacing ||
             prevData.lineHeight !== data.lineHeight ||

@@ -1,153 +1,242 @@
-<template>
-    <div class="relative" ref="container">
-        <label
-            v-if="label"
-            class="block text-xs font-medium text-text-muted mb-1"
-            >{{ label }}</label
-        >
-
-        <button
-            @click="toggleDropdown"
-            class="w-full bg-canvas-dark border border-canvas-border rounded px-2 py-1.5 text-text-main flex justify-between items-center focus:outline-none focus:border-brand-primary hover:border-text-muted transition-colors text-xs"
-        >
-            <span class="truncate">{{ selectedLabel }}</span>
-            <component
-                :is="ChevronDown"
-                class="w-3.5 h-3.5 text-text-muted transition-transform"
-                :class="{ 'rotate-180': isOpen }"
-            />
-        </button>
-
-        <Teleport to="body">
-            <div
-                v-if="isOpen"
-                class="fixed z-[9999] bg-canvas-lighter/80 backdrop-blur-3xl border border-canvas-border rounded shadow-sm overflow-y-auto custom-scrollbar"
-                :style="dropdownStyle"
-            >
-                <div
-                    v-for="option in options"
-                    :key="option.value"
-                    @click="select(option)"
-                    class="px-2 py-1.5 text-text-main hover:bg-canvas-light text-xs flex items-center justify-between group"
-                    :class="{
-                        'bg-brand-primary/20 text-brand-primary':
-                            modelValue === option.value,
-                    }"
-                >
-                    <span>{{ option.label }}</span>
-                    <span
-                        v-if="option.subLabel"
-                        class="text-[10px] text-text-muted group-hover:text-text-main"
-                        >{{ option.subLabel }}</span
-                    >
-                </div>
-            </div>
-        </Teleport>
-    </div>
-</template>
-
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, computed, watch } from "vue";
+import Popover from "../Overlay/Popover.vue";
 import { ChevronDown } from "lucide-vue-next";
 
-interface Option {
+interface SelectOption {
+    kind?: "option";
+    value?: any;
     label: string;
-    value: any;
     subLabel?: string;
+    imageSrc?: string;
+    imageAlt?: string;
 }
 
-const props = defineProps<{
-    modelValue: any;
-    options: Option[];
-    label?: string;
-}>();
+interface SelectSeparator {
+    kind: "separator";
+    label: string;
+}
+
+type SelectItem = SelectOption | SelectSeparator;
+
+const props = withDefaults(
+    defineProps<{
+        modelValue: any;
+        options: SelectItem[];
+        placeholder?: string;
+        disabled?: boolean;
+        icon?: any;
+        size?: "tiny" | "small" | "medium";
+        matchWidth?: boolean;
+        maxHeight?: string;
+        label?: string;
+    }>(),
+    {
+        placeholder: "Select an option",
+        disabled: false,
+        size: "medium",
+        matchWidth: true,
+        maxHeight: "320px",
+    },
+);
 
 const emit = defineEmits(["update:modelValue"]);
 
 const isOpen = ref(false);
-const container = ref<HTMLElement | null>(null);
-const dropdownStyle = ref({});
 
-const selectedLabel = computed(() => {
-    const opt = props.options.find((o) => o.value === props.modelValue);
-    return opt ? opt.label : String(props.modelValue);
+const selectedOption = computed(() => {
+    return props.options.find(
+        (option) =>
+            option.kind !== "separator" && option.value === props.modelValue,
+    ) as SelectOption | undefined;
 });
 
-const calculatePosition = () => {
-    if (!container.value) return;
-    const rect = container.value.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const dropdownHeight = Math.min(props.options.length * 36 + 10, 240);
-
-    let top: number | "auto" = rect.bottom + 4;
-    let bottom: string | "auto" = "auto";
-
-    // Flip if not enough space below
-    if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
-        top = "auto";
-        bottom = window.innerHeight - rect.top + 4 + "px";
-    }
-
-    dropdownStyle.value = {
-        top: top === "auto" ? "auto" : `${top}px`,
-        bottom: bottom,
-        left: `${rect.left}px`,
-        width: `${rect.width}px`,
-        maxHeight: "240px",
-    };
-};
-
-const toggleDropdown = async () => {
-    isOpen.value = !isOpen.value;
-    if (isOpen.value) {
-        await nextTick();
-        calculatePosition();
-    }
-};
-
-const select = (option: Option) => {
-    emit("update:modelValue", option.value);
+const selectOption = (option: SelectItem) => {
+    if (option.kind === "separator") return;
+    emit("update:modelValue", (option as SelectOption).value);
     isOpen.value = false;
 };
 
-// Click outside
-const handleClickOutside = (e: MouseEvent) => {
-    if (container.value && !container.value.contains(e.target as Node)) {
-        // We also need to check if we clicked inside the dropdown (which is now in body)
-        // But the dropdown elements are destroyed when isOpen becomes false, so maybe we don't need to check?
-        // Wait, if we click inside the dropdown, select() is called which closes it.
-        // If we click on scrollbar of dropdown...
-        // The dropdown is in body, so container.contains will return false.
-        // We need a ref to the dropdown or check if target is inside a specific class.
-        // But wait, the dropdown v-if="isOpen" means it exists.
-        // Let's rely on event bubbling check.
-        // A simple way is to check if closest is .fixed.z-[9999]...
-        const target = e.target as HTMLElement;
-        if (target.closest(".fixed.z-\\[9999\\]")) return;
+// Hover Scroll Logic for long labels
+const triggerScrollDist = ref(0);
+const isTriggerScrolling = ref(false);
+const activeOptionValue = ref<any>(null);
+const activeOptionScrollDist = ref(0);
 
-        isOpen.value = false;
+const handleTriggerEnter = (e: MouseEvent) => {
+    const target = (e.currentTarget as HTMLElement).querySelector(
+        ".select-text-inner",
+    ) as HTMLElement;
+    if (!target) return;
+    const scrollWidth = target.scrollWidth;
+    const clientWidth = target.clientWidth;
+    if (scrollWidth > clientWidth) {
+        triggerScrollDist.value = scrollWidth - clientWidth + 12;
+        isTriggerScrolling.value = true;
     }
 };
 
-// Re-calculate on scroll or resize
-const handleScrollOrResize = () => {
-    if (isOpen.value) {
-        calculatePosition(); // Ideally throttle
-        // Or close it
-        isOpen.value = false;
+const handleTriggerLeave = () => {
+    isTriggerScrolling.value = false;
+};
+
+const handleOptionEnter = (e: MouseEvent, option: SelectItem) => {
+    if (option.kind === "separator") return;
+    const target = (e.currentTarget as HTMLElement).querySelector(
+        ".select-option-label",
+    ) as HTMLElement;
+    if (!target) return;
+    const scrollWidth = target.scrollWidth;
+    const clientWidth = target.clientWidth;
+    if (scrollWidth > clientWidth) {
+        activeOptionValue.value = option.value;
+        activeOptionScrollDist.value = scrollWidth - clientWidth + 12;
     }
 };
 
-onMounted(() => {
-    document.addEventListener("click", handleClickOutside);
-    window.addEventListener("scroll", handleScrollOrResize, true);
-    window.addEventListener("resize", handleScrollOrResize);
-});
-
-onUnmounted(() => {
-    document.removeEventListener("click", handleClickOutside);
-    window.removeEventListener("scroll", handleScrollOrResize, true);
-    window.removeEventListener("resize", handleScrollOrResize);
-});
+const handleOptionLeave = () => {
+    activeOptionValue.value = null;
+};
 </script>
+
+<template>
+    <div class="w-full relative">
+        <label v-if="label" class="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1 px-1">
+            {{ label }}
+        </label>
+        
+        <Popover
+            v-model:isOpen="isOpen"
+            :match-width="matchWidth"
+            :offset="4"
+            position="bottom"
+            :z-index="1000"
+        >
+            <template #trigger="{ isOpen }">
+                <button
+                    type="button"
+                    class="w-full flex items-center gap-2 bg-canvas-dark border border-canvas-border rounded transition-all hover:bg-canvas-lighter group overflow-hidden"
+                    :class="[
+                        size === 'tiny' ? 'h-6 px-1.5 py-0 min-w-[40px]' : size === 'small' ? 'h-7 px-2 py-0 min-w-[60px]' : 'h-9 px-3 min-w-[80px]',
+                        isOpen ? 'ring-1 ring-brand-primary border-brand-primary shadow-[0_0_0_2px_rgba(49,110,160,0.15)]' : 'hover:border-text-muted/30',
+                        disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                    ]"
+                    :title="selectedOption?.label || placeholder"
+                    @mouseenter="handleTriggerEnter"
+                    @mouseleave="handleTriggerLeave"
+                >
+                    <component v-if="icon" :is="icon" :size="size === 'tiny' ? 12 : 14" class="text-text-muted shrink-0" />
+                    
+                    <div class="flex-1 min-w-0 flex items-center overflow-hidden py-1">
+                        <div
+                            class="select-text-inner text-left w-full transition-transform duration-300"
+                            :class="[
+                                size === 'tiny' ? 'text-[10px]' : 'text-[11px]',
+                                isTriggerScrolling ? 'is-scrolling whitespace-nowrap' : 'truncate whitespace-nowrap',
+                                !selectedOption ? 'text-text-muted/50 font-normal' : 'text-text-main font-semibold'
+                            ]"
+                            :style="{ '--scroll-dist': `${triggerScrollDist}px` }"
+                        >
+                            {{ selectedOption?.label || placeholder }}
+                        </div>
+                    </div>
+
+                    <img
+                        v-if="selectedOption?.imageSrc"
+                        class="w-4 h-4 rounded-sm object-cover shrink-0 border border-canvas-border ml-auto"
+                        :src="selectedOption.imageSrc"
+                    />
+
+                    <ChevronDown 
+                        :size="size === 'tiny' ? 12 : 14" 
+                        class="text-text-muted/50 transition-transform duration-200 shrink-0 ml-auto"
+                        :class="{ 'rotate-180 text-brand-primary': isOpen }"
+                    />
+                </button>
+            </template>
+
+            <template #content="{ close }">
+                <div 
+                    class="flex flex-col p-1 max-h-[320px] overflow-y-auto custom-scrollbar bg-canvas-light"
+                    :style="{ 
+                        width: matchWidth ? '100%' : 'auto',
+                        minWidth: size === 'tiny' ? '120px' : '160px'
+                    }"
+                >
+                    <div
+                        v-for="option in options"
+                        :key="option.kind === 'separator' ? `sep-${option.label}` : option.value"
+                        @click="selectOption(option)"
+                        class="flex items-center gap-2 px-2 rounded-sm transition-colors cursor-pointer group/opt"
+                        :class="[
+                            size === 'tiny' ? 'py-1 min-h-[24px]' : 'py-1.5 min-h-[32px]',
+                            option.kind === 'separator' ? 'cursor-default border-t border-canvas-border mt-1 pt-2' : 'hover:bg-brand-primary/10',
+                            option.kind !== 'separator' && option.value === modelValue ? 'bg-brand-primary/20 text-brand-primary font-bold' : 'text-text-main font-medium'
+                        ]"
+                        @mouseenter="handleOptionEnter($event, option)"
+                        @mouseleave="handleOptionLeave"
+                    >
+                        <template v-if="option.kind === 'separator'">
+                            <span class="text-[9px] font-black uppercase tracking-widest text-text-muted/40">{{ option.label }}</span>
+                        </template>
+                        <template v-else>
+                            <img
+                                v-if="option.imageSrc"
+                                class="w-5 h-5 rounded-sm object-cover shrink-0 border border-canvas-border"
+                                :src="option.imageSrc"
+                            />
+                            
+                            <div class="flex-1 min-w-0 flex flex-col overflow-hidden">
+                                <span 
+                                    class="select-option-label"
+                                    :class="[
+                                        size === 'tiny' ? 'text-[10px]' : 'text-[11px]',
+                                        activeOptionValue === option.value ? 'is-scrolling whitespace-nowrap' : 'truncate whitespace-nowrap'
+                                    ]"
+                                    :style="{ '--scroll-dist': `${activeOptionScrollDist}px` }"
+                                >
+                                    {{ option.label }}
+                                </span>
+                                <span v-if="option.subLabel" class="text-[9px] text-text-muted/60 truncate">{{ option.subLabel }}</span>
+                            </div>
+
+                            <div v-if="option.value === modelValue" class="shrink-0 w-1.5 h-1.5 rounded-full bg-brand-primary shadow-[0_0_8px_rgba(49,110,160,0.8)]"></div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </Popover>
+    </div>
+</template>
+
+<style scoped>
+.select-text-inner.is-scrolling,
+.select-option-label.is-scrolling {
+    text-overflow: clip;
+    overflow: visible;
+    width: auto;
+    animation: scroll-text 4s linear infinite alternate;
+}
+
+@keyframes scroll-text {
+    0% { transform: translateX(0); }
+    10% { transform: translateX(0); }
+    90% { transform: translateX(calc(-1 * var(--scroll-dist))); }
+    100% { transform: translateX(calc(-1 * var(--scroll-dist))); }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--color-canvas-border);
+    border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+}
+</style>
+

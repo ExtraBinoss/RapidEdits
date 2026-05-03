@@ -45,7 +45,7 @@ export interface IPlugin {
      * Properties schema for UI generation.
      * Each property corresponds to a key in createData.
      */
-    getProperties?(): PluginPropertyDefinition[] | undefined;
+    getProperties?(data?: any): PluginPropertyDefinition[] | undefined;
 
     /**
      * Render: create or return the THREE.Object3D for this clip.
@@ -152,7 +152,7 @@ export abstract class BasePlugin implements IPlugin {
      * Optional: define properties for the UI.
      * Return undefined if this plugin has no configurable properties.
      */
-    getProperties?(): PluginPropertyDefinition[] | undefined {
+    getProperties?(data?: any): PluginPropertyDefinition[] | undefined {
         return undefined;
     }
 

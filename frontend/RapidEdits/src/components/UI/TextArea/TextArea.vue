@@ -20,13 +20,19 @@ const updateValue = (event: Event) => {
 </script>
 
 <template>
-    <textarea
-        :id="id"
-        :name="name"
-        :value="modelValue"
-        :rows="rows || 3"
-        :placeholder="placeholder"
-        class="w-full bg-transparent border border-canvas-border rounded-md px-3 py-2 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary/50 transition-all placeholder-text-muted/30 resize-y min-h-[80px] hover:bg-canvas-dark/30 focus:bg-canvas-dark/50"
-        @input="updateValue"
-    ></textarea>
+    <div
+        class="group relative flex flex-col bg-canvas-dark border border-canvas-border rounded transition-all hover:bg-canvas-lighter focus-within:ring-1 focus-within:ring-brand-primary/50 focus-within:border-brand-primary/50 focus-within:shadow-[0_0_0_2px_rgba(49,110,160,0.15)] overflow-hidden"
+    >
+        <textarea
+            :id="id"
+            :name="name"
+            :value="modelValue"
+            :rows="rows || 2"
+            :placeholder="placeholder"
+            class="w-full bg-transparent border-none outline-none text-text-main px-2 py-1.5 text-[11px] font-semibold tracking-tight placeholder-text-muted/20 resize-y min-h-[40px]"
+            @input="updateValue"
+        ></textarea>
+        
+        <!-- Subtle line count or indicator could go here in future -->
+    </div>
 </template>
