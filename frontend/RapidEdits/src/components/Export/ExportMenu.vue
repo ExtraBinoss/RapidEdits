@@ -108,24 +108,45 @@
                         <!-- Status Header -->
                         <div class="text-center space-y-2">
                             <div
-                                class="inline-flex items-center justify-center p-3 rounded-full mb-2 transition-all duration-500"
+                                class="inline-flex items-center justify-center p-5 rounded-full mb-2 transition-all duration-500 relative"
                                 :class="
                                     isDone
                                         ? 'bg-green-500/20 text-green-400'
-                                        : 'bg-brand-primary/20 text-brand-primary'
+                                        : 'bg-brand-primary/10 text-brand-primary'
                                 "
                             >
+                                <!-- Circular Progress SVG -->
+                                <svg v-if="!isDone" class="absolute inset-0 w-full h-full -rotate-90 scale-110">
+                                    <circle
+                                        cx="50%"
+                                        cy="50%"
+                                        r="42%"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-dasharray="264"
+                                        :stroke-dashoffset="264 - (264 * progress / 100)"
+                                        class="transition-all duration-500 ease-out opacity-20"
+                                    />
+                                    <circle
+                                        cx="50%"
+                                        cy="50%"
+                                        r="42%"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                        stroke-dasharray="264"
+                                        :stroke-dashoffset="264 - (264 * progress / 100)"
+                                        class="transition-all duration-500 ease-out shadow-lg"
+                                        stroke-linecap="round"
+                                    />
+                                </svg>
+
                                 <component
-                                    :is="isDone ? CheckIcon : 'svg'"
-                                    class="w-8 h-8"
-                                    :class="{ 'animate-pulse': !isDone }"
-                                >
-                                    <path
-                                        v-if="!isDone"
-                                        fill="currentColor"
-                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                    ></path>
-                                </component>
+                                    :is="isDone ? CheckIcon : DownloadIcon"
+                                    class="w-8 h-8 relative z-10"
+                                    :class="{ 'animate-pulse': !isDone && progress === 0 }"
+                                />
                             </div>
                             <h4 class="text-2xl font-bold text-text-main">
                                 {{

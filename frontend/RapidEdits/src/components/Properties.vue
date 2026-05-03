@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Sliders, Crop, RotateCcw } from "lucide-vue-next";
+import { Sliders, Crop as CropIcon, Move as MoveIcon, RotateCcw, Crop } from "lucide-vue-next";
 import { useProjectStore } from "../stores/projectStore";
 import { computed, ref, onUnmounted } from "vue";
 import { pluginRegistry } from "../core/plugins/PluginRegistry";

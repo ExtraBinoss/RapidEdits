@@ -111,6 +111,13 @@ const handleDrop = (e: DragEvent) => {
                     class="text-xs"
                 />
             </div>
+
+            <!-- Resolution Info -->
+            <div class="absolute bottom-4 left-4 z-20 px-2 py-1 rounded bg-black/40 backdrop-blur-sm border border-white/5 pointer-events-none">
+                <span class="text-[10px] font-mono text-white/60 tracking-wider">
+                    {{ store.resolution.width }}x{{ store.resolution.height }}
+                </span>
+            </div>
         </div>
     </div>
 </template>

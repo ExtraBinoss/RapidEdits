@@ -16,6 +16,7 @@ export class ThreeSceneManager {
     // Geometry
     public planeGeometry: THREE.PlaneGeometry;
     public placeholderMesh: THREE.Mesh;
+    public borderMesh: THREE.LineSegments;
 
     private width: number = 1920;
     private height: number = 1080;
@@ -58,7 +59,7 @@ export class ThreeSceneManager {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3)); 
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-        this.renderer.setClearColor(0x000000, 0);
+        this.renderer.setClearColor(0x000000, 0); // Transparent outside the canvas
 
         if (this.container && !options.canvas) {
             this.container.appendChild(this.renderer.domElement);
@@ -69,15 +70,21 @@ export class ThreeSceneManager {
         // 4. Geometry
         this.planeGeometry = new THREE.PlaneGeometry(1, 1);
 
-        // 5. Placeholder
+        // 5. Placeholder (The actual project canvas)
         this.placeholderMesh = new THREE.Mesh(
             this.planeGeometry,
             new THREE.MeshBasicMaterial({ color: 0x000000 }),
         );
         this.placeholderMesh.position.z = -10;
-        // Use container size for placeholder scale
-        this.placeholderMesh.scale.set(this.width, this.height, 1);
         this.scene.add(this.placeholderMesh);
+
+        // 6. Canvas Border (Very visible for vertical mode)
+        this.borderMesh = new THREE.LineSegments(
+            new THREE.EdgesGeometry(this.planeGeometry),
+            new THREE.LineBasicMaterial({ color: 0x4facfe, transparent: true, opacity: 0.8 })
+        );
+        this.borderMesh.position.z = -5;
+        this.scene.add(this.borderMesh);
     }
 
     public zoom: number | "fit" | "fill" = "fit";
@@ -117,9 +124,6 @@ export class ThreeSceneManager {
                 viewWidth = this.projectWidth;
                 viewHeight = this.projectWidth / containerAspect;
             }
-            // Add a 5% padding so the black canvas is clearly visible
-            viewWidth *= 1.05;
-            viewHeight *= 1.05;
         } else if (this.zoom === "fill") {
             if (containerAspect > projectAspect) {
                 viewWidth = this.projectWidth;
@@ -140,7 +144,9 @@ export class ThreeSceneManager {
         this.camera.bottom = -viewHeight / 2;
         this.camera.updateProjectionMatrix();
 
+        // Update scales
         this.placeholderMesh.scale.set(this.projectWidth, this.projectHeight, 1);
+        this.borderMesh.scale.set(this.projectWidth, this.projectHeight, 1);
     }
 
     public getWidth() {
