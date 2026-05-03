@@ -4,7 +4,7 @@ import type { Component } from "vue";
 
 interface Props {
     variant?: "primary" | "secondary" | "ghost" | "icon" | "danger";
-    size?: "sm" | "md" | "lg";
+    size?: "xs" | "sm" | "md" | "lg";
     icon?: Component;
     label?: string;
     active?: boolean;
@@ -43,6 +43,8 @@ const variantClasses = computed(() => {
 const sizeClasses = computed(() => {
     if (props.variant === "icon") {
         switch (props.size) {
+            case "xs":
+                return "p-1";
             case "sm":
                 return "p-1.5";
             case "md":
@@ -53,6 +55,8 @@ const sizeClasses = computed(() => {
     }
 
     switch (props.size) {
+        case "xs":
+            return "px-1.5 py-0.5 text-[10px] gap-1";
         case "sm":
             return "px-2 py-1 text-xs gap-1.5";
         case "md":
@@ -70,7 +74,7 @@ const sizeClasses = computed(() => {
         <component
             v-if="icon"
             :is="icon"
-            :size="size === 'sm' ? 14 : size === 'lg' ? 20 : 16"
+            :size="size === 'xs' ? 12 : size === 'sm' ? 14 : size === 'lg' ? 20 : 16"
             :class="{ 'animate-spin': loading }"
         />
         <span v-if="$slots.default || label">

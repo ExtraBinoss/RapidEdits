@@ -112,14 +112,15 @@
                             </div>
 
                             <!-- Reset Button -->
-                            <button
-                                class="shrink-0 p-1 text-text-muted/30 hover:text-brand-primary transition-all rounded hover:bg-brand-primary/10"
-                                :class="{ 'opacity-0 group-hover:opacity-100': !isModified(prop) }"
-                                title="Reset to default"
-                                @click="resetProperty(prop)"
-                            >
-                                <RotateCcw :size="12" />
-                            </button>
+                            <div :class="{ 'opacity-0 group-hover:opacity-100 transition-opacity': !isModified(prop) }" class="shrink-0">
+                                <Button
+                                    variant="icon"
+                                    size="xs"
+                                    :icon="RotateCcw"
+                                    title="Reset to default"
+                                    @click="resetProperty(prop)"
+                                />
+                            </div>
                         </div>
                     </template>
                 </template>
@@ -145,6 +146,7 @@ import ColorInput from "../UI/ColorPicker/ColorInput.vue";
 import Switch from "../UI/Switch/Switch.vue";
 import Select from "../UI/Input/Select.vue";
 import Accordion from "../UI/Accordion/Accordion.vue";
+import Button from "../UI/Button/Button.vue";
 
 const props = defineProps<{
     clip: Clip;

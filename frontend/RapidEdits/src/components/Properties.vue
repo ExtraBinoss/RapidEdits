@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Sliders } from "lucide-vue-next";
 import { useProjectStore } from "../stores/projectStore";
-import { computed } from "vue";
+import { computed, ref, onUnmounted } from "vue";
 import { pluginRegistry } from "../core/plugins/PluginRegistry";
 import { createPluginId, PluginCategory } from "../core/plugins/PluginTypes";
 import type { PluginId } from "../core/plugins/PluginTypes";
@@ -11,6 +11,41 @@ import Slider from "./UI/Slider/Slider.vue";
 import Select from "./UI/Input/Select.vue";
 
 const store = useProjectStore();
+
+// --- Configuration ---
+const DEFAULT_PANEL_WIDTH = 340;
+const MIN_PANEL_WIDTH = 240;
+const MAX_PANEL_WIDTH = 600;
+
+// Resizer logic
+const panelWidth = ref(DEFAULT_PANEL_WIDTH);
+const isDragging = ref(false);
+
+const startDrag = (_e: MouseEvent) => {
+    isDragging.value = true;
+    document.body.style.cursor = 'col-resize';
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+};
+
+const onDrag = (e: MouseEvent) => {
+    if (!isDragging.value) return;
+    // The panel is on the right, so the new width is window width minus the mouse X coordinate
+    const newWidth = window.innerWidth - e.clientX;
+    panelWidth.value = Math.max(MIN_PANEL_WIDTH, Math.min(newWidth, MAX_PANEL_WIDTH));
+};
+
+const stopDrag = () => {
+    isDragging.value = false;
+    document.body.style.cursor = '';
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+};
+
+onUnmounted(() => {
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+});
 
 // Typed reference to the fade transition plugin
 const FADE_TRANSITION_ID = createPluginId(PluginCategory.Transitions, "fade") as PluginId;
@@ -122,8 +157,16 @@ const updateTransition = (
 
 <template>
     <div
-        class="w-72 bg-canvas-light border-l border-canvas-border flex flex-col shrink-0 z-10 overflow-y-auto"
+        class="bg-canvas-light border-l border-canvas-border flex flex-col shrink-0 z-10 overflow-y-auto relative"
+        :style="{ width: panelWidth + 'px' }"
     >
+        <!-- Resizer Handle -->
+        <div 
+            class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-brand-primary/50 z-50 transition-colors"
+            :class="{ 'bg-brand-primary': isDragging }"
+            @mousedown="startDrag"
+        ></div>
+
         <div class="px-3 py-2 border-b border-canvas-border flex items-center justify-between bg-canvas-dark/30">
             <h3
                 class="text-[11px] font-bold text-text-main flex items-center gap-2 uppercase tracking-widest"
