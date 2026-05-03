@@ -587,6 +587,27 @@ export class ThreeClipManager {
         });
     }
 
+    public refitAllMeshes() {
+        this.clipMeshes.forEach((mesh) => {
+            const mat = (mesh as THREE.Group).children[0] instanceof THREE.Mesh 
+                ? ((mesh as THREE.Group).children[0] as THREE.Mesh).material 
+                : null;
+            
+            if (!mat) return;
+
+            let texture: THREE.Texture | null = null;
+            if (mat instanceof THREE.ShaderMaterial) {
+                texture = mat.uniforms.map.value;
+            } else if (mat instanceof THREE.MeshBasicMaterial) {
+                texture = mat.map;
+            }
+
+            if (texture) {
+                this.fitMeshToScreen((mesh as THREE.Group).children[0] as THREE.Mesh, texture);
+            }
+        });
+    }
+
     public async waitForPendingLoads() {
         if (this.pendingLoads.size === 0) return;
         await Promise.all(Array.from(this.pendingLoads));

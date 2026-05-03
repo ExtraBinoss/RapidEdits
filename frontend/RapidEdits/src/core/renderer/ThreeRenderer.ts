@@ -67,18 +67,11 @@ export class ThreeRenderer {
 
     public setSize(width: number, height: number) {
         this.sceneManager.setSize(width, height);
-        // ClipManager needs to re-fit meshes if size changes
-        // But re-fitting depends on scale mode, which ClipManager stores.
-        // We can just trigger a refit or relying on update() if it checks size?
-        // Actually ClipManager has setScaleMode, but not setSize callback.
-        // We probably need to tell ClipManager to re-fit.
-        // For now, let's assume next update will handle, or add a method.
-        // In original code, setSize called manually fitMeshToScreen.
-        // Let's add refitAll to ClipManager public API implicitly via setScaleMode or new method.
-        // But since we pass getSceneDimensions callback, ClipManager can just check on update?
-        // No, fitMeshToScreen is only called on texture load or scale change.
-        // Force refit:
-        // this.clipManager.refitAllMeshes(); // Made private in manager.
+    }
+
+    public setProjectResolution(width: number, height: number) {
+        this.sceneManager.setProjectResolution(width, height);
+        this.clipManager.refitAllMeshes();
     }
 
     public async init() {

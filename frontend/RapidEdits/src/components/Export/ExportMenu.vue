@@ -278,18 +278,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onUnmounted } from "vue";
+import { ref, reactive, onUnmounted, computed } from "vue";
 import { X as XIcon, Check as CheckIcon, Download as DownloadIcon } from "lucide-vue-next";
 import { exportService } from "../../core/export/ExportService";
+import { useProjectStore } from "../../stores/projectStore";
 import Select from "../UI/Input/Select.vue";
 import Dialog from "../UI/Overlay/Dialog.vue";
 import Button from "../UI/Button/Button.vue";
 
-defineProps<{
+const props = defineProps<{
     modelValue: boolean;
 }>();
 
 const emit = defineEmits(["update:modelValue"]);
+
+const store = useProjectStore();
 
 const isExporting = ref(false);
 const isDone = ref(false);
@@ -311,17 +314,18 @@ const stats = reactive({
 });
 
 const config = reactive({
-    resolution: "1080p",
-    fps: 30,
+    resolution: "current",
+    fps: store.fps || 30,
     bitrate: 15_000_000,
     format: "mp4",
 });
 
-const resolutionOptions = [
+const resolutionOptions = computed(() => [
+    { label: `Current (${store.resolution.width}x${store.resolution.height})`, value: "current" },
     { label: "HD (1280x720)", value: "720p" },
     { label: "Full HD (1920x1080)", value: "1080p" },
     { label: "4K (3840x2160)", value: "4k" },
-];
+]);
 
 const fpsOptions = [
     { label: "24 FPS", value: 24, subLabel: "Cinematic" },
@@ -390,6 +394,10 @@ const startExport = async () => {
     let height = 1080;
 
     switch (config.resolution) {
+        case "current":
+            width = store.resolution.width;
+            height = store.resolution.height;
+            break;
         case "720p":
             width = 1280;
             height = 720;

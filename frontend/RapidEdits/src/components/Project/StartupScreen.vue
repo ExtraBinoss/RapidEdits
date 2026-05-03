@@ -32,7 +32,8 @@ const presets = [
         resolution: "1080x1920", 
         aspect: "9:16",
         icon: Smartphone,
-        image: "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?q=80&w=800&auto=format&fit=crop",
+        image: "/startup/social_media.jpg", // maybe switch to avif someday.
+        video: null, 
         description: "Vertical video optimized for mobile platforms."
     },
     { 
@@ -41,7 +42,8 @@ const presets = [
         resolution: "1920x1080", 
         aspect: "16:9",
         icon: Monitor,
-        image: "https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=800&auto=format&fit=crop",
+        image: "/startup/computer_normal.jpg", // maybe switch to avif someday.
+        video: null,
         description: "Standard widescreen for desktop and TV."
     },
     { 
@@ -50,7 +52,8 @@ const presets = [
         resolution: "1080x1080", 
         aspect: "1:1",
         icon: Square,
-        image: "https://images.unsplash.com/photo-1611262588024-d1217042d2c6?q=80&w=800&auto=format&fit=crop",
+        image: "/startup/instagram_square.avif",
+        video: null,
         description: "Perfect for Instagram posts and social feeds."
     },
     { 
@@ -59,7 +62,8 @@ const presets = [
         resolution: "Custom", 
         aspect: "Any",
         icon: Settings2,
-        image: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=800&auto=format&fit=crop",
+        image: "/startup/custom.avif",
+        video: null,
         description: "Manually define your resolution and frame rate."
     }
 ];
@@ -69,6 +73,10 @@ const hasPlayedInitialAnimation = ref(false);
 
 const handleImageLoad = (id: string) => {
     loadedImages.value[id] = true;
+};
+
+const handleVideoLoad = (id: string) => {
+    loadedImages.value[id] = true; // Use same flag for simplicity
 };
 
 // Animations snappier and faster
@@ -104,6 +112,26 @@ const animateCustom = async () => {
 onMounted(() => {
     if (props.isOpen) {
         animateLanding();
+
+        // Animate background gradient with GSAP (Slow & Subtle)
+        if (gradientRef.value) {
+            gsap.to(gradientRef.value, {
+                backgroundPosition: "100% 50%",
+                duration: 45,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut"
+            });
+
+            gsap.to(gradientRef.value, {
+                rotation: 15,
+                scale: 1.15,
+                duration: 35,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut"
+            });
+        }
     }
 });
 
@@ -158,17 +186,15 @@ const startProject = () => {
 
 const containerRef = ref(null);
 const logoRef = ref(null);
+const gradientRef = ref(null);
 </script>
 
 <template>
     <div v-if="isOpen" ref="containerRef" class="fixed inset-0 z-[200] flex items-center justify-center bg-canvas overflow-hidden">
-        <!-- Cinematic Background -->
-        <div class="absolute inset-0 z-0">
-            <img 
-                src="https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=2000&auto=format&fit=crop" 
-                class="startup-bg w-full h-full object-cover opacity-20 scale-105 blur-sm"
-            />
-            <div class="absolute inset-0 bg-gradient-to-b from-canvas/60 via-canvas to-canvas"></div>
+        <!-- Animated Cinematic Background -->
+        <div class="absolute inset-0 z-0 overflow-hidden">
+            <div ref="gradientRef" class="animated-gradient absolute inset-[-50%] opacity-30"></div>
+            <div class="absolute inset-0 bg-gradient-to-b from-canvas/40 via-canvas to-canvas"></div>
         </div>
 
         <!-- Content Container -->
@@ -227,19 +253,34 @@ const logoRef = ref(null);
                             <Skeleton height="100%" borderRadius="0" variant="dark" />
                         </div>
 
+                        <!-- Preset Video (if available) -->
+                        <video 
+                            v-if="preset.video"
+                            :src="preset.video" 
+                            class="absolute inset-0 w-full h-full object-cover transition-opacity duration-500 z-10"
+                            :class="[loadedImages[preset.id] ? 'opacity-60 group-hover:opacity-80' : 'opacity-0']"
+                            autoplay 
+                            muted 
+                            loop 
+                            playsinline
+                            @canplay="handleVideoLoad(preset.id)"
+                        ></video>
+
+                        <!-- Preset Image (Fallback/Default) -->
                         <img 
+                            v-else
                             :src="preset.image" 
                             class="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
                             :class="[loadedImages[preset.id] ? 'opacity-60 group-hover:opacity-80' : 'opacity-0']"
                             @load="handleImageLoad(preset.id)"
                         />
-                        <div class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent"></div>
+                        <div class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent z-10"></div>
                         
                         <div v-if="selectedPreset.id === preset.id" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-brand-primary flex items-center justify-center shadow-lg z-30">
                             <Check :size="18" class="text-white" />
                         </div>
 
-                        <div class="mt-auto p-4 relative z-10">
+                        <div class="mt-auto p-4 relative z-20">
                             <div class="flex items-center gap-2 mb-1">
                                 <component :is="preset.icon" :size="14" class="text-brand-accent" />
                                 <span class="text-[10px] font-bold text-brand-accent uppercase tracking-widest">{{ preset.aspect }}</span>
@@ -314,6 +355,20 @@ const logoRef = ref(null);
 </template>
 
 <style scoped>
+.animated-gradient {
+    background: linear-gradient(
+        -45deg, 
+        #1e3c72, 
+        #2a5298, 
+        #1e3c72, 
+        #316ea0, 
+        #2a5298
+    );
+    background-size: 400% 400%;
+    filter: blur(80px);
+    will-change: transform, background-position;
+}
+
 .custom-scrollbar-hidden {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */

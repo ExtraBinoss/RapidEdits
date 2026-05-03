@@ -91,6 +91,12 @@ export class ThreeSceneManager {
         this.renderer.setSize(width, height, false);
     }
 
+    public setProjectResolution(width: number, height: number) {
+        this.projectWidth = width;
+        this.projectHeight = height;
+        this.updateCamera();
+    }
+
     public setZoom(zoom: number | "fit" | "fill") {
         this.zoom = zoom;
         this.updateCamera();

@@ -29,11 +29,21 @@ watch(currentScaleMode, (newMode) => {
     }
 });
 
+watch(() => store.resolution, (newRes) => {
+    if (renderer) {
+        renderer.setProjectResolution(newRes.width, newRes.height);
+    }
+}, { deep: true });
+
 onMounted(async () => {
     if (!canvasContainer.value) return;
 
     // Initialize Custom Renderer
     renderer = new ThreeRenderer({ container: canvasContainer.value });
+    
+    // Set initial resolution
+    renderer.setProjectResolution(store.resolution.width, store.resolution.height);
+    
     await renderer.init();
     editorEngine.registerRenderer(renderer);
 });
