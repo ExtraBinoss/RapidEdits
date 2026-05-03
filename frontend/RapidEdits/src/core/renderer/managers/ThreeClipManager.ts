@@ -135,6 +135,8 @@ export class ThreeClipManager {
 
                     if (object) {
                         object.position.z = 500 + trackIndex;
+                        this.applyClipTransform(object, clip);
+
                         if (object.children.length > 0) {
                             plugin.update(
                                 object.children[0]!,
@@ -179,7 +181,7 @@ export class ThreeClipManager {
 
                 if (object) {
                     object.position.z = zLayer + trackIndex;
-                    this.updateMediaClipProperties(object, clip);
+                    this.applyClipTransform(object, clip);
                 }
             }
 
@@ -280,30 +282,38 @@ export class ThreeClipManager {
         return visibleClips;
     }
 
-    private updateMediaClipProperties(object: THREE.Object3D, clip: Clip) {
-        // object is a THREE.Mesh for media clips
-        const mesh = object instanceof THREE.Mesh ? object : null;
-        if (!mesh) return;
-
+    private applyClipTransform(object: THREE.Object3D, clip: Clip) {
+        // Position, Rotation, Scale should be applied to the ROOT object of the clip
         const { position, rotation, scale } = clip.data || {};
-        const baseScale = (mesh.userData.baseScale as THREE.Vector3) || new THREE.Vector3(1, 1, 1);
+        
+        // Base scale only applies to Media Clips (to fit them to screen)
+        // For Plugins, baseScale is 1,1,1
+        const baseScale = (object.userData.baseScale as THREE.Vector3) || new THREE.Vector3(1, 1, 1);
 
-        if (position) mesh.position.set(position.x, position.y, mesh.position.z);
-        if (rotation) mesh.rotation.set(rotation.x, rotation.y, rotation.z);
+        if (position) object.position.set(position.x, position.y, object.position.z);
+        if (rotation) {
+            object.rotation.set(
+                THREE.MathUtils.degToRad(rotation.x || 0),
+                THREE.MathUtils.degToRad(rotation.y || 0),
+                THREE.MathUtils.degToRad(rotation.z || 0)
+            );
+        }
+        
         if (scale) {
-            mesh.scale.set(baseScale.x * scale.x, baseScale.y * scale.y, baseScale.z * scale.z);
+            object.scale.set(baseScale.x * scale.x, baseScale.y * scale.y, baseScale.z * scale.z);
         } else {
-            mesh.scale.copy(baseScale);
+            object.scale.copy(baseScale);
         }
 
-        const mat = mesh.material;
-        if (mat instanceof THREE.ShaderMaterial) {
+        // Shader specific uniforms (only for Media Clips)
+        if (object instanceof THREE.Mesh && object.material instanceof THREE.ShaderMaterial) {
+            const mat = object.material;
             const uniforms = mat.uniforms;
             uniforms.borderRadius.value = clip.data?.borderRadius ?? 0;
             uniforms.edgeSoftness.value = clip.data?.edgeSoftness ?? 0;
             const crop = clip.data?.crop || { left: 0, right: 0, top: 0, bottom: 0 };
             uniforms.crop.value.set(crop.left, crop.right, crop.top, crop.bottom);
-            uniforms.resolution.value.set(mesh.scale.x, mesh.scale.y);
+            uniforms.resolution.value.set(object.scale.x, object.scale.y);
             if (clip.data?.opacity !== undefined) uniforms.opacity.value = clip.data.opacity;
             if (uniforms.map.value instanceof THREE.VideoTexture) {
                 uniforms.map.value.needsUpdate = true;

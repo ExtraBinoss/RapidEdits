@@ -297,7 +297,6 @@ export class TextPlugin extends BasePlugin {
         group.userData.layers = [];
 
         this.syncLayers(group, data);
-        this.updateTransform(group, data);
 
         return group;
     }
@@ -423,17 +422,6 @@ export class TextPlugin extends BasePlugin {
         }
 
         group.userData.lastState = JSON.parse(JSON.stringify(data));
-        this.updateTransform(group, data);
-    }
-
-    updateTransform(group: THREE.Object3D, data: any) {
-        group.position.set(data.position.x, data.position.y, data.position.z);
-        group.rotation.set(
-            THREE.MathUtils.degToRad(data.rotation.x),
-            THREE.MathUtils.degToRad(data.rotation.y),
-            THREE.MathUtils.degToRad(data.rotation.z)
-        );
-        group.scale.set(data.scale.x, data.scale.y, data.scale.z);
     }
 
     getFilmstripConfig(clip: Clip): FilmstripConfig {
