@@ -42,6 +42,10 @@ export const useProjectStore = defineStore("project", () => {
         currentTime.value = time;
     });
 
+    globalEventBus.on(EditorEventType.PLAYBACK_TOGGLED, (playing: boolean) => {
+        isPlaying.value = playing;
+    });
+
     // Actions
     const uploadFiles = async (files: FileList | File[]) => {
         const fileArray = Array.from(files);

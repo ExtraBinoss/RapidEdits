@@ -65,6 +65,31 @@ const onDragStart = (e: DragEvent) => {
 const onDragEnd = () => {
     store.draggedAsset = null;
 };
+
+const onDoubleClick = () => {
+    let trackType: "video" | "audio" = "video";
+    if (props.asset.type === MediaType.AUDIO) trackType = "audio";
+
+    // Try to find an existing track of the correct type with no overlapping clips at current time
+    let targetTrack = store.tracks.find((t) => {
+        if (t.type !== trackType) return false;
+        
+        const overlap = t.clips.some((c) => {
+            const clipEnd = c.start + c.duration;
+            const newClipEnd = store.currentTime + (props.asset.duration ?? 5);
+            return store.currentTime < clipEnd && newClipEnd > c.start;
+        });
+        
+        return !overlap;
+    });
+
+    // If no empty slot found, create a new track
+    if (!targetTrack) {
+        targetTrack = store.addTrack(trackType);
+    }
+
+    store.addClipToTimeline(props.asset.id, targetTrack.id, store.currentTime);
+};
 </script>
 
 <template>
@@ -73,6 +98,7 @@ const onDragEnd = () => {
         draggable="true"
         @dragstart="onDragStart"
         @dragend="onDragEnd"
+        @dblclick="onDoubleClick"
     >
         <!-- Preview Image/Placeholder -->
         <div
