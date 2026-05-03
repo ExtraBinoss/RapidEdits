@@ -13,6 +13,8 @@ export class ThreeClipManager {
     private planeGeometry: THREE.PlaneGeometry;
     private getSceneDimensions: () => { width: number; height: number };
 
+    public getClipMeshes() { return this.clipMeshes; }
+
     constructor(
         scene: THREE.Scene,
         allocator: TextureAllocator,

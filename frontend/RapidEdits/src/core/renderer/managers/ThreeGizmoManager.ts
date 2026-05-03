@@ -10,8 +10,8 @@ export interface ScreenRect {
 }
 
 /**
- * KISS: every frame, gets the selected clip's world AABB via Box3.setFromObject(),
- * projects the 4 corners to canvas pixels, returns a ScreenRect for the CSS overlay.
+ * Gets the screen-space rect for the selected clip.
+ * Supports rotation by projecting local corners and computing the unrotated dimensions.
  */
 export class ThreeGizmoManager {
     private camera: THREE.OrthographicCamera;
@@ -34,77 +34,80 @@ export class ThreeGizmoManager {
         const selectedIds = editorEngine.getSelectedClipIds();
         
         if (selectedIds.length === 0) {
-            if (this._lastRect) {
-                this._lastRect = null;
-            }
+            this._lastRect = null;
             return;
         }
 
-        // KISS: Find the last selected clip that actually has a visible mesh
-        let clipId: string | null = null;
         let clipMesh: THREE.Object3D | undefined;
-
         for (let i = selectedIds.length - 1; i >= 0; i--) {
-            const id = selectedIds[i];
-            const mesh = this.getClipMesh(id);
+            const mesh = this.getClipMesh(selectedIds[i]);
             if (mesh) {
-                clipId = id;
                 clipMesh = mesh;
                 break;
             }
         }
 
-        if (!clipId || !clipMesh) {
-            if (this._lastRect) {
-                this._lastRect = null;
-            }
+        if (!clipMesh) {
+            this._lastRect = null;
             return;
         }
 
         clipMesh.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(clipMesh);
-        if (box.isEmpty()) { 
-            this._lastRect = null; 
-            return; 
-        }
+
+        // 1. Get the screen-space center
+        const worldCenter = new THREE.Vector3();
+        clipMesh.getWorldPosition(worldCenter);
+        const screenCenter = worldCenter.clone().project(this.camera);
 
         const cw = this.rendererDomElement.clientWidth;
         const ch = this.rendererDomElement.clientHeight;
 
-        // Project all 8 corners of the 3D AABB to be safe
-        const points = [
-            new THREE.Vector3(box.min.x, box.min.y, box.min.z),
-            new THREE.Vector3(box.max.x, box.min.y, box.min.z),
-            new THREE.Vector3(box.min.x, box.max.y, box.min.z),
-            new THREE.Vector3(box.max.x, box.max.y, box.min.z),
-            new THREE.Vector3(box.min.x, box.min.y, box.max.z),
-            new THREE.Vector3(box.max.x, box.min.y, box.max.z),
-            new THREE.Vector3(box.min.x, box.max.y, box.max.z),
-            new THREE.Vector3(box.max.x, box.max.y, box.max.z),
-        ];
+        const centerX = (screenCenter.x * 0.5 + 0.5) * cw;
+        const centerY = (1 - (screenCenter.y * 0.5 + 0.5)) * ch;
 
-        const corners = points.map(p => {
-            const ndc = p.project(this.camera);
-            return {
-                x: (ndc.x * 0.5 + 0.5) * cw,
-                y: (1 - (ndc.y * 0.5 + 0.5)) * ch,
-            };
-        });
+        // 2. Extract rotation directly from matrix columns (more robust for non-uniform scale)
+        const te = clipMesh.matrixWorld.elements;
+        // The angle of the local X axis (Col 0) in world space
+        // We use Math.atan2(y, x)
+        const rotationZ = Math.atan2(te[1], te[0]);
 
-        const minX = Math.min(...corners.map(c => c.x));
-        const minY = Math.min(...corners.map(c => c.y));
-        const maxX = Math.max(...corners.map(c => c.x));
-        const maxY = Math.max(...corners.map(c => c.y));
+        // 3. Get the logical size in world units by projecting unrotated local axes
+        // We create a temporary matrix that has the same scale but NO rotation
+        const worldScale = new THREE.Vector3();
+        clipMesh.getWorldScale(worldScale);
+        
+        // Project a horizontal and vertical segment of the object's size
+        const halfW = worldScale.x / 2;
+        const halfH = worldScale.y / 2;
 
-        const euler = new THREE.Euler().setFromRotationMatrix(clipMesh.matrixWorld, "XYZ");
+        // We project two points that represent the "width" axis in screen space
+        // but we do it WITHOUT the rotation to get the base pixel size.
+        // Actually, projecting WITH rotation and taking the length is correct 
+        // because an Orthographic camera doesn't distort lengths during rotation.
+        const rightPoint = new THREE.Vector3(0.5, 0, 0).applyMatrix4(clipMesh.matrixWorld);
+        const topPoint = new THREE.Vector3(0, 0.5, 0).applyMatrix4(clipMesh.matrixWorld);
+        
+        const projCenter = worldCenter.clone().project(this.camera);
+        const projRight = rightPoint.project(this.camera);
+        const projTop = topPoint.project(this.camera);
 
-        const rect = {
-            x: minX, y: minY,
-            width: maxX - minX, height: maxY - minY,
-            rotation: euler.z,
+        // Pixel distance from center to edge
+        const pixelWidthHalf = Math.sqrt(
+            Math.pow((projRight.x - projCenter.x) * cw * 0.5, 2) + 
+            Math.pow((projRight.y - projCenter.y) * ch * 0.5, 2)
+        );
+        const pixelHeightHalf = Math.sqrt(
+            Math.pow((projTop.x - projCenter.x) * cw * 0.5, 2) + 
+            Math.pow((projTop.y - projCenter.y) * ch * 0.5, 2)
+        );
+
+        this._lastRect = {
+            x: centerX - pixelWidthHalf,
+            y: centerY - pixelHeightHalf,
+            width: pixelWidthHalf * 2,
+            height: pixelHeightHalf * 2,
+            rotation: -rotationZ, // Negate for CSS
         };
-
-        this._lastRect = rect;
     }
 
     public getScreenRect(): ScreenRect | null {

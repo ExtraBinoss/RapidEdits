@@ -3,6 +3,7 @@ import { OrbitControls, TransformControls } from "three-stdlib";
 import { editorEngine } from "../../EditorEngine";
 import { globalEventBus } from "../../events/EventBus";
 import { EditorEventType } from "../../../types/Media";
+import { ThreeGuidesManager } from "./ThreeGuidesManager";
 
 export class ThreeInteractionManager {
     private camera: THREE.OrthographicCamera;
@@ -23,23 +24,32 @@ export class ThreeInteractionManager {
     private dragIntersection = new THREE.Vector3();
 
     private getClipMesh: (clipId: string) => THREE.Object3D | undefined;
+    private getAllClipMeshes: () => Map<string, THREE.Object3D>;
+    private getProjectDimensions: () => { width: number; height: number };
     private onSelectionChanged: () => void;
     private onTransformChanged: () => void;
+    private guidesManager: ThreeGuidesManager;
 
     constructor(
         camera: THREE.OrthographicCamera,
         scene: THREE.Scene,
         rendererDomElement: HTMLCanvasElement,
         getClipMesh: (clipId: string) => THREE.Object3D | undefined,
+        getAllClipMeshes: () => Map<string, THREE.Object3D>,
+        getProjectDimensions: () => { width: number; height: number },
         onSelectionChanged: () => void,
         onTransformChanged: () => void,
+        guidesManager: ThreeGuidesManager,
     ) {
         this.camera = camera;
         this.scene = scene;
         this.rendererDomElement = rendererDomElement;
         this.getClipMesh = getClipMesh;
+        this.getAllClipMeshes = getAllClipMeshes;
+        this.getProjectDimensions = getProjectDimensions;
         this.onSelectionChanged = onSelectionChanged;
         this.onTransformChanged = onTransformChanged;
+        this.guidesManager = guidesManager;
 
         this.orbitControls = new OrbitControls(this.camera, this.rendererDomElement);
         this.orbitControls.enableDamping = true;
@@ -59,10 +69,30 @@ export class ThreeInteractionManager {
             const isDragging = event.value as boolean;
             this.orbitControls.enabled = !isDragging;
             this.isInteracting = isDragging;
+            if (!isDragging) this.guidesManager.clear();
         });
 
         (this.transformControls as any).addEventListener("change", () => {
-            if (this.isInteracting) this.syncTransformToClip();
+            if (this.isInteracting) {
+                // Handle snapping for TransformControls
+                const tc = this.transformControls as any;
+                if (tc.mode === "translate") {
+                    const obj = tc.object as THREE.Object3D;
+                    if (obj && obj.userData?.clipId) {
+                        const dims = this.getProjectDimensions();
+                        const snappedPos = this.guidesManager.snap(
+                            obj.position,
+                            obj,
+                            this.getAllClipMeshes(),
+                            dims.width,
+                            dims.height,
+                            obj.userData.clipId
+                        );
+                        obj.position.copy(snappedPos);
+                    }
+                }
+                this.syncTransformToClip();
+            }
         });
 
         this.rendererDomElement.addEventListener("pointerdown", this.onPointerDown.bind(this));
@@ -173,7 +203,19 @@ export class ThreeInteractionManager {
                 const clipMesh = this.getClipMesh(this.draggedClipId);
                 if (clipMesh) {
                     const posObj = this.getPositionObject(clipMesh);
-                    const newPos = intersection.add(this.dragOffset);
+                    let newPos = intersection.add(this.dragOffset);
+
+                    // Apply Snapping
+                    const dims = this.getProjectDimensions();
+                    newPos = this.guidesManager.snap(
+                        newPos,
+                        clipMesh,
+                        this.getAllClipMeshes(),
+                        dims.width,
+                        dims.height,
+                        this.draggedClipId
+                    );
+
                     posObj.position.x = newPos.x;
                     posObj.position.y = newPos.y;
                     this.syncTransformToClip();
@@ -203,6 +245,7 @@ export class ThreeInteractionManager {
             this.isDraggingObject = false;
             this.draggedClipId = null;
             this.orbitControls.enabled = true;
+            this.guidesManager.clear();
         }
     }
 

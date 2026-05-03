@@ -9,6 +9,7 @@ import { ThreeClipManager } from "./managers/ThreeClipManager";
 import { ThreeVideoManager } from "./managers/ThreeVideoManager";
 import { ThreeCropManager } from "./managers/ThreeCropManager";
 import { ThreeGizmoManager, type ScreenRect } from "./managers/ThreeGizmoManager";
+import { ThreeGuidesManager } from "./managers/ThreeGuidesManager";
 import { EditorEventType } from "../../types/Media";
 export type { ScreenRect };
 
@@ -31,6 +32,7 @@ export class ThreeRenderer {
     public gizmoManager: ThreeGizmoManager | null = null;
     public clipManager: ThreeClipManager;
     public videoManager: ThreeVideoManager;
+    public guidesManager: ThreeGuidesManager;
 
     // State
     private isCaptureMode: boolean = false;
@@ -64,6 +66,8 @@ export class ThreeRenderer {
         this.videoManager = new ThreeVideoManager((clipId) =>
             this.clipManager.getClipMesh(clipId),
         );
+
+        this.guidesManager = new ThreeGuidesManager(this.sceneManager.scene);
     }
 
     public setCaptureMode(isCapture: boolean) {
@@ -95,8 +99,14 @@ export class ThreeRenderer {
                     this.sceneManager.scene,
                     this.sceneManager.renderer.domElement,
                     (clipId: string) => this.clipManager.getClipMesh(clipId),
+                    () => this.clipManager.getClipMeshes(),
+                    () => ({
+                        width: this.sceneManager.getWidth(),
+                        height: this.sceneManager.getHeight(),
+                    }),
                     () => this.selectionManager?.updateSelectionGizmo(),
                     () => this.selectionManager?.updateSelectionGizmo(),
+                    this.guidesManager,
                 );
 
                 this.selectionManager = new ThreeSelectionManager(
@@ -236,6 +246,7 @@ export class ThreeRenderer {
         this.sceneManager.dispose();
         this.interactionManager?.dispose();
         this.clipManager.dispose();
+        this.guidesManager.dispose();
     }
 
     public destroy() {
