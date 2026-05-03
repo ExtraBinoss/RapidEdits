@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Sliders, Crop } from "lucide-vue-next";
+import { Sliders, Crop, RotateCcw } from "lucide-vue-next";
 import { useProjectStore } from "../stores/projectStore";
 import { computed, ref, onUnmounted } from "vue";
 import { pluginRegistry } from "../core/plugins/PluginRegistry";
@@ -21,6 +21,16 @@ const store = useProjectStore();
 const DEFAULT_PANEL_WIDTH = 340;
 const MIN_PANEL_WIDTH = 240;
 const MAX_PANEL_WIDTH = 600;
+
+const MEDIA_DEFAULTS: Record<string, any> = {
+    position: { x: 0, y: 0 },
+    rotation: { z: 0 },
+    scale: { x: 1, y: 1 },
+    opacity: 1,
+    borderRadius: 0,
+    edgeSoftness: 0,
+    crop: { left: 0, right: 0, top: 0, bottom: 0 }
+};
 
 // Resizer logic
 const panelWidth = ref(DEFAULT_PANEL_WIDTH);
@@ -116,6 +126,50 @@ const updateClipData = (newData: any) => {
 const updateProperty = (key: string, value: any) => {
     const currentData = selectedClip.value?.data || {};
     updateClipData({ ...currentData, [key]: value });
+};
+
+const isPropertyModified = (key: string) => {
+    const current = selectedClip.value?.data?.[key];
+    const defaultValue = MEDIA_DEFAULTS[key];
+    
+    if (current === undefined) return false;
+    if (defaultValue === undefined) return false;
+    
+    if (typeof current === 'object' && current !== null) {
+        return JSON.stringify(current) !== JSON.stringify(defaultValue);
+    }
+    return current !== defaultValue;
+};
+
+const resetMediaProperty = (key: string) => {
+    const defaultValue = MEDIA_DEFAULTS[key];
+    if (defaultValue !== undefined) {
+        updateProperty(key, JSON.parse(JSON.stringify(defaultValue)));
+    }
+};
+
+const isCropModified = (side?: string) => {
+    const currentCrop = selectedClip.value?.data?.crop;
+    if (!currentCrop) return false;
+
+    const defaults = MEDIA_DEFAULTS.crop;
+    if (side) {
+        return currentCrop[side] !== defaults[side];
+    }
+
+    return JSON.stringify(currentCrop) !== JSON.stringify(defaults);
+};
+
+const resetCrop = (side?: string) => {
+    const currentData = selectedClip.value?.data || {};
+    const defaults = MEDIA_DEFAULTS.crop;
+
+    if (side) {
+        const currentCrop = currentData.crop || { ...defaults };
+        updateProperty('crop', { ...currentCrop, [side]: defaults[side] });
+    } else {
+        updateProperty('crop', { ...defaults });
+    }
 };
 
 const updateCrop = (side: string, value: number) => {
@@ -229,7 +283,22 @@ const updateTransition = (
                         <!-- Position -->
                         <div class="flex flex-col gap-1.5 py-2 px-1 hover:bg-white/[0.02] rounded-sm transition-colors group/vec">
                             <div class="flex items-center justify-between px-1">
-                                <label class="text-[11px] font-semibold text-text-muted transition-colors group-hover/vec:text-text-main">Position</label>
+                                <label 
+                                    class="text-[11px] font-semibold text-text-muted transition-colors group-hover/vec:text-text-main cursor-default select-none"
+                                    @dblclick="resetMediaProperty('position')"
+                                >
+                                    Position
+                                </label>
+                                <!-- Reset Button for Position -->
+                                <div :class="{ 'opacity-0 group-hover/vec:opacity-100 transition-opacity': !isPropertyModified('position') }" class="shrink-0">
+                                    <Button
+                                        variant="icon"
+                                        size="xs"
+                                        :icon="RotateCcw"
+                                        title="Reset to default"
+                                        @click="resetMediaProperty('position')"
+                                    />
+                                </div>
                             </div>
                             <div class="flex gap-2 w-full">
                                 <div v-for="axis in ['x', 'y']" :key="axis" class="relative flex-1 group/axis">
@@ -247,7 +316,12 @@ const updateTransition = (
                         </div>
                         <!-- Rotation -->
                         <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
-                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Rotation</label>
+                            <label 
+                                class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors cursor-default select-none"
+                                @dblclick="resetMediaProperty('rotation')"
+                            >
+                                Rotation
+                            </label>
                             <div class="flex-1">
                                 <Slider
                                     :model-value="selectedClip.data?.rotation?.z ?? 0"
@@ -258,10 +332,25 @@ const updateTransition = (
                                     @update:model-value="(val) => updateVector('rotation', 'z', val)"
                                 />
                             </div>
+                            <!-- Reset Button -->
+                            <div :class="{ 'opacity-0 group-hover:opacity-100 transition-opacity': !isPropertyModified('rotation') }" class="shrink-0">
+                                <Button
+                                    variant="icon"
+                                    size="xs"
+                                    :icon="RotateCcw"
+                                    title="Reset to default"
+                                    @click="resetMediaProperty('rotation')"
+                                />
+                            </div>
                         </div>
                         <!-- Scale -->
                         <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
-                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Scale</label>
+                            <label 
+                                class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors cursor-default select-none"
+                                @dblclick="resetMediaProperty('scale')"
+                            >
+                                Scale
+                            </label>
                             <div class="flex-1">
                                 <Slider
                                     :model-value="selectedClip.data?.scale?.x ?? 1"
@@ -272,6 +361,16 @@ const updateTransition = (
                                     @update:model-value="(val) => { updateVector('scale', 'x', val); updateVector('scale', 'y', val); }"
                                 />
                             </div>
+                            <!-- Reset Button -->
+                            <div :class="{ 'opacity-0 group-hover:opacity-100 transition-opacity': !isPropertyModified('scale') }" class="shrink-0">
+                                <Button
+                                    variant="icon"
+                                    size="xs"
+                                    :icon="RotateCcw"
+                                    title="Reset to default"
+                                    @click="resetMediaProperty('scale')"
+                                />
+                            </div>
                         </div>
                     </div>
                 </Accordion>
@@ -280,7 +379,12 @@ const updateTransition = (
                     <div class="space-y-1 py-1">
                         <!-- Opacity -->
                         <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
-                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Opacity</label>
+                            <label 
+                                class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors cursor-default select-none"
+                                @dblclick="resetMediaProperty('opacity')"
+                            >
+                                Opacity
+                            </label>
                             <div class="flex-1">
                                 <Slider
                                     :model-value="selectedClip.data?.opacity ?? 1"
@@ -291,10 +395,25 @@ const updateTransition = (
                                     @update:model-value="(val) => updateProperty('opacity', val)"
                                 />
                             </div>
+                            <!-- Reset Button -->
+                            <div :class="{ 'opacity-0 group-hover:opacity-100 transition-opacity': !isPropertyModified('opacity') }" class="shrink-0">
+                                <Button
+                                    variant="icon"
+                                    size="xs"
+                                    :icon="RotateCcw"
+                                    title="Reset to default"
+                                    @click="resetMediaProperty('opacity')"
+                                />
+                            </div>
                         </div>
                         <!-- Border Radius -->
                         <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
-                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Round Edges</label>
+                            <label 
+                                class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors cursor-default select-none"
+                                @dblclick="resetMediaProperty('borderRadius')"
+                            >
+                                Round Edges
+                            </label>
                             <div class="flex-1">
                                 <Slider
                                     :model-value="selectedClip.data?.borderRadius ?? 0"
@@ -305,10 +424,25 @@ const updateTransition = (
                                     @update:model-value="(val) => updateProperty('borderRadius', val)"
                                 />
                             </div>
+                            <!-- Reset Button -->
+                            <div :class="{ 'opacity-0 group-hover:opacity-100 transition-opacity': !isPropertyModified('borderRadius') }" class="shrink-0">
+                                <Button
+                                    variant="icon"
+                                    size="xs"
+                                    :icon="RotateCcw"
+                                    title="Reset to default"
+                                    @click="resetMediaProperty('borderRadius')"
+                                />
+                            </div>
                         </div>
                         <!-- Edge Softness -->
                         <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
-                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Edge Softness</label>
+                            <label 
+                                class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors cursor-default select-none"
+                                @dblclick="resetMediaProperty('edgeSoftness')"
+                            >
+                                Edge Softness
+                            </label>
                             <div class="flex-1">
                                 <Slider
                                     :model-value="selectedClip.data?.edgeSoftness ?? 0"
@@ -319,24 +453,50 @@ const updateTransition = (
                                     @update:model-value="(val) => updateProperty('edgeSoftness', val)"
                                 />
                             </div>
+                            <!-- Reset Button -->
+                            <div :class="{ 'opacity-0 group-hover:opacity-100 transition-opacity': !isPropertyModified('edgeSoftness') }" class="shrink-0">
+                                <Button
+                                    variant="icon"
+                                    size="xs"
+                                    :icon="RotateCcw"
+                                    title="Reset to default"
+                                    @click="resetMediaProperty('edgeSoftness')"
+                                />
+                            </div>
                         </div>
                     </div>
                 </Accordion>
 
                 <Accordion title="Crop">
                     <template #action>
-                        <Button
-                            variant="icon"
-                            size="xs"
-                            :icon="Crop"
-                            :class="{ 'text-brand-primary': isCropMode }"
-                            title="Toggle Crop Mode"
-                            @click.stop="toggleCropMode"
-                        />
+                        <div class="flex items-center gap-1">
+                            <div :class="{ 'opacity-0 hover:opacity-100 transition-opacity': !isCropModified() }" class="shrink-0">
+                                <Button
+                                    variant="icon"
+                                    size="xs"
+                                    :icon="RotateCcw"
+                                    title="Reset all crop"
+                                    @click.stop="resetCrop()"
+                                />
+                            </div>
+                            <Button
+                                variant="icon"
+                                size="xs"
+                                :icon="Crop"
+                                :class="{ 'text-brand-primary': isCropMode }"
+                                title="Toggle Crop Mode"
+                                @click.stop="toggleCropMode"
+                            />
+                        </div>
                     </template>
                     <div class="space-y-1 py-1">
                         <div v-for="side in ['left', 'right', 'top', 'bottom']" :key="side" class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
-                            <label class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors capitalize">{{ side }}</label>
+                            <label 
+                                class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors capitalize cursor-default select-none"
+                                @dblclick="resetCrop(side)"
+                            >
+                                {{ side }}
+                            </label>
                             <div class="flex-1">
                                 <Slider
                                     :model-value="selectedClip.data?.crop?.[side] ?? 0"
@@ -345,6 +505,16 @@ const updateTransition = (
                                     :step="0.01"
                                     class="!gap-2"
                                     @update:model-value="(val) => updateCrop(side, val)"
+                                />
+                            </div>
+                            <!-- Reset Button -->
+                            <div :class="{ 'opacity-0 group-hover:opacity-100 transition-opacity': !isCropModified(side) }" class="shrink-0">
+                                <Button
+                                    variant="icon"
+                                    size="xs"
+                                    :icon="RotateCcw"
+                                    title="Reset to default"
+                                    @click="resetCrop(side)"
                                 />
                             </div>
                         </div>

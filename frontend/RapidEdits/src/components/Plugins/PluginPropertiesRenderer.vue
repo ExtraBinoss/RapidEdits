@@ -7,8 +7,8 @@
             >
                 <template v-for="(prop, _) in group.props" :key="prop.key">
                     <template v-if="shouldShow(prop)">
-                        <!-- Vector3 (Dedicated multi-row layout) -->
-                        <div v-if="prop.type === 'vector3'" class="flex flex-col gap-1.5 py-2 px-1 hover:bg-white/[0.02] rounded-sm transition-colors group/vec">
+                        <!-- Vector (Dedicated multi-row layout for 2, 3, or 4 components) -->
+                        <div v-if="prop.type === 'vector2' || prop.type === 'vector3' || prop.type === 'vector4'" class="flex flex-col gap-1.5 py-2 px-1 hover:bg-white/[0.02] rounded-sm transition-colors group/vec">
                             <div class="flex items-center justify-between px-1">
                                 <label
                                     class="text-[12px] font-semibold text-text-muted transition-colors group-hover/vec:text-text-main cursor-default select-none"
@@ -16,10 +16,24 @@
                                 >
                                     {{ prop.label }}
                                 </label>
+                                <!-- Reset Button for Vector -->
+                                <div :class="{ 'opacity-0 group-hover/vec:opacity-100 transition-opacity': !isModified(prop) }" class="shrink-0">
+                                    <Button
+                                        variant="icon"
+                                        size="xs"
+                                        :icon="RotateCcw"
+                                        title="Reset to default"
+                                        @click="resetProperty(prop)"
+                                    />
+                                </div>
                             </div>
                             
                             <div class="flex gap-2 w-full">
-                                <div v-for="axis in ['x', 'y', 'z']" :key="axis" class="relative flex-1 group/axis">
+                                <div 
+                                    v-for="axis in (prop.type === 'vector2' ? ['x', 'y'] : prop.type === 'vector3' ? ['x', 'y', 'z'] : ['x', 'y', 'z', 'w'])" 
+                                    :key="axis" 
+                                    class="relative flex-1 group/axis"
+                                >
                                     <div class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none z-10">
                                         <span class="text-[9px] font-black text-text-muted/40 uppercase">{{ axis }}</span>
                                     </div>
@@ -231,7 +245,12 @@ const updateProperty = (key: string, value: any) => {
 };
 
 const updateVector = (key: string, axis: string, value: number) => {
-    const currentVector = clipData.value[key] || { x: 0, y: 0, z: 0 };
+    const prop = safeProperties.value.find(p => p.key === key);
+    let defaultVector: any = { x: 0, y: 0 };
+    if (prop?.type === 'vector3') defaultVector = { x: 0, y: 0, z: 0 };
+    if (prop?.type === 'vector4') defaultVector = { x: 0, y: 0, z: 0, w: 0 };
+
+    const currentVector = clipData.value[key] || defaultVector;
     const newVector = { ...currentVector, [axis]: value };
     updateProperty(key, newVector);
 };
