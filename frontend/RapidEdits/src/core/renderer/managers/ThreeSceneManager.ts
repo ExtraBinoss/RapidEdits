@@ -5,6 +5,7 @@ export interface ThreeSceneManagerOptions {
     width?: number;
     height?: number;
     canvas?: HTMLCanvasElement | OffscreenCanvas;
+    pixelRatio?: number;
 }
 
 export class ThreeSceneManager {
@@ -56,7 +57,7 @@ export class ThreeSceneManager {
         }
 
         this.renderer = new THREE.WebGLRenderer(rendererParams);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3)); 
+        this.renderer.setPixelRatio(options.pixelRatio || Math.min(window.devicePixelRatio, 3)); 
         this.renderer.toneMapping = THREE.NoToneMapping;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.setClearColor(0x000000, 0); // Transparent outside the canvas

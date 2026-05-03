@@ -19,6 +19,7 @@ export interface ThreeRendererOptions {
     canvas?: HTMLCanvasElement | OffscreenCanvas;
     allocator?: TextureAllocator;
     isCaptureMode?: boolean;
+    pixelRatio?: number;
 }
 
 export class ThreeRenderer {
@@ -48,6 +49,7 @@ export class ThreeRenderer {
             width: options.width,
             height: options.height,
             canvas: options.canvas,
+            pixelRatio: options.pixelRatio,
         });
 
         this.clipManager = new ThreeClipManager(
@@ -145,7 +147,7 @@ export class ThreeRenderer {
         this.renderFrame(currentTime, tracks);
     }
 
-    public renderFrame(currentTime: number, tracks: Track[]) {
+    public prepareFrame(currentTime: number, tracks: Track[]) {
         // 1. Update Content (Clips)
         const visibleClips = this.clipManager.update(
             currentTime,
@@ -155,13 +157,22 @@ export class ThreeRenderer {
 
         // 2. Sync Videos
         this.videoManager.sync(visibleClips, currentTime, this.isCaptureMode);
+        
+        return visibleClips;
+    }
 
+    public renderOnly(visibleClips: any[]) {
         // 3. Render Scene
         this.sceneManager.placeholderMesh.visible = visibleClips.length === 0;
         this.sceneManager.renderer.render(
             this.sceneManager.scene,
             this.sceneManager.camera,
         );
+    }
+
+    public renderFrame(currentTime: number, tracks: Track[]) {
+        const visibleClips = this.prepareFrame(currentTime, tracks);
+        this.renderOnly(visibleClips);
 
         // 4. Update Ambient Light (Throttled)
         if (!this.isCaptureMode) {
