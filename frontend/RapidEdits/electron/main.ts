@@ -77,7 +77,6 @@ function createWindow() {
     },
     width: 1280,
     height: 800,
-    titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: '#0f172a',
       symbolColor: '#f8fafc',
@@ -94,6 +93,7 @@ function createWindow() {
     win.loadURL(VITE_DEV_SERVER_URL)
     win.webContents.openDevTools()
   } else {
+    win.setMenu(null) // Hide 'File / Edit / Window' menu in production
     // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
