@@ -57,7 +57,7 @@ export class ThreeSceneManager {
 
         this.renderer = new THREE.WebGLRenderer(rendererParams);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3)); 
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMapping = THREE.NoToneMapping;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.setClearColor(0x000000, 0); // Transparent outside the canvas
 

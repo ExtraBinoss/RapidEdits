@@ -65,9 +65,17 @@ export class ThreeVideoManager {
         }
 
         if (editorEngine.getIsPlaying()) {
-            if (video.paused) video.play().catch(() => {});
+            if (video.paused) {
+                console.log("[VideoManager] Playing video for clip", clip.id);
+                video.play().catch((err) => {
+                    console.warn("[VideoManager] Play failed for clip", clip.id, err);
+                });
+            }
         } else {
-            if (!video.paused) video.pause();
+            if (!video.paused) {
+                console.log("[VideoManager] Pausing video for clip", clip.id);
+                video.pause();
+            }
         }
     }
 

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref, onBeforeUnmount } from "vue";
+import { onMounted, ref, onBeforeUnmount, shallowRef, watch } from "vue";
 import { ThreeRenderer } from "../../core/renderer/ThreeRenderer";
+import type { ScreenRect } from "../../core/renderer/ThreeRenderer";
 import { useProjectStore } from "../../stores/projectStore";
 import { editorEngine } from "../../core/EditorEngine";
 import OSD from "../UI/Overlay/OSD.vue";
 import AmbientLight from "../UI/AmbientLight.vue";
 import Select from "../UI/Input/Select.vue";
-import { watch } from "vue";
 
 const canvasContainer = ref<HTMLElement | null>(null);
 const store = useProjectStore();
@@ -35,26 +35,189 @@ watch(() => store.resolution, (newRes) => {
     }
 }, { deep: true });
 
+// ── Gizmo Overlay State ──────────────────────────────────────────────────────
+
+const gizmoRect = ref<ScreenRect | null>(null);
+let rafId: number | null = null;
+
+/** Poll the gizmo manager every animation frame (it runs ~60fps alongside Three). */
+function startGizmoPoll() {
+    console.log("[Preview] Starting gizmo poll loop");
+    function tick() {
+        if (renderer && canvasContainer.value) {
+            const rect = renderer.getGizmoScreenRect();
+            if (rect) {
+                // The GizmoManager computes coords relative to the Three.js canvas element.
+                // We need coords relative to canvasContainer (the overlay's positioned parent).
+                const canvas = renderer.sceneManager.renderer.domElement;
+                const canvasBounds = canvas.getBoundingClientRect();
+                const containerBounds = canvasContainer.value.getBoundingClientRect();
+                const offsetX = canvasBounds.left - containerBounds.left;
+                const offsetY = canvasBounds.top - containerBounds.top;
+                
+                const newRect = {
+                    ...rect,
+                    x: rect.x + offsetX,
+                    y: rect.y + offsetY,
+                };
+                
+                if (!gizmoRect.value) {
+                    console.log("[Preview] Gizmo handles APPEARED", newRect);
+                }
+                gizmoRect.value = newRect;
+            } else {
+                if (gizmoRect.value) {
+                    console.log("[Preview] Gizmo handles HIDDEN");
+                }
+                gizmoRect.value = null;
+            }
+        }
+        rafId = requestAnimationFrame(tick);
+    }
+    rafId = requestAnimationFrame(tick);
+}
+
+function stopGizmoPoll() {
+    console.log("[Preview] Stopping gizmo poll loop");
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+}
+
+// ── Resize Handle Logic ──────────────────────────────────────────────────────
+
+/**
+ * The 8 handles: corners + edge midpoints.
+ */
+const HANDLES = [
+    { id: "nw", cursor: "nwse-resize", x: 0, y: 0,   dx: -1, dy:  1 },
+    { id: "n",  cursor: "ns-resize",   x: 0.5, y: 0,   dx:  0, dy:  1 },
+    { id: "ne", cursor: "nesw-resize", x: 1, y: 0,   dx:  1, dy:  1 },
+    { id: "e",  cursor: "ew-resize",   x: 1, y: 0.5, dx:  1, dy:  0 },
+    { id: "se", cursor: "nwse-resize", x: 1, y: 1,   dx:  1, dy: -1 },
+    { id: "s",  cursor: "ns-resize",   x: 0.5, y: 1, dx:  0, dy: -1 },
+    { id: "sw", cursor: "nesw-resize", x: 0, y: 1,   dx: -1, dy: -1 },
+    { id: "w",  cursor: "ew-resize",   x: 0, y: 0.5, dx: -1, dy:  0 },
+] as const;
+
+// Drag state
+let activeHandle: typeof HANDLES[number] | null = null;
+let dragStartMouse = { x: 0, y: 0 };
+let dragStartScale = { x: 1, y: 1 };
+let dragStartRect: ScreenRect | null = null;
+let draggingClipId: string | null = null;
+
+function onHandlePointerDown(e: PointerEvent, handle: typeof HANDLES[number]) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const selectedIds = editorEngine.getSelectedClipIds();
+    console.log("[Preview] Handle PointerDown", handle.id, "Selected:", selectedIds);
+    if (selectedIds.length === 0) return;
+
+    // KISS: Find the clip that actually has a visible mesh in the renderer
+    // (This avoids trying to "scale" an audio clip if both are selected)
+    let targetClipId: string | null = null;
+    const renderer = editorEngine.getRenderer();
+    
+    for (let i = selectedIds.length - 1; i >= 0; i--) {
+        const id = selectedIds[i];
+        if (renderer?.clipManager.getClipMesh(id)) {
+            targetClipId = id;
+            break;
+        }
+    }
+
+    if (!targetClipId) {
+        // Fallback to last selected if no mesh found (though handles shouldn't be visible)
+        targetClipId = selectedIds[selectedIds.length - 1];
+    }
+
+    draggingClipId = targetClipId;
+    const clip = editorEngine.timelineSystem.getClip(draggingClipId);
+    if (!clip) return;
+
+    activeHandle = handle;
+    dragStartMouse = { x: e.clientX, y: e.clientY };
+    dragStartScale = { x: clip.data?.scale?.x ?? 1, y: clip.data?.scale?.y ?? 1 };
+    dragStartRect = gizmoRect.value ? { ...gizmoRect.value } : null;
+
+    window.addEventListener("pointermove", onWindowPointerMove);
+    window.addEventListener("pointerup", onWindowPointerUp);
+
+    // Prevent canvas from stealing pointer while resizing
+    (e.target as Element).setPointerCapture(e.pointerId);
+    console.log("[Preview] Handle drag started", draggingClipId);
+}
+
+function onWindowPointerMove(e: PointerEvent) {
+    if (!activeHandle || !draggingClipId || !dragStartRect) return;
+
+    const clip = editorEngine.timelineSystem.getClip(draggingClipId);
+    if (!clip) return;
+
+    // Delta in screen pixels
+    const dx = e.clientX - dragStartMouse.x;
+    const dy = e.clientY - dragStartMouse.y;
+    
+    // Convert pixel delta to scale delta using the gizmo rect as reference
+    const rectW = dragStartRect.width;
+    const rectH = dragStartRect.height;
+
+    // Scale factor change based on handle direction
+    const scaleX = activeHandle.dx !== 0
+        ? dragStartScale.x + (activeHandle.dx * dx) / rectW * dragStartScale.x * 2
+        : dragStartScale.x;
+
+    const scaleY = activeHandle.dy !== 0
+        ? dragStartScale.y - (activeHandle.dy * dy) / rectH * dragStartScale.y * 2
+        : dragStartScale.y;
+
+    const newScale = {
+        x: Math.max(0.01, scaleX),
+        y: Math.max(0.01, scaleY),
+        z: clip.data?.scale?.z ?? 1,
+    };
+
+    console.log("[Preview] Updating scale", newScale.x.toFixed(2), newScale.y.toFixed(2));
+    editorEngine.updateClip(draggingClipId, {
+        data: { ...clip.data, scale: newScale },
+    });
+}
+
+function onWindowPointerUp() {
+    console.log("[Preview] Handle PointerUp - drag stopped");
+    activeHandle = null;
+    draggingClipId = null;
+    dragStartRect = null;
+    window.removeEventListener("pointermove", onWindowPointerMove);
+    window.removeEventListener("pointerup", onWindowPointerUp);
+}
+
+// ── Mount / Unmount ──────────────────────────────────────────────────────────
+
 onMounted(async () => {
     if (!canvasContainer.value) return;
 
-    // Initialize Custom Renderer
     renderer = new ThreeRenderer({ container: canvasContainer.value });
-    
-    // Set initial resolution
     renderer.setProjectResolution(store.resolution.width, store.resolution.height);
-    
     await renderer.init();
     editorEngine.registerRenderer(renderer);
+
+    startGizmoPoll();
 });
 
 onBeforeUnmount(() => {
+    stopGizmoPoll();
+    onWindowPointerUp(); // clean up any active drag
     if (renderer) renderer.destroy();
     editorEngine.registerRenderer(null);
     renderer = null;
 });
 
-// Drag & Drop to Preview (Adds to start of timeline or specific logic)
+// ── Drag & Drop to Preview ───────────────────────────────────────────────────
+
 const handleDrop = (e: DragEvent) => {
     e.preventDefault();
     const data = e.dataTransfer?.getData("application/json");
@@ -62,21 +225,17 @@ const handleDrop = (e: DragEvent) => {
         try {
             const assetData = JSON.parse(data);
 
-            // Determine track type
             let trackType: "video" | "audio" = "video";
             if (assetData.type === "audio") trackType = "audio";
 
-            // Try to find an existing empty track of the correct type
             let targetTrack = store.tracks.find(
                 (t) => t.type === trackType && t.clips.length === 0,
             );
 
-            // If no empty track, create one
             if (!targetTrack) {
                 targetTrack = store.addTrack(trackType);
             }
 
-            // Add to the track at current time
             store.addClipToTimeline(
                 assetData.id,
                 targetTrack.id,
@@ -118,6 +277,75 @@ const handleDrop = (e: DragEvent) => {
                     {{ store.resolution.width }}x{{ store.resolution.height }}
                 </span>
             </div>
+
+            <!-- ── CSS Gizmo Resize Handles ───────────────────────────────── -->
+            <div
+                v-if="gizmoRect"
+                class="gizmo-overlay pointer-events-none"
+                :style="{
+                    left: gizmoRect.x + 'px',
+                    top: gizmoRect.y + 'px',
+                    width: gizmoRect.width + 'px',
+                    height: gizmoRect.height + 'px',
+                    transform: `rotate(${gizmoRect.rotation}rad)`,
+                }"
+            >
+                <!-- 8 Resize Handles: corners + edge midpoints -->
+                <div
+                    v-for="handle in HANDLES"
+                    :key="handle.id"
+                    class="gizmo-handle pointer-events-auto"
+                    :class="`gizmo-handle--${handle.id}`"
+                    :style="{
+                        left: `${handle.x * 100}%`,
+                        top:  `${handle.y * 100}%`,
+                        cursor: handle.cursor,
+                    }"
+                    @pointerdown.stop="onHandlePointerDown($event, handle)"
+                />
+            </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+/* ── Gizmo Resize Handles ─────────────────────────────────────────────────── */
+
+.gizmo-overlay {
+    position: absolute;
+    z-index: 50;
+    pointer-events: none;
+}
+
+.gizmo-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #ffffff;
+    border: 2px solid #4facfe;
+    border-radius: 2px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
+    transform: translate(-50%, -50%);
+    transition: background 0.12s, box-shadow 0.12s;
+    pointer-events: auto;
+}
+
+.gizmo-handle:hover,
+.gizmo-handle:active {
+    background: #4facfe;
+    box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.35), 0 1px 5px rgba(0,0,0,0.6);
+}
+
+/* Edge handles: slim rectangles */
+.gizmo-handle--n,
+.gizmo-handle--s {
+    width: 18px;
+    height: 7px;
+}
+
+.gizmo-handle--e,
+.gizmo-handle--w {
+    width: 7px;
+    height: 18px;
+}
+</style>

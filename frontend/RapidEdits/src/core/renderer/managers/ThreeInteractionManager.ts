@@ -9,19 +9,18 @@ export class ThreeInteractionManager {
     private scene: THREE.Scene;
     private rendererDomElement: HTMLCanvasElement;
 
-    // Controls
     public orbitControls: OrbitControls;
     public transformControls: TransformControls;
 
-    // State
     private mouse: THREE.Vector2 = new THREE.Vector2();
     private raycaster: THREE.Raycaster = new THREE.Raycaster();
     private isInteracting: boolean = false;
 
-    // Drag State
-    private isDraggingObject: boolean = false;
-    private dragPlane: THREE.Plane = new THREE.Plane();
-    private dragOffset: THREE.Vector3 = new THREE.Vector3();
+    private isDraggingObject = false;
+    private draggedClipId: string | null = null;
+    private dragPlane = new THREE.Plane();
+    private dragOffset = new THREE.Vector3();
+    private dragIntersection = new THREE.Vector3();
 
     private getClipMesh: (clipId: string) => THREE.Object3D | undefined;
     private onSelectionChanged: () => void;
@@ -42,101 +41,121 @@ export class ThreeInteractionManager {
         this.onSelectionChanged = onSelectionChanged;
         this.onTransformChanged = onTransformChanged;
 
-        // Init Controls
-        this.orbitControls = new OrbitControls(
-            this.camera,
-            this.rendererDomElement,
-        );
+        this.orbitControls = new OrbitControls(this.camera, this.rendererDomElement);
         this.orbitControls.enableDamping = true;
         this.orbitControls.dampingFactor = 0.05;
         this.orbitControls.screenSpacePanning = true;
-        this.orbitControls.enableRotate = false; // Lock to 2D view
+        this.orbitControls.enableRotate = false;
         this.orbitControls.enabled = true;
 
-        this.transformControls = new TransformControls(
-            this.camera,
-            this.rendererDomElement,
-        );
+        this.transformControls = new TransformControls(this.camera, this.rendererDomElement);
         this.scene.add(this.transformControls);
 
         this.setupEventListeners();
     }
 
     private setupEventListeners() {
-        (this.transformControls as any).addEventListener(
-            "dragging-changed",
-            (event: any) => {
-                const isDragging = event.value as boolean;
-                this.orbitControls.enabled = !isDragging;
-                this.isInteracting = isDragging;
-            },
-        );
+        (this.transformControls as any).addEventListener("dragging-changed", (event: any) => {
+            const isDragging = event.value as boolean;
+            this.orbitControls.enabled = !isDragging;
+            this.isInteracting = isDragging;
+        });
 
         (this.transformControls as any).addEventListener("change", () => {
-            if (this.isInteracting) {
-                this.syncTransformToClip();
-            }
+            if (this.isInteracting) this.syncTransformToClip();
         });
 
-        this.rendererDomElement.addEventListener(
-            "pointerdown",
-            this.onPointerDown.bind(this),
-        );
-        this.rendererDomElement.addEventListener(
-            "pointermove",
-            this.onPointerMove.bind(this),
-        );
-        this.rendererDomElement.addEventListener(
-            "pointerup",
-            this.onPointerUp.bind(this),
-        );
+        this.rendererDomElement.addEventListener("pointerdown", this.onPointerDown.bind(this));
+        this.rendererDomElement.addEventListener("pointermove", this.onPointerMove.bind(this));
+        this.rendererDomElement.addEventListener("pointerup", this.onPointerUp.bind(this));
 
-        globalEventBus.on(EditorEventType.SELECTION_CHANGED, () => {
-            this.onSelectionChanged();
-        });
+        globalEventBus.on(EditorEventType.SELECTION_CHANGED, () => this.onSelectionChanged());
     }
 
-    public update() {
-        this.orbitControls.update();
-    }
+    public update() { this.orbitControls.update(); }
 
     public dispose() {
         this.orbitControls.dispose();
         this.transformControls.dispose();
-        // Remove event listeners if needed (though often fine if class is forgotten)
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Given a clipMesh (Group for plugins, Mesh for media), returns the object
+     * that owns position/rotation (the top-level stored object).
+     * Scale for media lives on the Mesh itself; for plugins on children[0].
+     */
+    private getPositionObject(clipMesh: THREE.Object3D): THREE.Object3D {
+        return clipMesh; // always the top-level stored object
+    }
+
+    private getScaleObject(clipMesh: THREE.Object3D): THREE.Object3D {
+        if (clipMesh instanceof THREE.Group && clipMesh.children.length > 0) {
+            return clipMesh.children[0]!;
+        }
+        return clipMesh; // Mesh: scale is on itself
+    }
+
+    private isGizmo(obj: THREE.Object3D): boolean {
+        if (!this.transformControls) return false;
+        let current: THREE.Object3D | null = obj;
+        const tc = this.transformControls as unknown as THREE.Object3D;
+        while (current) {
+            if (current === tc) return true;
+            current = current.parent;
+        }
+        return false;
+    }
+
+    // ── Pointer Down: selection + drag init ───────────────────────────────────
+
     private onPointerDown(event: PointerEvent) {
-        if (this.isInteracting) return;
+        console.log("[Interaction] PointerDown at", event.clientX, event.clientY);
+        if (this.isInteracting) {
+            console.log("[Interaction] Interaction in progress, skipping click selection");
+            return;
+        }
 
         const rect = this.rendererDomElement.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
         this.raycaster.setFromCamera(this.mouse, this.camera);
-        const intersects = this.raycaster.intersectObjects(
-            this.scene.children,
-            true,
-        );
+        // Increase threshold for easier selection of small lines
+        this.raycaster.params.Line.threshold = 10;
+        
+        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+        console.log("[Interaction] Raycast intersects count:", intersects.length);
 
         let foundClipId: string | null = null;
-        let foundObject: THREE.Object3D | null = null;
 
         for (const intersect of intersects) {
             let obj: THREE.Object3D | null = intersect.object;
-            while (obj) {
-                // Ignore gizmo
-                if (this.isGizmo(obj)) {
-                    break;
-                }
+            
+            // 1. Check if we hit the selection helper (the dashed box)
+            // We want to "click through" it to hit the actual mesh.
+            if (obj.userData?.isGizmo) {
+                console.log("[Interaction] Selection helper hit, passing through...");
+                continue;
+            }
 
-                if (
-                    obj.userData &&
-                    obj.userData.isSelectable &&
-                    obj.userData.clipId
-                ) {
+            console.log("[Interaction] Testing hit object:", obj.type, obj.name, obj.userData);
+
+            // 2. Specialized Gizmo check: TransformControls uses internal planes for calculation.
+            // We should NOT let these planes block our own selection logic unless a visual handle is hit.
+            if (obj.type === "TransformControlsPlane" || obj.name.includes("TransformControlsPlane")) {
+                console.log("[Interaction] TransformControls internal plane hit, passing through...");
+                continue; 
+            }
+
+            while (obj) {
+                if (this.isGizmo(obj)) {
+                    console.log("[Interaction] TransformControls visual handle hit - letting Three.js handle it");
+                    return; // Let TransformControls own the event
+                }
+                if (obj.userData?.isSelectable && obj.userData?.clipId) {
                     foundClipId = obj.userData.clipId;
-                    foundObject = obj;
                     break;
                 }
                 obj = obj.parent;
@@ -144,208 +163,117 @@ export class ThreeInteractionManager {
             if (foundClipId) break;
         }
 
-        const selectedIds = editorEngine.getSelectedClipIds();
-        const isAlreadySelected =
-            foundClipId && selectedIds.includes(foundClipId);
-
         if (foundClipId) {
-            if (!isAlreadySelected) {
+            console.log("[Interaction] SUCCESS: Found clip ID:", foundClipId);
+            const selectedIds = editorEngine.getSelectedClipIds();
+            if (!selectedIds.includes(foundClipId)) {
                 editorEngine.selectClip(foundClipId);
             }
 
-            // Initiate Drag
-            if (foundObject) {
+            const clipMesh = this.getClipMesh(foundClipId);
+            if (clipMesh) {
                 this.isDraggingObject = true;
+                this.draggedClipId = foundClipId;
+                const posObj = this.getPositionObject(clipMesh);
                 this.dragPlane.setFromNormalAndCoplanarPoint(
                     new THREE.Vector3(0, 0, 1),
-                    foundObject.position,
+                    posObj.position,
                 );
-
                 const intersection = new THREE.Vector3();
                 this.raycaster.ray.intersectPlane(this.dragPlane, intersection);
-                this.dragOffset.subVectors(foundObject.position, intersection);
-
+                this.dragOffset.subVectors(posObj.position, intersection);
                 this.orbitControls.enabled = false;
+                console.log("[Interaction] Dragging started for", foundClipId);
             }
         } else {
+            console.log("[Interaction] Nothing selectable hit, deselecting all");
             editorEngine.selectionSystem.deselectAll();
         }
     }
+    // ── Pointer Move: drag ────────────────────────────────────────────────────
 
     private onPointerMove(event: PointerEvent) {
         const rect = this.rendererDomElement.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-        if (this.isDraggingObject) {
+        if (this.isDraggingObject && this.draggedClipId) {
             this.raycaster.setFromCamera(this.mouse, this.camera);
             const intersection = new THREE.Vector3();
-            if (
-                this.raycaster.ray.intersectPlane(this.dragPlane, intersection)
-            ) {
-                const selectedIds = editorEngine.getSelectedClipIds();
-                if (selectedIds.length === 1) {
-                    const clipId = selectedIds[0];
-                    if (clipId) {
-                        const objGroup = this.getClipMesh(clipId);
-                        if (objGroup) {
-                            let target: THREE.Object3D = objGroup;
-                            if (
-                                objGroup instanceof THREE.Group &&
-                                objGroup.children.length > 0
-                            ) {
-                                target = objGroup.children[0] as THREE.Object3D;
-                            }
-
-                            const newPos = intersection.add(this.dragOffset);
-                            target.position.copy(newPos);
-
-                            this.syncTransformToClip();
-                            this.onTransformChanged(); // Trigger gizmo update
-                        }
-                    }
+            if (this.raycaster.ray.intersectPlane(this.dragPlane, intersection)) {
+                const clipMesh = this.getClipMesh(this.draggedClipId);
+                if (clipMesh) {
+                    const posObj = this.getPositionObject(clipMesh);
+                    const newPos = intersection.add(this.dragOffset);
+                    posObj.position.x = newPos.x;
+                    posObj.position.y = newPos.y;
+                    
+                    console.log("[Interaction] Dragging mesh", this.draggedClipId, "to:", posObj.position.x.toFixed(2), posObj.position.y.toFixed(2));
+                    
+                    this.syncTransformToClip();
+                    this.onTransformChanged();
+                } else {
+                    console.warn("[Interaction] Dragging, but clip mesh lost for", this.draggedClipId);
                 }
+            } else {
+                console.warn("[Interaction] Dragging, but ray missed plane");
             }
             this.rendererDomElement.style.cursor = "move";
             return;
         }
 
-        // Hover Logic
+        // Hover cursor
         this.raycaster.setFromCamera(this.mouse, this.camera);
-        const intersects = this.raycaster.intersectObjects(
-            this.scene.children,
-            true,
-        );
-
+        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
         let foundSelectable = false;
-
         for (const intersect of intersects) {
             let obj: THREE.Object3D | null = intersect.object;
-            if (this.isSelectionHelper(obj) || this.isGizmo(obj)) continue;
-
             while (obj) {
-                if (obj.userData?.isSelectable) {
-                    foundSelectable = true;
-                    break;
-                }
+                if (obj.userData?.isSelectable) { foundSelectable = true; break; }
                 obj = obj.parent;
             }
             if (foundSelectable) break;
         }
-
-        if (foundSelectable) {
-            const selectedIds = editorEngine.getSelectedClipIds();
-            if (
-                intersects.some(
-                    (i) =>
-                        i.object.userData?.clipId &&
-                        selectedIds.includes(i.object.userData.clipId),
-                )
-            ) {
-                this.rendererDomElement.style.cursor = "move";
-            } else {
-                this.rendererDomElement.style.cursor = "pointer";
-            }
-        } else {
-            this.rendererDomElement.style.cursor = "default";
-        }
+        this.rendererDomElement.style.cursor = foundSelectable ? "move" : "default";
     }
+
+    // ── Pointer Up ────────────────────────────────────────────────────────────
 
     private onPointerUp() {
         if (this.isDraggingObject) {
+            console.log("[Interaction] PointerUp, ending drag for", this.draggedClipId);
             this.isDraggingObject = false;
+            this.draggedClipId = null;
             this.orbitControls.enabled = true;
         }
     }
 
-    private syncTransformToClip() {
-        if (!this.transformControls || !(this.transformControls as any).object)
-            return;
+    // ── Sync 3D → clip.data ───────────────────────────────────────────────────
 
-        const object = (this.transformControls as any).object;
-        const clipId = object.userData.clipId;
+    private syncTransformToClip() {
+        const clipId = this.draggedClipId || editorEngine.getSelectedClipIds()[0];
         if (!clipId) return;
 
-        // If we are dragging manually (isDraggingObject), we might not be using TransformControls object,
-        // but current logic uses TransformControls 'dragging-changed' for isInteracting.
-        // However, 'isDraggingObject' implies we are dragging the mesh directly.
-        // We need to support both. Use the selected object.
+        const clipMesh = this.getClipMesh(clipId);
+        if (!clipMesh) return;
 
-        // If we are using TransformControls (handles), 'object' is correct.
+        const posObj  = this.getPositionObject(clipMesh);
+        const scaleObj = this.getScaleObject(clipMesh);
 
-        // Wait, if we are NOT interacting with gizmo (isInteracting=false) but isDraggingObject=true,
-        // we updated 'target.position' in onPointerMove.
-        // We need to save that.
+        const position = { x: posObj.position.x, y: posObj.position.y, z: posObj.position.z };
+        const rotation = { x: posObj.rotation.x, y: posObj.rotation.y, z: posObj.rotation.z };
 
-        // Actually, let's just get the clip from the engine or the mesh map
-        // But here we might not have direct access to map.
-        // We used 'getClipMesh' in onPointerMove.
-
-        // Let's rely on 'object' from TransformControls if attached.
-        // If not attached, or if we are body-dragging, we need to check the selected clip.
-
-        const selectedIds = editorEngine.getSelectedClipIds();
-        if (selectedIds.length !== 1) return;
-
-        const selectedClipId = selectedIds[0];
-        if (!selectedClipId) return;
-
-        // The mesh should have been updated in Scene.
-        // We need to read from Mesh and write to Clip.
-
-        const mesh = this.getClipMesh(selectedClipId);
-        if (!mesh) return;
-
-        // If group, use child
-        let actualObj = mesh;
-        if (mesh instanceof THREE.Group && mesh.children.length > 0) {
-            actualObj = mesh.children[0]!;
-        }
-
-        const position = {
-            x: actualObj.position.x,
-            y: actualObj.position.y,
-            z: actualObj.position.z,
-        };
-        const rotation = {
-            x: actualObj.rotation.x,
-            y: actualObj.rotation.y,
-            z: actualObj.rotation.z,
-        };
-
-        // Calculate relative scale multiplier
-        const baseScale = actualObj.userData.baseScale || new THREE.Vector3(1, 1, 1);
+        const baseScale = (clipMesh.userData.baseScale as THREE.Vector3) ?? new THREE.Vector3(1, 1, 1);
         const scale = {
-            x: actualObj.scale.x / baseScale.x,
-            y: actualObj.scale.y / baseScale.y,
-            z: actualObj.scale.z / baseScale.z,
+            x: scaleObj.scale.x / baseScale.x,
+            y: scaleObj.scale.y / baseScale.y,
+            z: scaleObj.scale.z / baseScale.z,
         };
 
-        const clip = editorEngine.timelineSystem.getClip(selectedClipId);
+        const clip = editorEngine.timelineSystem.getClip(clipId);
         if (clip) {
-            editorEngine.updateClip(selectedClipId, {
-                data: { ...clip.data, position, rotation, scale },
-            });
+            console.log("[Interaction] Syncing to clip store:", clipId, { position, scale });
+            editorEngine.updateClip(clipId, { data: { ...clip.data, position, rotation, scale } });
         }
-    }
-
-    private isGizmo(obj: THREE.Object3D): boolean {
-        return (
-            this.transformControls &&
-            (obj.uuid ===
-                (this.transformControls as unknown as THREE.Object3D).uuid ||
-                (
-                    this.transformControls as unknown as THREE.Object3D
-                ).children?.some((c) => c.uuid === obj?.uuid))
-        );
-    }
-
-    // Quick hack to identify selection helper if passed down or we check vaguely
-    // Ideally we should pass exclusion list
-    private isSelectionHelper(_obj: THREE.Object3D): boolean {
-        // We don't have reference to selectionHelper here directly unless we pass it.
-        // But usually it's LineDashedMaterial.
-        // Better way: use userData
-        return false; // For now
     }
 }

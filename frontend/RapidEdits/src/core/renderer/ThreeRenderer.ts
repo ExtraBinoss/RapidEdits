@@ -8,7 +8,9 @@ import { ThreeSelectionManager } from "./managers/ThreeSelectionManager";
 import { ThreeClipManager } from "./managers/ThreeClipManager";
 import { ThreeVideoManager } from "./managers/ThreeVideoManager";
 import { ThreeCropManager } from "./managers/ThreeCropManager";
+import { ThreeGizmoManager, type ScreenRect } from "./managers/ThreeGizmoManager";
 import { EditorEventType } from "../../types/Media";
+export type { ScreenRect };
 
 export interface ThreeRendererOptions {
     container?: HTMLElement;
@@ -25,6 +27,7 @@ export class ThreeRenderer {
     public interactionManager: ThreeInteractionManager | null = null;
     public selectionManager: ThreeSelectionManager | null = null;
     public cropManager: ThreeCropManager | null = null;
+    public gizmoManager: ThreeGizmoManager | null = null;
     public clipManager: ThreeClipManager;
     public videoManager: ThreeVideoManager;
 
@@ -106,6 +109,12 @@ export class ThreeRenderer {
                     this.sceneManager.renderer.domElement,
                     (clipId) => this.clipManager.getClipMesh(clipId),
                 );
+
+                this.gizmoManager = new ThreeGizmoManager(
+                    this.sceneManager.camera,
+                    this.sceneManager.renderer.domElement,
+                    (clipId) => this.clipManager.getClipMesh(clipId),
+                );
             }
         }
     }
@@ -129,6 +138,7 @@ export class ThreeRenderer {
         if (this.interactionManager) this.interactionManager.update();
         if (this.selectionManager) this.selectionManager.update();
         if (this.cropManager) this.cropManager.update();
+        if (this.gizmoManager) this.gizmoManager.update();
 
         const currentTime = editorEngine.getCurrentTime();
         const tracks = editorEngine.getTracks();
@@ -204,6 +214,11 @@ export class ThreeRenderer {
     // Used by ExportService
     public getActiveVideoElements(): HTMLVideoElement[] {
         return this.clipManager.getActiveVideoElements();
+    }
+
+    /** Returns the screen-space bounding rect of the selected object for the CSS gizmo overlay. */
+    public getGizmoScreenRect(): import("./managers/ThreeGizmoManager").ScreenRect | null {
+        return this.gizmoManager?.getScreenRect() ?? null;
     }
 
     public dispose() {

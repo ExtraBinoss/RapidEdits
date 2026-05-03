@@ -344,32 +344,37 @@ const updateTransition = (
                             </div>
                         </div>
                         <!-- Scale -->
-                        <div class="flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px] group">
-                            <label 
-                                class="w-28 shrink-0 text-[11px] font-semibold text-text-muted group-hover:text-text-main transition-colors cursor-default select-none"
-                                @dblclick="resetMediaProperty('scale')"
-                            >
-                                Scale
-                            </label>
-                            <div class="flex-1">
-                                <Slider
-                                    :model-value="selectedClip.data?.scale?.x ?? 1"
-                                    :min="0.1"
-                                    :max="5"
-                                    :step="0.01"
-                                    class="!gap-2"
-                                    @update:model-value="(val) => { updateVector('scale', 'x', val); updateVector('scale', 'y', val); }"
-                                />
+                        <div class="flex flex-col gap-1.5 py-2 px-1 hover:bg-white/[0.02] rounded-sm transition-colors group/vec">
+                            <div class="flex items-center justify-between px-1">
+                                <label 
+                                    class="text-[11px] font-semibold text-text-muted transition-colors group-hover/vec:text-text-main cursor-default select-none"
+                                    @dblclick="resetMediaProperty('scale')"
+                                >
+                                    Scale
+                                </label>
+                                <!-- Reset Button for Scale -->
+                                <div :class="{ 'opacity-0 group-hover/vec:opacity-100 transition-opacity': !isPropertyModified('scale') }" class="shrink-0">
+                                    <Button
+                                        variant="icon"
+                                        size="xs"
+                                        :icon="RotateCcw"
+                                        title="Reset to default"
+                                        @click="resetMediaProperty('scale')"
+                                    />
+                                </div>
                             </div>
-                            <!-- Reset Button -->
-                            <div :class="{ 'opacity-0 group-hover:opacity-100 transition-opacity': !isPropertyModified('scale') }" class="shrink-0">
-                                <Button
-                                    variant="icon"
-                                    size="xs"
-                                    :icon="RotateCcw"
-                                    title="Reset to default"
-                                    @click="resetMediaProperty('scale')"
-                                />
+                            <div class="flex gap-2 w-full">
+                                <div v-for="axis in ['x', 'y']" :key="axis" class="relative flex-1 group/axis">
+                                    <div class="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                                        <span class="text-[9px] font-black text-text-muted/40 uppercase">{{ axis }}</span>
+                                    </div>
+                                    <Input
+                                        type="number"
+                                        class="!pl-5 !pr-1 !text-[10px] !font-mono !h-7 !bg-canvas-dark/50"
+                                        :model-value="selectedClip.data?.scale?.[axis] ?? 1"
+                                        @update:model-value="(val) => updateVector('scale', axis, Number(val))"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>

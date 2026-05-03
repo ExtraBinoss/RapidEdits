@@ -5,8 +5,10 @@ import { TransformControls } from "three-stdlib";
 export class ThreeSelectionManager {
     private scene: THREE.Scene;
     private transformControls: TransformControls | null = null;
-    private selectionHelper: THREE.Object3D | null = null;
+    private selectionHelper: THREE.Line | null = null;
     private getClipMesh: (clipId: string) => THREE.Object3D | undefined;
+
+    private lastBoxKey = "";
 
     constructor(
         scene: THREE.Scene,
@@ -22,178 +24,139 @@ export class ThreeSelectionManager {
         this.transformControls = controls;
     }
 
-    private lastWidth = 0;
-    private lastHeight = 0;
-
+    // Called every frame
     public update() {
-        if (this.selectionHelper) {
-            const selectedIds = editorEngine.getSelectedClipIds();
-            if (selectedIds.length === 1) {
-                const clipId = selectedIds[0];
-                if (clipId) {
-                    const objGroup = this.getClipMesh(clipId);
-                    if (objGroup) {
-                        let target = objGroup;
-                        if (
-                            objGroup instanceof THREE.Group &&
-                            objGroup.children.length > 0
-                        ) {
-                            target = objGroup.children[0] as THREE.Object3D;
-                        }
+        const selectedIds = editorEngine.getSelectedClipIds();
+        if (selectedIds.length === 0) {
+            this.clearHelper();
+            return;
+        }
 
-                        // Check if bounds changed
-                        const box = new THREE.Box3().setFromObject(target);
-                        const width = box.max.x - box.min.x;
-                        const height = box.max.y - box.min.y;
-
-                        if (Math.abs(width - this.lastWidth) > 0.1 || Math.abs(height - this.lastHeight) > 0.1) {
-                            this.createSelectionHelper(target);
-                            return; 
-                        }
-
-                        this.syncGizmo(target);
-                    }
-                }
+        // Find the "primary" visible mesh (same logic as GizmoManager)
+        let clipMesh: THREE.Object3D | undefined;
+        for (let i = selectedIds.length - 1; i >= 0; i--) {
+            const mesh = this.getClipMesh(selectedIds[i]);
+            if (mesh) {
+                clipMesh = mesh;
+                break;
             }
+        }
+
+        if (!clipMesh) { this.clearHelper(); return; }
+
+        // Compute world box — works for any object type
+        const box = new THREE.Box3().setFromObject(clipMesh);
+        if (box.isEmpty()) { this.clearHelper(); return; }
+
+        const key = [
+            box.min.x.toFixed(1), box.min.y.toFixed(1),
+            box.max.x.toFixed(1), box.max.y.toFixed(1),
+        ].join(",");
+
+        if (key !== this.lastBoxKey) {
+            this.lastBoxKey = key;
+            this.rebuildHelper(box);
+        } else {
+            // Just re-position (rotation may have changed)
+            this.syncHelper(clipMesh, box);
         }
     }
 
+    // Called when selection changes
     public updateSelectionGizmo() {
         if (!this.transformControls) return;
 
         const selectedIds = editorEngine.getSelectedClipIds();
-        if (selectedIds.length === 1) {
-            const clipId = selectedIds[0];
-            if (!clipId) return;
+        if (selectedIds.length === 0) {
+            this.clearAll();
+            return;
+        }
 
-            const object = this.getClipMesh(clipId);
-            if (object) {
-                let target: THREE.Object3D = object;
-                if (
-                    object instanceof THREE.Group &&
-                    object.children.length > 0
-                ) {
-                    target = object.children[0] as THREE.Object3D;
-                }
-
-                this.transformControls.attach(target);
-
-                // Re-create selection helper
-                this.createSelectionHelper(target);
-            } else {
-                this.clearSelection();
+        // Find the "primary" visible mesh
+        let clipMesh: THREE.Object3D | undefined;
+        for (let i = selectedIds.length - 1; i >= 0; i--) {
+            const mesh = this.getClipMesh(selectedIds[i]);
+            if (mesh) {
+                clipMesh = mesh;
+                break;
             }
-        } else {
-            this.clearSelection();
+        }
+
+        if (!clipMesh) { this.clearAll(); return; }
+
+        // Attach TransformControls to the clip object
+        this.transformControls.attach(clipMesh);
+
+        // Force rebuild
+        this.lastBoxKey = "";
+        this.update();
+    }
+
+    // ── Internal ─────────────────────────────────────────────────────────────
+
+    private clearHelper() {
+        if (this.selectionHelper) {
+            this.scene.remove(this.selectionHelper);
+            this.selectionHelper.geometry.dispose();
+            (this.selectionHelper.material as THREE.Material).dispose();
+            this.selectionHelper = null;
+            this.lastBoxKey = "";
         }
     }
 
-    private clearSelection() {
+    private clearAll() {
+        this.clearHelper();
         if (this.transformControls) this.transformControls.detach();
-        if (this.selectionHelper) {
-            this.scene.remove(this.selectionHelper);
-            if ((this.selectionHelper as any).geometry)
-                (this.selectionHelper as any).geometry.dispose();
-            if ((this.selectionHelper as any).material)
-                (this.selectionHelper as any).material.dispose();
-            this.selectionHelper = null;
-        }
     }
 
-    private createSelectionHelper(target: THREE.Object3D) {
-        if (this.selectionHelper) {
-            this.scene.remove(this.selectionHelper);
-            if ((this.selectionHelper as any).geometry)
-                (this.selectionHelper as any).geometry.dispose();
-            if ((this.selectionHelper as any).material)
-                (this.selectionHelper as any).material.dispose();
-            this.selectionHelper = null;
-        }
+    private rebuildHelper(box: THREE.Box3) {
+        this.clearHelper();
 
-        // Get local bounds
-        // For Troika or any mesh, we can use the geometry bounding box
-        let geometry = (target as any).geometry;
-        if (!geometry && target.children.length > 0) {
-            geometry = (target.children[0] as any).geometry;
-        }
-        
-        if (!geometry) {
-            // Fallback to world box if no geometry found (less accurate for rotation)
-            const box = new THREE.Box3().setFromObject(target);
-            this.lastWidth = box.max.x - box.min.x;
-            this.lastHeight = box.max.y - box.min.y;
-        } else {
-            if (!geometry.boundingBox) geometry.computeBoundingBox();
-            const box = geometry.boundingBox;
-            this.lastWidth = box.max.x - box.min.x;
-            this.lastHeight = box.max.y - box.min.y;
-        }
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const pad = Math.max(4, Math.min(size.x, size.y) * 0.01);
+        const w = size.x + pad * 2;
+        const h = size.y + pad * 2;
+        const r = Math.max(2, Math.min(w, h) * 0.04);
 
-        const width = this.lastWidth + 10; // Add some padding
-        const height = this.lastHeight + 10;
-        const radius = Math.max(2, Math.min(width, height) * 0.1);
-
-        // Create Rounded Rect Path
+        // Rounded rect path in LOCAL space (centered at 0,0)
         const shape = new THREE.Shape();
-        const x = -width / 2;
-        const y = -height / 2;
+        const x = -w / 2, y = -h / 2;
+        shape.moveTo(x, y + r);
+        shape.lineTo(x, y + h - r);
+        shape.quadraticCurveTo(x, y + h, x + r, y + h);
+        shape.lineTo(x + w - r, y + h);
+        shape.quadraticCurveTo(x + w, y + h, x + w, y + h - r);
+        shape.lineTo(x + w, y + r);
+        shape.quadraticCurveTo(x + w, y, x + w - r, y);
+        shape.lineTo(x + r, y);
+        shape.quadraticCurveTo(x, y, x, y + r);
 
-        shape.moveTo(x, y + radius);
-        shape.lineTo(x, y + height - radius);
-        shape.quadraticCurveTo(x, y + height, x + radius, y + height);
-        shape.lineTo(x + width - radius, y + height);
-        shape.quadraticCurveTo(
-            x + width,
-            y + height,
-            x + width,
-            y + height - radius,
-        );
-        shape.lineTo(x + width, y + radius);
-        shape.quadraticCurveTo(x + width, y, x + width - radius, y);
-        shape.lineTo(x + radius, y);
-        shape.quadraticCurveTo(x, y, x, y + radius);
-
-        const points = shape.getPoints(12);
-        const bufferGeometry = new THREE.BufferGeometry().setFromPoints(points);
-
-        const material = new THREE.LineDashedMaterial({
-            color: 0xffff00,
-            dashSize: 4,
-            gapSize: 2,
-            linewidth: 2,
-            depthTest: false,
-            depthWrite: false,
-            transparent: true,
-            opacity: 0.9
+        const geo = new THREE.BufferGeometry().setFromPoints(shape.getPoints(16));
+        const mat = new THREE.LineDashedMaterial({
+            color: 0x4facfe,
+            dashSize: 6, gapSize: 3,
+            depthTest: false, depthWrite: false,
+            transparent: true, opacity: 0.95,
         });
-
-        const line = new THREE.Line(bufferGeometry, material);
-        line.renderOrder = 999999;
-        line.computeLineDistances();
-        this.selectionHelper = line;
-
+        this.selectionHelper = new THREE.Line(geo, mat);
+        this.selectionHelper.renderOrder = 999999;
+        this.selectionHelper.computeLineDistances();
+        this.selectionHelper.userData.isGizmo = true;
         this.scene.add(this.selectionHelper);
-
-        // Initial sync
-        this.syncGizmo(target);
     }
 
-    private syncGizmo(target: THREE.Object3D) {
+    private syncHelper(clipMesh: THREE.Object3D, box: THREE.Box3) {
         if (!this.selectionHelper) return;
-        
-        // Calculate the offset if the geometry isn't centered on local 0,0,0
-        let geometry = (target as any).geometry;
-        if (!geometry && target.children.length > 0) geometry = (target.children[0] as any).geometry;
-        
-        const centerOffset = new THREE.Vector3();
-        if (geometry && geometry.boundingBox) {
-            geometry.boundingBox.getCenter(centerOffset);
-        }
-        
-        // Apply target transform + local offset
-        this.selectionHelper.position.copy(centerOffset).applyMatrix4(target.matrixWorld);
-        this.selectionHelper.position.z += 1;
-        this.selectionHelper.rotation.copy(target.rotation);
-        this.selectionHelper.scale.copy(target.scale);
+
+        // Center of world box
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        this.selectionHelper.position.set(center.x, center.y, center.z + 1);
+
+        // Mirror the clip's Z rotation only
+        const euler = new THREE.Euler().setFromRotationMatrix(clipMesh.matrixWorld, "XYZ");
+        this.selectionHelper.rotation.set(0, 0, euler.z);
+        this.selectionHelper.scale.set(1, 1, 1);
     }
 }
