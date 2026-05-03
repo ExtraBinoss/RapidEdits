@@ -14,7 +14,7 @@ import {
 
 /**
  * Text 3D Plugin: renders stylized text using Troika-three-text.
- * Supports system fonts and advanced 3D stacking extrusion.
+ * Supports system fonts and advanced 3D stacking extrusion with tapering and glow.
  */
 export class TextPlugin extends BasePlugin {
     private static systemFonts: { label: string; value: string }[] = [];
@@ -26,8 +26,8 @@ export class TextPlugin extends BasePlugin {
         id: createPluginId(PluginCategory.Core, "text"),
         name: "Text 3D",
         type: "object",
-        version: "1.4.0",
-        description: "High-quality text with Troika and system fonts",
+        version: "1.5.0",
+        description: "Advanced 3D text with glow, curve, and extrusion tapering",
         isTrackDroppable: true,
     };
 
@@ -91,16 +91,23 @@ export class TextPlugin extends BasePlugin {
 
     createData() {
         return {
-            text: "TEXT 3D",
+            text: "3D STYLE",
             fontFamily: "Arial",
             fontSize: 60,
             color: "#ffffff",
             depthColor: "#3b82f6",
+            emissiveIntensity: 0.2,
+            outlineWidth: 0,
+            outlineColor: "#000000",
+            letterSpacing: 0,
+            lineHeight: 1.2,
+            curveRadius: 0,
             position: { x: 0, y: 0, z: 0 },
             rotation: { x: 0, y: 0, z: 0 },
             scale: { x: 1, y: 1, z: 1 },
             is3D: true,
             depth: 10,
+            taper: 0,
             autoFit: false,
             textAlign: "center",
         };
@@ -121,8 +128,8 @@ export class TextPlugin extends BasePlugin {
                 options: TextPlugin.systemFonts,
             },
             {
-                label: "Appearance",
-                key: "sep1",
+                label: "Typography",
+                key: "sep_typo",
                 type: "divider",
             },
             {
@@ -132,38 +139,53 @@ export class TextPlugin extends BasePlugin {
                 props: { min: 1, max: 200, step: 1 },
             },
             {
+                label: "Letter Spacing",
+                key: "letterSpacing",
+                type: "slider",
+                props: { min: -0.1, max: 0.5, step: 0.01 },
+            },
+            {
+                label: "Line Height",
+                key: "lineHeight",
+                type: "slider",
+                props: { min: 0.5, max: 3, step: 0.1 },
+            },
+            {
+                label: "Curve",
+                key: "curveRadius",
+                type: "slider",
+                props: { min: -500, max: 500, step: 10 },
+            },
+            {
+                label: "Appearance",
+                key: "sep_app",
+                type: "divider",
+            },
+            {
                 label: "Color",
                 key: "color",
                 type: "color",
             },
             {
-                label: "Alignment",
-                key: "textAlign",
-                type: "select",
-                options: [
-                    { label: "Left", value: "left" },
-                    { label: "Center", value: "center" },
-                    { label: "Right", value: "right" },
-                ]
+                label: "Glow Intensity",
+                key: "emissiveIntensity",
+                type: "slider",
+                props: { min: 0, max: 2, step: 0.1 },
             },
             {
-                label: "Transform",
-                key: "sep2",
-                type: "divider",
+                label: "Outline Width",
+                key: "outlineWidth",
+                type: "slider",
+                props: { min: 0, max: 20, step: 1 },
             },
             {
-                label: "Position",
-                key: "position",
-                type: "vector3",
-            },
-            {
-                label: "Rotation",
-                key: "rotation",
-                type: "vector3",
+                label: "Outline Color",
+                key: "outlineColor",
+                type: "color",
             },
             {
                 label: "3D Extrusion",
-                key: "sep3",
+                key: "sep_3d",
                 type: "divider",
             },
             {
@@ -185,14 +207,26 @@ export class TextPlugin extends BasePlugin {
                 showIf: (data: any) => data.is3D,
             },
             {
-                label: "System",
-                key: "sep4",
+                label: "Depth Taper",
+                key: "taper",
+                type: "slider",
+                props: { min: -1, max: 1, step: 0.05 },
+                showIf: (data: any) => data.is3D,
+            },
+            {
+                label: "Transform",
+                key: "sep_trans",
                 type: "divider",
             },
             {
-                label: "Filmstrip Auto-Fit",
-                key: "autoFit",
-                type: "boolean",
+                label: "Position",
+                key: "position",
+                type: "vector3",
+            },
+            {
+                label: "Rotation",
+                key: "rotation",
+                type: "vector3",
             },
         ];
     }
@@ -201,15 +235,11 @@ export class TextPlugin extends BasePlugin {
         const data = clip.data || this.createData();
         const group = new THREE.Group();
 
-        // Create main face
-        const mainText = this.createLayer(data, data.color, 0);
-        group.add(mainText);
-
         // Metadata
         group.userData.isSelectable = true;
         group.userData.clipId = clip.id;
         group.userData.lastState = JSON.parse(JSON.stringify(data));
-        group.userData.layers = [mainText];
+        group.userData.layers = [];
 
         this.syncLayers(group, data);
         this.updateTransform(group, data);
@@ -219,13 +249,10 @@ export class TextPlugin extends BasePlugin {
 
     private createLayer(data: any, color: string, z: number): any {
         const textObj = new Text();
-        textObj.text = data.text;
-        textObj.fontSize = data.fontSize;
-        textObj.color = color;
-        textObj.textAlign = data.textAlign || "center";
         textObj.anchorX = "center";
         textObj.anchorY = "middle";
         textObj.position.z = z;
+        this.updateLayerProperties(textObj, data, color);
         
         this.getFontUrl(data.fontFamily).then(url => {
             textObj.font = url;
@@ -234,6 +261,26 @@ export class TextPlugin extends BasePlugin {
 
         textObj.sync();
         return textObj;
+    }
+
+    private updateLayerProperties(layer: any, data: any, color: string) {
+        layer.text = data.text;
+        layer.fontSize = data.fontSize;
+        layer.color = color;
+        layer.textAlign = data.textAlign || "center";
+        layer.letterSpacing = data.letterSpacing || 0;
+        layer.lineHeight = data.lineHeight || 1.2;
+        layer.curveRadius = data.curveRadius || 0;
+        
+        // Advanced material props for glow
+        layer.materialProps = {
+            emissive: new THREE.Color(color),
+            emissiveIntensity: data.emissiveIntensity || 0,
+        };
+
+        // Outline
+        layer.outlineWidth = (data.outlineWidth || 0) * 0.01 * data.fontSize;
+        layer.outlineColor = data.outlineColor || "#000000";
     }
 
     private syncLayers(group: THREE.Group, data: any) {
@@ -250,7 +297,7 @@ export class TextPlugin extends BasePlugin {
         // Update existing layers and add missing ones
         for (let i = 0; i <= depth; i++) {
             const isMain = i === 0;
-            const z = isMain ? 0.05 : -i * 1.5; // Stacking step
+            const z = isMain ? 0.05 : -i * 1.5; 
             const color = isMain ? data.color : data.depthColor;
             
             let layer = layers[i];
@@ -260,12 +307,16 @@ export class TextPlugin extends BasePlugin {
                 group.add(layer);
             }
 
-            // Sync properties
-            layer.text = data.text;
-            layer.fontSize = data.fontSize;
-            layer.color = color;
-            layer.textAlign = data.textAlign || "center";
+            this.updateLayerProperties(layer, data, color);
             layer.position.z = z;
+
+            // Apply taper effect
+            if (data.is3D && data.taper !== 0) {
+                const s = 1 + (i * data.taper * 0.05);
+                layer.scale.set(s, s, 1);
+            } else {
+                layer.scale.set(1, 1, 1);
+            }
             
             // Check if font changed
             if (layer.userData.lastFont !== data.fontFamily) {
@@ -295,11 +346,18 @@ export class TextPlugin extends BasePlugin {
         const needsFullSync = !prevData || 
             prevData.is3D !== data.is3D || 
             prevData.depth !== data.depth || 
+            prevData.taper !== data.taper ||
             prevData.text !== data.text ||
             prevData.textAlign !== data.textAlign ||
             prevData.fontFamily !== data.fontFamily ||
             prevData.fontSize !== data.fontSize ||
+            prevData.letterSpacing !== data.letterSpacing ||
+            prevData.lineHeight !== data.lineHeight ||
+            prevData.curveRadius !== data.curveRadius ||
             prevData.color !== data.color ||
+            prevData.emissiveIntensity !== data.emissiveIntensity ||
+            prevData.outlineWidth !== data.outlineWidth ||
+            prevData.outlineColor !== data.outlineColor ||
             prevData.depthColor !== data.depthColor;
 
         if (needsFullSync) {
