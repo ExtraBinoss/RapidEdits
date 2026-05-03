@@ -120,8 +120,7 @@ export class ThreeRenderer {
     }
 
     public setScaleMode(mode: "fit" | "fill" | number) {
-        this.clipManager.setScaleMode(mode);
-        if (this.sceneManager.container) this.handleResize();
+        this.sceneManager.setZoom(mode);
     }
 
     public render() {

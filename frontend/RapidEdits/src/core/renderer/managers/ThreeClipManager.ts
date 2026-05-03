@@ -14,7 +14,6 @@ export class ThreeClipManager {
     private pendingLoads: Set<Promise<any>> = new Set();
     private planeGeometry: THREE.PlaneGeometry;
     private getSceneDimensions: () => { width: number; height: number };
-    private scaleMode: "fit" | "fill" | number = "fit";
 
     constructor(
         scene: THREE.Scene,
@@ -393,32 +392,13 @@ export class ThreeClipManager {
         const currentAspect = renderWidth / renderHeight;
 
         let w, h;
-        // Fitting logic
-        if (this.scaleMode === "fill") {
-            if (aspect > currentAspect) {
-                h = renderHeight;
-                w = h * aspect;
-            } else {
-                w = renderWidth;
-                h = w / aspect;
-            }
-        } else if (typeof this.scaleMode === "number") {
-            if (aspect > currentAspect) {
-                w = renderWidth * (this.scaleMode as number);
-                h = w / aspect;
-            } else {
-                h = renderHeight * (this.scaleMode as number);
-                w = h * aspect;
-            }
+        // Default "fit" (Letterbox/Pillarbox) logic relative to 1920x1080
+        if (aspect > currentAspect) {
+            w = renderWidth;
+            h = w / aspect;
         } else {
-            // Default "fit" (Letterbox/Pillarbox) logic
-            if (aspect > currentAspect) {
-                w = renderWidth;
-                h = w / aspect;
-            } else {
-                h = renderHeight;
-                w = h * aspect;
-            }
+            h = renderHeight;
+            w = h * aspect;
         }
         
         if (Math.random() < 0.05) {
@@ -458,22 +438,6 @@ export class ThreeClipManager {
         if (this.pendingLoads.size === 0) return;
         await Promise.all(Array.from(this.pendingLoads));
         this.pendingLoads.clear();
-    }
-
-    public setScaleMode(mode: "fit" | "fill" | number) {
-        this.scaleMode = mode;
-        this.refitAllMeshes();
-    }
-
-    private refitAllMeshes() {
-        for (const [clipId, object] of this.clipMeshes) {
-            if (object instanceof THREE.Mesh) {
-                const mat = object.material as THREE.MeshBasicMaterial;
-                if (mat.map) {
-                    this.fitMeshToScreen(object, mat.map);
-                }
-            }
-        }
     }
 
     public dispose() {

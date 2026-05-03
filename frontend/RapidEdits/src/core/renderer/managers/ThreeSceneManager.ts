@@ -27,7 +27,8 @@ export class ThreeSceneManager {
 
         // 1. Init Scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x0b0e14);
+        // Background is transparent to show AmbientLight behind WebGL
+        // this.scene.background = new THREE.Color(0x0b0e14);
 
         // 2. Init Camera (Logical units: matches container size exactly)
         this.camera = new THREE.OrthographicCamera(
@@ -43,7 +44,7 @@ export class ThreeSceneManager {
         // 3. Init Renderer
         const rendererParams: THREE.WebGLRendererParameters = {
             antialias: true,
-            alpha: false,
+            alpha: true,
             powerPreference: "high-performance",
             preserveDrawingBuffer: true,
             logarithmicDepthBuffer: true
@@ -57,6 +58,7 @@ export class ThreeSceneManager {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3)); 
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.setClearColor(0x000000, 0);
 
         if (this.container && !options.canvas) {
             this.container.appendChild(this.renderer.domElement);
@@ -78,26 +80,69 @@ export class ThreeSceneManager {
         this.scene.add(this.placeholderMesh);
     }
 
+    public zoom: number | "fit" | "fill" = "fit";
+    public projectWidth: number = 1920;
+    public projectHeight: number = 1080;
+
     public setSize(width: number, height: number) {
         this.width = width;
         this.height = height;
+        this.updateCamera();
+        this.renderer.setSize(width, height, false);
+    }
 
-        this.camera.left = -this.width / 2;
-        this.camera.right = this.width / 2;
-        this.camera.top = this.height / 2;
-        this.camera.bottom = -this.height / 2;
+    public setZoom(zoom: number | "fit" | "fill") {
+        this.zoom = zoom;
+        this.updateCamera();
+    }
+
+    public updateCamera() {
+        const containerAspect = this.width / this.height;
+        const projectAspect = this.projectWidth / this.projectHeight;
+
+        let viewWidth = this.projectWidth;
+        let viewHeight = this.projectHeight;
+
+        if (this.zoom === "fit") {
+            if (containerAspect > projectAspect) {
+                viewWidth = this.projectHeight * containerAspect;
+                viewHeight = this.projectHeight;
+            } else {
+                viewWidth = this.projectWidth;
+                viewHeight = this.projectWidth / containerAspect;
+            }
+            // Add a 5% padding so the black canvas is clearly visible
+            viewWidth *= 1.05;
+            viewHeight *= 1.05;
+        } else if (this.zoom === "fill") {
+            if (containerAspect > projectAspect) {
+                viewWidth = this.projectWidth;
+                viewHeight = this.projectWidth / containerAspect;
+            } else {
+                viewWidth = this.projectHeight * containerAspect;
+                viewHeight = this.projectHeight;
+            }
+        } else if (typeof this.zoom === "number") {
+            // 100% means 1 screen pixel = 1 project pixel
+            viewWidth = this.width / this.zoom;
+            viewHeight = this.height / this.zoom;
+        }
+
+        this.camera.left = -viewWidth / 2;
+        this.camera.right = viewWidth / 2;
+        this.camera.top = viewHeight / 2;
+        this.camera.bottom = -viewHeight / 2;
         this.camera.updateProjectionMatrix();
 
-        this.renderer.setSize(width, height, false);
-        this.placeholderMesh.scale.set(this.width, this.height, 1);
+        this.placeholderMesh.scale.set(this.projectWidth, this.projectHeight, 1);
     }
 
     public getWidth() {
-        return this.width;
+        return this.projectWidth;
     }
 
     public getHeight() {
-        return this.height;
+        return this.projectHeight;
     }
 
     public dispose() {
