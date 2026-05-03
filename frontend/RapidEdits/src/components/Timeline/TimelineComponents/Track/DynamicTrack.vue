@@ -7,6 +7,7 @@ import { Ban, Video, Music, Image as ImageIcon, Box } from "lucide-vue-next";
 import { useProjectStore } from "../../../../stores/projectStore";
 import { MediaType } from "../../../../types/Media";
 import { editorEngine } from "../../../../core/EditorEngine";
+import GhostClip from "./GhostClip.vue";
 
 const props = defineProps<{
     track: Track;
@@ -159,24 +160,12 @@ const handleContainerClick = (e: MouseEvent) => {
         @click="handleContainerClick"
     >
         <!-- Ghost Preview Clip -->
-        <div
-            v-if="isOver && ghostData"
-            class="absolute top-0 h-full opacity-40 pointer-events-none z-10 border-2 border-white/30 rounded-md overflow-hidden flex flex-col"
-            :class="ghostData.color"
-            :style="{
-                left: `${ghostX}px`,
-                width: `${ghostData.duration * zoomLevel}px`,
-            }"
-        >
-            <div
-                class="flex-1 flex items-center justify-center bg-black/20"
-            >
-                <component :is="ghostData.icon" class="w-6 h-6 text-white opacity-60" />
-            </div>
-            <div class="px-2 py-1 bg-black/40 text-[10px] text-white font-medium truncate">
-                {{ ghostData.name }}
-            </div>
-        </div>
+        <GhostClip 
+            v-if="isOver"
+            :ghost-data="ghostData" 
+            :x="ghostX" 
+            :zoom-level="zoomLevel" 
+        />
 
         <!-- Invalid Drop Feedback -->
         <div

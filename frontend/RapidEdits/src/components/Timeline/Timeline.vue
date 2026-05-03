@@ -63,6 +63,68 @@ const audioTracks = computed(() => {
 const customTracks = computed(() => {
     return tracks.value.filter((t) => t.type !== "video" && t.type !== "audio");
 });
+import { onMounted, onUnmounted } from "vue";
+import { Video, Music, Image as ImageIcon, Box, Plus } from "lucide-vue-next";
+import { MediaType } from "../../types/Media";
+import GhostClip from "./TimelineComponents/Track/GhostClip.vue";
+
+// Ghost Preview for New Track Zones
+const hoverZone = ref<"video" | "audio" | null>(null);
+const zoneGhostX = ref(0);
+
+const ghostData = computed(() => {
+    if (store.draggedAsset) {
+        let color = "bg-brand-primary";
+        let icon = Video;
+        if (store.draggedAsset.type === MediaType.AUDIO) {
+            color = "bg-green-600";
+            icon = Music;
+        } else if (store.draggedAsset.type === MediaType.IMAGE) {
+            color = "bg-purple-600";
+            icon = ImageIcon;
+        }
+        return {
+            duration: store.draggedAsset.duration || 5,
+            color,
+            icon,
+            name: store.draggedAsset.name,
+        };
+    }
+    if (store.draggedPlugin) {
+        const meta = store.draggedPlugin.getMetadata();
+        return {
+            duration: 5,
+            color: "bg-indigo-600",
+            icon: meta.icon || Box,
+            name: meta.name,
+        };
+    }
+    return null;
+});
+
+const handleZoneDragOver = (e: DragEvent, type: "video" | "audio") => {
+    hoverZone.value = type;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const rawX = e.clientX - rect.left;
+    const rawTime = rawX / zoomLevel.value;
+
+    // Snapping
+    let finalTime = rawTime;
+    if (editorEngine.getIsSnappingEnabled()) {
+        const thresholdSeconds = 15 / zoomLevel.value;
+        const snapPoint = editorEngine.getClosestSnapPoint(
+            rawTime,
+            thresholdSeconds,
+        );
+        if (snapPoint !== null) finalTime = snapPoint;
+    }
+
+    zoneGhostX.value = finalTime * zoomLevel.value;
+};
+
+const handleZoneDragLeave = () => {
+    hoverZone.value = null;
+};
 
 // Pixels per second
 const zoomLevel = ref(20);
@@ -107,7 +169,6 @@ watch(zoomLevel, () => {
 });
 
 // Initial update on mount (use resize observer for robustness)
-import { onMounted, onUnmounted } from "vue";
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(() => {
@@ -366,6 +427,12 @@ const handleTimelineClick = () => {
                 ref="headersContainer"
                 class="w-32 flex-shrink-0 border-r border-canvas-border bg-canvas-light z-20 flex flex-col pt-8 shadow-lg overflow-hidden"
             >
+                <!-- Section: Overlays & Effects Label -->
+                <div v-if="customTracks.length > 0" class="h-10 flex-shrink-0 px-3 flex items-center gap-2 border-b border-canvas-border/30 bg-indigo-500/5">
+                    <Box class="w-3 h-3 text-indigo-500 opacity-60" />
+                    <span class="text-[9px] font-bold uppercase tracking-widest text-indigo-500 opacity-60">Overlays</span>
+                </div>
+
                 <!-- Custom/Overlay Tracks Header -->
                 <TrackHeader
                     v-for="track in customTracks"
@@ -378,6 +445,12 @@ const handleTimelineClick = () => {
                     class="h-4 bg-canvas-darker flex items-center justify-center flex-shrink-0"
                 ></div>
 
+                <!-- Video Tracks Section Label -->
+                <div class="h-10 flex-shrink-0 px-3 flex items-center gap-2 border-b border-canvas-border/30 bg-brand-primary/5">
+                    <Video class="w-3 h-3 text-brand-primary opacity-60" />
+                    <span class="text-[9px] font-bold uppercase tracking-widest text-brand-primary opacity-60">Video</span>
+                </div>
+
                 <!-- Video Tracks Header -->
                 <TrackHeader
                     v-for="track in videoTracks"
@@ -386,13 +459,20 @@ const handleTimelineClick = () => {
                 />
 
                 <!-- Spacer for Video Drop Zone -->
-                <div class="h-24 flex-shrink-0"></div>
+                <div class="h-24 flex-shrink-0 flex flex-col items-center justify-center border-b border-brand-primary/10 bg-brand-primary/[0.02]">
+                    <Plus class="w-4 h-4 text-brand-primary opacity-30" />
+                    <span class="text-[8px] font-bold uppercase text-brand-primary opacity-30 mt-1">Add Track</span>
+                </div>
 
                 <!-- Divider -->
-                <div
-                    class="h-4 bg-canvas-darker flex items-center justify-center flex-shrink-0"
-                >
-                    <!-- Optional: Icon or Label -->
+                <div class="h-8 bg-canvas-darker flex items-center justify-center flex-shrink-0 border-y border-canvas-border/50">
+                    <div class="w-full h-[1px] bg-canvas-border opacity-30"></div>
+                </div>
+
+                <!-- Audio Tracks Section Label -->
+                <div class="h-10 flex-shrink-0 px-3 flex items-center gap-2 border-b border-canvas-border/30 bg-emerald-500/5">
+                    <Music class="w-3 h-3 text-emerald-500 opacity-60" />
+                    <span class="text-[9px] font-bold uppercase tracking-widest text-emerald-500 opacity-60">Audio</span>
                 </div>
 
                 <!-- Audio Tracks Header -->
@@ -403,7 +483,10 @@ const handleTimelineClick = () => {
                 />
 
                 <!-- Spacer for Audio Drop Zone -->
-                <div class="h-24 flex-shrink-0"></div>
+                <div class="h-24 flex-shrink-0 flex flex-col items-center justify-center border-b border-emerald-500/10 bg-emerald-500/[0.02]">
+                    <Plus class="w-4 h-4 text-emerald-500 opacity-30" />
+                    <span class="text-[8px] font-bold uppercase text-emerald-500 opacity-30 mt-1">Add Track</span>
+                </div>
             </div>
 
             <!-- Tracks Scroll Area -->
@@ -439,19 +522,27 @@ const handleTimelineClick = () => {
                         ></div>
                     </div>
 
+                    <!-- Section: Overlays & Effects -->
+                    <div v-if="customTracks.length > 0" class="h-10 flex items-center px-4 bg-indigo-500/5 border-b border-indigo-500/10">
+                        <div class="flex items-center gap-2 opacity-40">
+                             <Box class="w-3.5 h-3.5 text-indigo-500" />
+                             <span class="text-[9px] font-bold uppercase tracking-widest text-indigo-500">Overlays & Effects</span>
+                        </div>
+                    </div>
+
                     <!-- Custom Tracks Loop -->
-                    <DynamicTrack
-                        v-for="track in customTracks"
-                        :key="track.id"
-                        :track="track"
-                        :zoom-level="zoomLevel"
-                        :active-tool="activeTool"
-                        :visible-start="visibleStart"
-                        :visible-end="visibleEnd"
-                        @drop="handleTrackDrop"
-                        @contextmenu="handleClipContextMenu"
-                        @razor-click="handleRazorClick"
-                    />
+                    <template v-for="track in customTracks" :key="track.id">
+                        <DynamicTrack
+                            :track="track"
+                            :zoom-level="zoomLevel"
+                            :active-tool="activeTool"
+                            :visible-start="visibleStart"
+                            :visible-end="visibleEnd"
+                            @drop="handleTrackDrop"
+                            @contextmenu="handleClipContextMenu"
+                            @razor-click="handleRazorClick"
+                        />
+                    </template>
 
                     <!-- Divider -->
                     <div
@@ -459,53 +550,133 @@ const handleTimelineClick = () => {
                         class="h-4 bg-canvas-darker"
                     ></div>
 
-                    <!-- Video Tracks Loop -->
-                    <DynamicTrack
-                        v-for="track in videoTracks"
-                        :key="track.id"
-                        :track="track"
-                        :zoom-level="zoomLevel"
-                        :active-tool="activeTool"
-                        :visible-start="visibleStart"
-                        :visible-end="visibleEnd"
-                        @drop="handleTrackDrop"
-                        @contextmenu="handleClipContextMenu"
-                        @razor-click="handleRazorClick"
-                    />
+                    <!-- Section: Video -->
+                    <div class="h-10 flex items-center px-4 bg-brand-primary/5 border-b border-brand-primary/10">
+                        <div class="flex items-center gap-2 opacity-40">
+                             <Video class="w-3.5 h-3.5 text-brand-primary" />
+                             <span class="text-[9px] font-bold uppercase tracking-widest text-brand-primary">Video Tracks</span>
+                        </div>
+                    </div>
 
-                    <!-- Video Drop Zone (Create new track) -->
+                    <!-- Video Tracks Loop -->
+                    <template v-for="track in videoTracks" :key="track.id">
+                        <DynamicTrack
+                            :track="track"
+                            :zoom-level="zoomLevel"
+                            :active-tool="activeTool"
+                            :visible-start="visibleStart"
+                            :visible-end="visibleEnd"
+                            @drop="handleTrackDrop"
+                            @contextmenu="handleClipContextMenu"
+                            @razor-click="handleRazorClick"
+                        />
+                        <!-- Drop between Zone (Mini) -->
+                        <div 
+                            class="h-4 relative group/gap z-40 -mt-2 -mb-2"
+                            @dragover.prevent="handleZoneDragOver($event, 'video')"
+                            @dragleave="handleZoneDragLeave"
+                            @drop="handleNewTrackDrop($event, 'video')"
+                        >
+                             <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-brand-primary/0 group-hover/gap:bg-brand-primary/40 transition-colors"></div>
+                             <GhostClip 
+                                v-if="hoverZone === 'video'" 
+                                :ghost-data="ghostData" 
+                                :x="zoneGhostX" 
+                                :zoom-level="zoomLevel" 
+                            />
+                        </div>
+                    </template>
+
+                    <!-- Video Drop Zone (Always Present Bottom) -->
                     <div
-                        class="h-24 border-canvas-border/30 relative bg-canvas/10 border-dashed border-2 border-transparent hover:border-brand-primary/30 transition-colors flex items-center justify-center text-text-muted/50 hover:text-brand-primary/80"
-                        @dragover.prevent
+                        class="h-24 border-y border-brand-primary/20 relative bg-brand-primary/[0.04] border-dashed border-2 border-brand-primary/20 hover:border-brand-primary/40 hover:bg-brand-primary/10 transition-all flex items-center justify-center group overflow-hidden"
+                        @dragover.prevent="handleZoneDragOver($event, 'video')"
+                        @dragleave="handleZoneDragLeave"
                         @drop="handleNewTrackDrop($event, 'video')"
                     >
-                        <span>Drop here to add Video Track</span>
+                        <div class="absolute inset-0 bg-gradient-to-br from-brand-primary/5 to-transparent pointer-events-none"></div>
+                        <GhostClip 
+                            v-if="hoverZone === 'video'" 
+                            :ghost-data="ghostData" 
+                            :x="zoneGhostX" 
+                            :zoom-level="zoomLevel" 
+                        />
+                        <div class="flex flex-col items-center gap-3 pointer-events-none transition-all group-hover:scale-105">
+                            <div class="w-12 h-12 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center shadow-lg backdrop-blur-sm group-hover:bg-brand-primary/20 transition-colors">
+                                <Plus class="w-7 h-7 text-brand-primary" />
+                            </div>
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="text-[11px] font-bold text-brand-primary uppercase tracking-widest">Add Video Track</span>
+                                <span class="text-[9px] text-brand-primary/40 font-medium italic">Drop media here to start a new layer</span>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Divider -->
-                    <div class="h-4 bg-canvas-darker"></div>
+                    <div class="h-8 bg-canvas-darker border-y border-canvas-border/50 flex items-center px-4">
+                        <div class="w-full h-[1px] bg-canvas-border opacity-20"></div>
+                    </div>
+
+                    <!-- Section: Audio -->
+                    <div class="h-10 flex items-center px-4 bg-emerald-500/5 border-b border-emerald-500/10">
+                         <div class="flex items-center gap-2 opacity-40">
+                             <Music class="w-3.5 h-3.5 text-emerald-500" />
+                             <span class="text-[9px] font-bold uppercase tracking-widest text-emerald-500">Audio Tracks</span>
+                        </div>
+                    </div>
 
                     <!-- Audio Tracks Loop -->
-                    <DynamicTrack
-                        v-for="track in audioTracks"
-                        :key="track.id"
-                        :track="track"
-                        :zoom-level="zoomLevel"
-                        :active-tool="activeTool"
-                        :visible-start="visibleStart"
-                        :visible-end="visibleEnd"
-                        @drop="handleTrackDrop"
-                        @contextmenu="handleClipContextMenu"
-                        @razor-click="handleRazorClick"
-                    />
+                    <template v-for="track in audioTracks" :key="track.id">
+                        <DynamicTrack
+                            :track="track"
+                            :zoom-level="zoomLevel"
+                            :active-tool="activeTool"
+                            :visible-start="visibleStart"
+                            :visible-end="visibleEnd"
+                            @drop="handleTrackDrop"
+                            @contextmenu="handleClipContextMenu"
+                            @razor-click="handleRazorClick"
+                        />
+                        <!-- Drop between Zone (Mini) -->
+                        <div 
+                            class="h-4 relative group/gap z-40 -mt-2 -mb-2"
+                            @dragover.prevent="handleZoneDragOver($event, 'audio')"
+                            @dragleave="handleZoneDragLeave"
+                            @drop="handleNewTrackDrop($event, 'audio')"
+                        >
+                             <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-emerald-500/0 group-hover/gap:bg-emerald-500/40 transition-colors"></div>
+                             <GhostClip 
+                                v-if="hoverZone === 'audio'" 
+                                :ghost-data="ghostData" 
+                                :x="zoneGhostX" 
+                                :zoom-level="zoomLevel" 
+                            />
+                        </div>
+                    </template>
 
                     <!-- Audio Drop Zone (Create new track) -->
                     <div
-                        class="h-24 border-canvas-border/30 relative bg-canvas/10 border-dashed border-2 border-transparent hover:border-emerald-500/30 transition-colors flex items-center justify-center text-text-muted/50 hover:text-emerald-500/80"
-                        @dragover.prevent
+                        class="h-24 border-y border-emerald-500/20 relative bg-emerald-500/[0.04] border-dashed border-2 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/10 transition-all flex items-center justify-center group overflow-hidden"
+                        @dragover.prevent="handleZoneDragOver($event, 'audio')"
+                        @dragleave="handleZoneDragLeave"
                         @drop="handleNewTrackDrop($event, 'audio')"
                     >
-                        <span>Drop here to add Audio Track</span>
+                        <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent pointer-events-none"></div>
+                        <GhostClip 
+                            v-if="hoverZone === 'audio'" 
+                            :ghost-data="ghostData" 
+                            :x="zoneGhostX" 
+                            :zoom-level="zoomLevel" 
+                        />
+                        <div class="flex flex-col items-center gap-3 pointer-events-none transition-all group-hover:scale-105">
+                            <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-lg backdrop-blur-sm group-hover:bg-emerald-500/20 transition-colors">
+                                <Plus class="w-7 h-7 text-emerald-500" />
+                            </div>
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="text-[11px] font-bold text-emerald-500 uppercase tracking-widest">Add Audio Track</span>
+                                <span class="text-[9px] text-emerald-500/40 font-medium italic">Drop sound here to start a new layer</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
