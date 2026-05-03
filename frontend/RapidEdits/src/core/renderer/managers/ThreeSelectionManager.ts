@@ -44,6 +44,9 @@ export class ThreeSelectionManager {
 
         if (!clipMesh) { this.clearHelper(); return; }
 
+        // Ensure matrix is up to date for accurate world box
+        clipMesh.updateMatrixWorld(true);
+
         // Compute world box — works for any object type
         const box = new THREE.Box3().setFromObject(clipMesh);
         if (box.isEmpty()) { this.clearHelper(); return; }
@@ -56,6 +59,8 @@ export class ThreeSelectionManager {
         if (key !== this.lastBoxKey) {
             this.lastBoxKey = key;
             this.rebuildHelper(box);
+            // Must sync immediately after rebuild to set position/rotation
+            this.syncHelper(clipMesh, box);
         } else {
             // Just re-position (rotation may have changed)
             this.syncHelper(clipMesh, box);
