@@ -137,6 +137,11 @@ export class TextPlugin extends BasePlugin {
 
         return [
             {
+                label: "General",
+                key: "sep_general",
+                type: "divider",
+            },
+            {
                 label: "Content",
                 key: "text",
                 type: "long-text",
