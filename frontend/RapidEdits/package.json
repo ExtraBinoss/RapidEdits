@@ -50,6 +50,7 @@
         "tailwindcss-animate": "^1.0.7",
         "three": "^0.182.0",
         "three-stdlib": "^2.36.1",
+        "troika-three-text": "^0.52.4",
         "uiohook-napi": "^1.5.4",
         "uuid": "^13.0.0",
         "vue": "^3.5.30",
