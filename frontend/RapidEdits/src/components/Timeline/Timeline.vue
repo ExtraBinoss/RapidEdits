@@ -131,6 +131,7 @@ const zoomLevel = ref(20);
 
 const scrollContainer = ref<HTMLElement | null>(null);
 const headersContainer = ref<HTMLElement | null>(null);
+const containerWidth = ref(0);
 
 const visibleStart = ref(0);
 const visibleEnd = ref(0);
@@ -140,6 +141,8 @@ const updateVisibleRange = () => {
     const el = scrollContainer.value;
     const start = el.scrollLeft / zoomLevel.value;
     const end = (el.scrollLeft + el.clientWidth) / zoomLevel.value;
+    
+    containerWidth.value = el.clientWidth;
 
     // Add buffer (e.g. 1 screen width worth of time)
     const buffer = (el.clientWidth / zoomLevel.value) * 0.5;
@@ -589,7 +592,7 @@ const handleTimelineClick = () => {
 
                     <!-- Video Drop Zone (Always Present Bottom) -->
                     <div
-                        class="h-24 border-y border-brand-primary/20 relative bg-brand-primary/[0.04] border-dashed border-2 border-brand-primary/20 hover:border-brand-primary/40 hover:bg-brand-primary/10 transition-all flex items-center justify-center group overflow-hidden"
+                        class="h-24 border-y border-brand-primary/20 relative bg-brand-primary/[0.04] border-dashed border-2 border-brand-primary/20 hover:border-brand-primary/40 hover:bg-brand-primary/10 transition-all flex group"
                         @dragover.prevent="handleZoneDragOver($event, 'video')"
                         @dragleave="handleZoneDragLeave"
                         @drop="handleNewTrackDrop($event, 'video')"
@@ -601,13 +604,16 @@ const handleTimelineClick = () => {
                             :x="zoneGhostX" 
                             :zoom-level="zoomLevel" 
                         />
-                        <div class="flex flex-col items-center gap-3 pointer-events-none transition-all group-hover:scale-105">
-                            <div class="w-12 h-12 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center shadow-lg backdrop-blur-sm group-hover:bg-brand-primary/20 transition-colors">
-                                <Plus class="w-7 h-7 text-brand-primary" />
+                        <div 
+                            class="sticky left-0 h-full flex flex-col items-center justify-center gap-2 pointer-events-none transition-all group-hover:scale-105 z-10"
+                            :style="{ width: `${containerWidth}px` }"
+                        >
+                            <div class="w-8 h-8 rounded-xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center shadow-md backdrop-blur-sm group-hover:bg-brand-primary/20 transition-colors">
+                                <Plus class="w-5 h-5 text-brand-primary" />
                             </div>
-                            <div class="flex flex-col items-center gap-1">
-                                <span class="text-[11px] font-bold text-brand-primary uppercase tracking-widest">Add Video Track</span>
-                                <span class="text-[9px] text-brand-primary/40 font-medium italic">Drop media here to start a new layer</span>
+                            <div class="flex flex-col items-center gap-0.5">
+                                <span class="text-[9px] font-bold text-brand-primary uppercase tracking-widest">Add Video Track</span>
+                                <span class="text-[7px] text-brand-primary/40 font-medium italic">Drop media here</span>
                             </div>
                         </div>
                     </div>
@@ -656,7 +662,7 @@ const handleTimelineClick = () => {
 
                     <!-- Audio Drop Zone (Create new track) -->
                     <div
-                        class="h-24 border-y border-emerald-500/20 relative bg-emerald-500/[0.04] border-dashed border-2 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/10 transition-all flex items-center justify-center group overflow-hidden"
+                        class="h-24 border-y border-emerald-500/20 relative bg-emerald-500/[0.04] border-dashed border-2 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/10 transition-all flex group"
                         @dragover.prevent="handleZoneDragOver($event, 'audio')"
                         @dragleave="handleZoneDragLeave"
                         @drop="handleNewTrackDrop($event, 'audio')"
@@ -668,13 +674,16 @@ const handleTimelineClick = () => {
                             :x="zoneGhostX" 
                             :zoom-level="zoomLevel" 
                         />
-                        <div class="flex flex-col items-center gap-3 pointer-events-none transition-all group-hover:scale-105">
-                            <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-lg backdrop-blur-sm group-hover:bg-emerald-500/20 transition-colors">
-                                <Plus class="w-7 h-7 text-emerald-500" />
+                        <div 
+                            class="sticky left-0 h-full flex flex-col items-center justify-center gap-2 pointer-events-none transition-all group-hover:scale-105 z-10"
+                            :style="{ width: `${containerWidth}px` }"
+                        >
+                            <div class="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-md backdrop-blur-sm group-hover:bg-emerald-500/20 transition-colors">
+                                <Plus class="w-5 h-5 text-emerald-500" />
                             </div>
-                            <div class="flex flex-col items-center gap-1">
-                                <span class="text-[11px] font-bold text-emerald-500 uppercase tracking-widest">Add Audio Track</span>
-                                <span class="text-[9px] text-emerald-500/40 font-medium italic">Drop sound here to start a new layer</span>
+                            <div class="flex flex-col items-center gap-0.5">
+                                <span class="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Add Audio Track</span>
+                                <span class="text-[7px] text-emerald-500/40 font-medium italic">Drop sound here</span>
                             </div>
                         </div>
                     </div>

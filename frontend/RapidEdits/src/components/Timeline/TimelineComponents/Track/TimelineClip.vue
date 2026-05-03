@@ -274,7 +274,7 @@ const fadeOutWidth = computed(() => {
 
 <template>
     <div
-        class="absolute top-2 bottom-2 rounded overflow-hidden border border-opacity-30 group shadow-sm flex items-center px-2 select-none"
+        class="absolute top-1 bottom-1 rounded overflow-hidden border border-opacity-30 group shadow-sm flex items-center px-2 select-none"
         :class="[
             getTrackColor(clip.type),
             { 'ring-2 ring-white': isSelected && !isDragging },
