@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Sliders } from "lucide-vue-next";
 import { useProjectStore } from "../stores/projectStore";
-import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import { pluginRegistry } from "../core/plugins/PluginRegistry";
 import { createPluginId, PluginCategory } from "../core/plugins/PluginTypes";
@@ -12,7 +11,6 @@ import Slider from "./UI/Slider/Slider.vue";
 import Select from "./UI/Input/Select.vue";
 
 const store = useProjectStore();
-const { selectedClipIds, tracks } = storeToRefs(store);
 
 // Typed reference to the fade transition plugin
 const FADE_TRANSITION_ID = createPluginId(PluginCategory.Transitions, "fade") as PluginId;
@@ -39,12 +37,28 @@ const easingOptions = computed(() => {
 });
 
 const selectedClip = computed(() => {
-    if (selectedClipIds.value.length !== 1) return null;
-    const id = selectedClipIds.value[0];
-    for (const track of tracks.value) {
-        const clip = track.clips.find((c) => c.id === id);
-        if (clip) return clip;
+    if (store.selectedClipIds.length === 0) return null;
+
+    const selectedClips = [];
+    for (const id of store.selectedClipIds) {
+        for (const track of store.tracks) {
+            const clip = track.clips.find((c) => c.id === id);
+            if (clip) {
+                selectedClips.push(clip);
+                break;
+            }
+        }
     }
+
+    if (selectedClips.length === 0) return null;
+    if (selectedClips.length === 1) return selectedClips[0];
+
+    const firstGroupId = selectedClips[0].groupId;
+    if (firstGroupId && selectedClips.every(c => c.groupId === firstGroupId)) {
+        const primaryClip = selectedClips.find(c => c.type === 'video') || selectedClips[0];
+        return primaryClip;
+    }
+
     return null;
 });
 
@@ -126,6 +140,7 @@ const updateTransition = (
             <!-- Plugin Specific Properties -->
             <PluginPropertiesRenderer
                 v-if="plugin && pluginProperties"
+                :key="selectedClip.id"
                 :clip="selectedClip"
                 :properties="pluginProperties"
             />

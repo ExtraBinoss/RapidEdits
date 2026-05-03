@@ -14,6 +14,7 @@ const props = defineProps<{
     track: Track; // Needed to know context if we want to move tracks later
     zoomLevel: number;
     activeTool?: "select" | "razor";
+    scrollContainer?: HTMLElement | null;
 }>();
 
 const store = useProjectStore();

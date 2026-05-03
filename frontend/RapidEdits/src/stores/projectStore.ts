@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed, shallowRef, markRaw } from "vue";
+import { ref, computed, shallowRef } from "vue";
 import { editorEngine } from "../core/EditorEngine";
 import { globalEventBus } from "../core/events/EventBus";
 import { EditorEventType, type Asset } from "../types/Media";
@@ -7,7 +7,7 @@ import type { Track, Clip } from "../types/Timeline";
 
 export const useProjectStore = defineStore("project", () => {
     const assets = ref<Asset[]>([]);
-    const tracks = computed(() => editorEngine.getTracks());
+    const tracks = ref<Track[]>(editorEngine.getTracks());
     const currentTime = ref(0);
     const isPlaying = ref(false);
     const draggedAsset = shallowRef<Asset | null>(null);
@@ -22,10 +22,6 @@ export const useProjectStore = defineStore("project", () => {
                 if (end > maxTime) maxTime = end;
             });
         });
-        // Minimum duration of 3 minutes for empty/short projects,
-        // or just fit content + buffer?
-        // User asked for "37s" if content is 37s. So let's fit content.
-        // But keep at least 60s to be editable.
         return Math.max(60, maxTime + 10);
     });
 
@@ -39,7 +35,7 @@ export const useProjectStore = defineStore("project", () => {
     });
 
     globalEventBus.on(EditorEventType.TIMELINE_UPDATED, () => {
-        // No longer needed to deep clone tracks, as they are a Vue reactive object inside TimelineSystem natively!
+        tracks.value = [...editorEngine.getTracks()];
     });
 
     globalEventBus.on(EditorEventType.PLAYBACK_TIME_UPDATED, (time: any) => {
@@ -83,6 +79,12 @@ export const useProjectStore = defineStore("project", () => {
         editorEngine.splitClip(clipId, time);
     }
 
+    const selectedClipIds = ref<string[]>([]);
+
+    globalEventBus.on(EditorEventType.SELECTION_CHANGED, (ids: string[]) => {
+        selectedClipIds.value = ids;
+    });
+
     return {
         assets,
         tracks,
@@ -109,17 +111,6 @@ export const useProjectStore = defineStore("project", () => {
         deleteSelectedClips: () => editorEngine.deleteSelectedClips(),
         unlinkSelectedClips: () => editorEngine.unlinkSelectedClips(),
         splitClip,
-
-        // Reactive State for selection (sync via event)
-        selectedClipIds: computed(() => {
-            // We can't easily make a set reactive from engine without a ref here
-            // Using event bus to update local ref is better.
-            return selectionState.value;
-        }),
+        selectedClipIds,
     };
-});
-
-const selectionState = ref<string[]>([]);
-globalEventBus.on(EditorEventType.SELECTION_CHANGED, (ids: any) => {
-    selectionState.value = ids;
 });

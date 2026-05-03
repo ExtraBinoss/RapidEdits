@@ -15,6 +15,7 @@ const props = defineProps<{
     activeTool?: "select" | "razor";
     visibleStart?: number;
     visibleEnd?: number;
+    scrollContainer?: HTMLElement | null;
 }>();
 
 const emit = defineEmits<{
@@ -200,6 +201,7 @@ const handleContainerClick = (e: MouseEvent) => {
             :track="track"
             :zoomLevel="zoomLevel"
             :active-tool="activeTool"
+            :scroll-container="scrollContainer"
             @contextmenu="
                 (e: MouseEvent, id: string) => emit('contextmenu', e, id)
             "

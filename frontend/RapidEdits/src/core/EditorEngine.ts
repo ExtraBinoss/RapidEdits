@@ -65,16 +65,7 @@ export class EditorEngine {
         );
 
         // Cleanup sub-systems
-        if (typeof this.assetSystem.destroy === "function")
-            this.assetSystem.destroy();
-        if (typeof this.playbackSystem.destroy === "function")
-            this.playbackSystem.destroy();
-        if (typeof this.timelineSystem.destroy === "function")
-            this.timelineSystem.destroy();
-        if (typeof this.recordingSystem.destroy === "function")
-            this.recordingSystem.destroy();
-        if (typeof this.inputSystem.destroy === "function")
-            this.inputSystem.destroy();
+        this.assetSystem.destroy();
     }
 
     private async handleRecordingFinished(
@@ -210,8 +201,12 @@ export class EditorEngine {
         return this.timelineSystem.addTrack(type);
     }
 
-    public addClip(assetId: string, targetTrackId: number, startTime: number) {
-        this.timelineSystem.addClip(assetId, targetTrackId, startTime);
+    public addClip(assetId: string, targetTrackId: number, startTime: number): string | undefined {
+        const id = this.timelineSystem.addClip(assetId, targetTrackId, startTime);
+        if (id) {
+            this.selectClip(id, false);
+        }
+        return id;
     }
 
     public addClipsBatch(
@@ -221,8 +216,12 @@ export class EditorEngine {
             start: number;
             extraData?: Partial<Clip>;
         }[],
-    ) {
-        this.timelineSystem.addClipsBatch(items);
+    ): string[] {
+        const ids = this.timelineSystem.addClipsBatch(items) as string[];
+        if (ids.length > 0) {
+            this.selectClip(ids[0], false);
+        }
+        return ids;
     }
 
     public updateClip(id: string, updates: Partial<Clip>) {

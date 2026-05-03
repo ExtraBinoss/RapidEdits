@@ -62,12 +62,13 @@ export class TimelineSystem {
         return newTrack;
     }
 
-    public addClip(assetId: string, targetTrackId: number, startTime: number) {
+
+    public addClip(assetId: string, targetTrackId: number, startTime: number): string | undefined {
         const asset = this.assetSystem.getAsset(assetId);
-        if (!asset) return;
+        if (!asset) return undefined;
 
         let targetTrack = this.tracks.find((t) => t.id === targetTrackId);
-        if (!targetTrack) return;
+        if (!targetTrack) return undefined;
 
         // Force correct track type
         // If trying to put Audio on Video track -> Switch to Audio track
@@ -145,6 +146,8 @@ export class TimelineSystem {
             type: EditorEventType.TIMELINE_UPDATED,
             payload: undefined,
         });
+
+        return mainClip.id;
     }
 
     public addClipsBatch(
@@ -155,8 +158,8 @@ export class TimelineSystem {
             typeOverride?: MediaTypeValue;
             extraData?: Partial<Clip>;
         }[],
-    ) {
-        if (clips.length === 0) return;
+    ): string[] {
+        if (clips.length === 0) return [];
 
         // Group by track to minimize lookups
         const clipsByTrack = new Map<
@@ -177,6 +180,7 @@ export class TimelineSystem {
         });
 
         const affectedTrackIds = new Set<number>();
+        const newClipIds: string[] = [];
 
         // Process each track once
         clipsByTrack.forEach((trackClips, trackId) => {
@@ -191,21 +195,22 @@ export class TimelineSystem {
 
                 const clip = this.createClipObject(
                     asset,
-                    trackId,
+                    track.id,
                     item.start,
                     item.typeOverride,
                 );
 
+                // Apply extra data (e.g. plugins)
                 if (item.extraData) {
                     Object.assign(clip, item.extraData);
                 }
 
                 newClips.push(clip);
+                newClipIds.push(clip.id);
             });
 
             if (newClips.length > 0) {
                 track.clips.push(...newClips);
-                // Sort once
                 track.clips.sort((a, b) => a.start - b.start);
                 affectedTrackIds.add(trackId);
             }
@@ -217,6 +222,8 @@ export class TimelineSystem {
                 payload: undefined,
             });
         }
+
+        return newClipIds;
     }
 
     public removeTrack(trackId: number) {
