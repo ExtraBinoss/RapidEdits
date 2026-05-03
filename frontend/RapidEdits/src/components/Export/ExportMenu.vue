@@ -1,369 +1,295 @@
 <template>
-    <div
-        v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    <Dialog
+        :isOpen="modelValue"
+        title="Export Video"
+        @close="close"
     >
-        <div
-            class="bg-canvas-light border border-canvas-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] text-text-main"
-        >
-            <!-- Header -->
-            <div
-                class="px-8 py-5 border-b border-canvas-border flex justify-between items-center shrink-0"
-            >
-                <div class="flex items-center space-x-3">
-                    <div
-                        class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center shadow-lg shadow-brand-primary/20"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-5 w-5 text-white"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                        >
-                            <path
-                                fill-rule="evenodd"
-                                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
+        <!-- Content -->
+        <div class="space-y-6">
+            <!-- Config Form -->
+            <transition name="fade" mode="out-in">
+                <div
+                    v-if="!isExporting && !isDone"
+                    class="space-y-6"
+                    key="config"
+                >
+                    <div class="grid grid-cols-2 gap-5">
+                        <!-- Resolution -->
+                        <Select
+                            v-model="config.resolution"
+                            label="Resolution"
+                            :options="resolutionOptions"
+                        />
+
+                        <!-- FPS -->
+                        <Select
+                            v-model="config.fps"
+                            label="Frame Rate"
+                            :options="fpsOptions"
+                        />
                     </div>
-                    <div>
-                        <h3
-                            class="text-xl font-bold text-text-main tracking-tight"
+
+                    <!-- Codec / Format -->
+                    <Select
+                        v-model="config.format"
+                        label="Format"
+                        :options="formatOptions"
+                    />
+
+                    <!-- Bitrate -->
+                    <div
+                        class="bg-canvas-lighter rounded-xl p-5 border border-canvas-border"
+                    >
+                        <div class="flex justify-between items-end mb-4">
+                            <div>
+                                <label
+                                    class="block text-sm font-semibold text-text-main mb-1"
+                                    >Bitrate Quality</label
+                                >
+                                <p class="text-xs text-text-muted">
+                                    Adjust video file size and quality
+                                </p>
+                            </div>
+                            <span
+                                class="text-lg font-mono font-bold text-brand-accent"
+                                >{{
+                                    (config.bitrate / 1_000_000).toFixed(1)
+                                }}
+                                <span
+                                    class="text-sm font-medium text-text-muted"
+                                    >Mbps</span
+                                ></span
+                            >
+                        </div>
+
+                        <input
+                            type="range"
+                            v-model.number="config.bitrate"
+                            min="2000000"
+                            max="50000000"
+                            step="500000"
+                            class="w-full h-2 bg-canvas-border rounded-lg appearance-none cursor-pointer accent-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/50 transition-all hover:bg-canvas-border/80"
+                        />
+                        <div
+                            class="flex justify-between items-center mt-3 text-xs"
                         >
-                            Export Video
-                        </h3>
-                        <p class="text-xs text-text-muted font-medium">
-                            Share your creation with the world
-                        </p>
+                            <span class="text-text-muted">Low</span>
+                            <span class="text-brand-accent font-medium"
+                                >Recommended:
+                                {{ getRecommendedBitrateText() }}</span
+                            >
+                            <span class="text-text-muted">High</span>
+                        </div>
                     </div>
                 </div>
-                <button
-                    @click="close"
-                    class="text-text-muted hover:text-text-main transition-colors p-2 hover:bg-white/5 rounded-full"
-                    :disabled="isExporting && !isDone"
-                >
-                    <component :is="XIcon" class="w-5 h-5" />
-                </button>
-            </div>
 
-            <!-- Content -->
-            <div class="p-8 space-y-6 overflow-y-auto custom-scrollbar">
-                <!-- Config Form -->
-                <transition name="fade" mode="out-in">
+                <!-- Progress View -->
+                <div v-else class="py-2" key="progress">
                     <div
-                        v-if="!isExporting && !isDone"
-                        class="space-y-6"
-                        key="config"
+                        v-if="error"
+                        class="text-red-400 mb-4 bg-red-500/10 p-5 rounded-xl border border-red-500/20 flex items-start space-x-3"
                     >
-                        <div class="grid grid-cols-2 gap-5">
-                            <!-- Resolution -->
-                            <Select
-                                v-model="config.resolution"
-                                label="Resolution"
-                                :options="resolutionOptions"
-                            />
-
-                            <!-- FPS -->
-                            <Select
-                                v-model="config.fps"
-                                label="Frame Rate"
-                                :options="fpsOptions"
-                            />
-                        </div>
-
-                        <!-- Codec / Format -->
-                        <Select
-                            v-model="config.format"
-                            label="Format"
-                            :options="formatOptions"
-                        />
-
-                        <!-- Bitrate -->
                         <div
-                            class="bg-canvas-lighter rounded-xl p-5 border border-canvas-border"
+                            class="bg-red-500/20 p-2 rounded-full shrink-0"
                         >
-                            <div class="flex justify-between items-end mb-4">
-                                <div>
-                                    <label
-                                        class="block text-sm font-semibold text-text-main mb-1"
-                                        >Bitrate Quality</label
-                                    >
-                                    <p class="text-xs text-text-muted">
-                                        Adjust video file size and quality
-                                    </p>
-                                </div>
-                                <span
-                                    class="text-lg font-mono font-bold text-brand-accent"
-                                    >{{
-                                        (config.bitrate / 1_000_000).toFixed(1)
-                                    }}
-                                    <span
-                                        class="text-sm font-medium text-text-muted"
-                                        >Mbps</span
-                                    ></span
-                                >
-                            </div>
-
-                            <input
-                                type="range"
-                                v-model.number="config.bitrate"
-                                min="2000000"
-                                max="50000000"
-                                step="500000"
-                                class="w-full h-2 bg-canvas-border rounded-lg appearance-none cursor-pointer accent-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/50 transition-all hover:bg-canvas-border/80"
-                            />
-                            <div
-                                class="flex justify-between items-center mt-3 text-xs"
-                            >
-                                <span class="text-text-muted">Low</span>
-                                <span class="text-brand-accent font-medium"
-                                    >Recommended:
-                                    {{ getRecommendedBitrateText() }}</span
-                                >
-                                <span class="text-text-muted">High</span>
-                            </div>
+                            <component :is="XIcon" class="h-5 w-5 text-red-400" />
+                        </div>
+                        <div>
+                            <p class="font-bold text-red-300 mb-1">
+                                Export Failed
+                            </p>
+                            <p class="text-sm opacity-80 leading-relaxed">
+                                {{ error }}
+                            </p>
                         </div>
                     </div>
 
-                    <!-- Progress View -->
-                    <div v-else class="py-2" key="progress">
-                        <div
-                            v-if="error"
-                            class="text-red-400 mb-4 bg-red-500/10 p-5 rounded-xl border border-red-500/20 flex items-start space-x-3"
-                        >
+                    <div v-else class="space-y-8">
+                        <!-- Status Header -->
+                        <div class="text-center space-y-2">
                             <div
-                                class="bg-red-500/20 p-2 rounded-full shrink-0"
+                                class="inline-flex items-center justify-center p-3 rounded-full mb-2 transition-all duration-500"
+                                :class="
+                                    isDone
+                                        ? 'bg-green-500/20 text-green-400'
+                                        : 'bg-brand-primary/20 text-brand-primary'
+                                "
                             >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    class="h-5 w-5 text-red-400"
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
+                                <component
+                                    :is="isDone ? CheckIcon : 'svg'"
+                                    class="w-8 h-8"
+                                    :class="{ 'animate-pulse': !isDone }"
                                 >
                                     <path
-                                        fill-rule="evenodd"
-                                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                                        clip-rule="evenodd"
-                                    />
-                                </svg>
+                                        v-if="!isDone"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
+                                </component>
                             </div>
-                            <div>
-                                <p class="font-bold text-red-300 mb-1">
-                                    Export Failed
-                                </p>
-                                <p class="text-sm opacity-80 leading-relaxed">
-                                    {{ error }}
-                                </p>
+                            <h4 class="text-2xl font-bold text-text-main">
+                                {{
+                                    isDone
+                                        ? "Export Complete!"
+                                        : "Rendering Video..."
+                                }}
+                            </h4>
+                            <p class="text-text-muted text-sm">
+                                {{ statusText }}
+                            </p>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="space-y-2">
+                            <div
+                                class="flex justify-between text-xs font-semibold uppercase tracking-wider text-text-muted"
+                            >
+                                <span>Progress</span>
+                                <span class="text-text-main"
+                                    >{{ progress }}%</span
+                                >
+                            </div>
+                            <div
+                                class="h-3 bg-canvas-border rounded-full overflow-hidden backdrop-blur-sm shadow-inner"
+                            >
+                                <div
+                                    class="h-full bg-gradient-to-r from-brand-primary to-brand-secondary transition-all duration-300 ease-out shadow-[0_0_15px_rgba(49,110,160,0.5)]"
+                                    :style="{ width: `${progress}%` }"
+                                ></div>
                             </div>
                         </div>
 
-                        <div v-else class="space-y-8">
-                            <!-- Status Header -->
-                            <div class="text-center space-y-2">
-                                <div
-                                    class="inline-flex items-center justify-center p-3 rounded-full mb-2 transition-all duration-500"
-                                    :class="
-                                        isDone
-                                            ? 'bg-green-500/20 text-green-400'
-                                            : 'bg-brand-primary/20 text-brand-primary'
-                                    "
-                                >
-                                    <component
-                                        :is="isDone ? CheckIcon : 'svg'"
-                                        class="w-8 h-8"
-                                        :class="{ 'animate-pulse': !isDone }"
-                                    >
-                                        <path
-                                            v-if="!isDone"
-                                            fill="currentColor"
-                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                        ></path>
-                                    </component>
-                                </div>
-                                <h4 class="text-2xl font-bold text-text-main">
-                                    {{
-                                        isDone
-                                            ? "Export Complete!"
-                                            : "Rendering Video..."
-                                    }}
-                                </h4>
-                                <p class="text-text-muted text-sm">
-                                    {{ statusText }}
-                                </p>
-                            </div>
-
-                            <!-- Progress Bar -->
-                            <div class="space-y-2">
-                                <div
-                                    class="flex justify-between text-xs font-semibold uppercase tracking-wider text-text-muted"
-                                >
-                                    <span>Progress</span>
-                                    <span class="text-text-main"
-                                        >{{ progress }}%</span
-                                    >
-                                </div>
-                                <div
-                                    class="h-3 bg-canvas-border rounded-full overflow-hidden backdrop-blur-sm shadow-inner"
-                                >
-                                    <div
-                                        class="h-full bg-gradient-to-r from-brand-primary to-brand-secondary transition-all duration-300 ease-out shadow-[0_0_15px_rgba(49,110,160,0.5)]"
-                                        :style="{ width: `${progress}%` }"
-                                    ></div>
-                                </div>
-                            </div>
-
-                            <!-- Stats Grid -->
+                        <!-- Stats Grid -->
+                        <div
+                            v-if="!isDone && stats.totalFrames > 0"
+                            class="grid grid-cols-2 gap-4"
+                        >
                             <div
-                                v-if="!isDone && stats.totalFrames > 0"
-                                class="grid grid-cols-2 gap-4"
+                                class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
                             >
-                                <div
-                                    class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
+                                <p
+                                    class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
                                 >
-                                    <p
-                                        class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
-                                    >
-                                        Elapsed Time
-                                    </p>
-                                    <p
-                                        class="text-xl font-mono font-bold text-text-main"
-                                    >
-                                        {{ stats.elapsedTime }}
-                                    </p>
-                                </div>
-                                <div
-                                    class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
-                                >
-                                    <p
-                                        class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
-                                    >
-                                        Estimated Left
-                                    </p>
-                                    <p
-                                        class="text-xl font-mono font-bold text-brand-accent"
-                                    >
-                                        {{ stats.timeLeft }}
-                                    </p>
-                                </div>
-                                <div
-                                    class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
-                                >
-                                    <p
-                                        class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
-                                    >
-                                        Frames
-                                    </p>
-                                    <p
-                                        class="text-lg font-mono font-medium text-text-main"
-                                    >
-                                        <span
-                                            class="text-text-main font-bold"
-                                            >{{ stats.currentFrame }}</span
-                                        >
-                                        <span class="opacity-50 mx-1">/</span
-                                        >{{ stats.totalFrames }}
-                                    </p>
-                                </div>
-                                <div
-                                    class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
-                                >
-                                    <p
-                                        class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
-                                    >
-                                        Speed
-                                    </p>
-                                    <p
-                                        class="text-lg font-mono font-medium text-text-main"
-                                    >
-                                        {{ stats.fps }}
-                                        <span class="text-xs opacity-60"
-                                            >fps</span
-                                        >
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- Success Actions -->
-                            <div
-                                v-if="isDone"
-                                class="bg-green-500/10 border border-green-500/20 rounded-xl p-4 text-center space-y-2"
-                            >
-                                <p class="text-green-400 font-medium text-sm">
-                                    Export successfully completed in
-                                    <span class="font-bold text-green-300">{{
-                                        stats.elapsedTime
-                                    }}</span>
-                                </p>
-                                <p class="text-xs text-text-muted">
-                                    File saved as:
-                                    <span
-                                        class="text-text-main font-mono break-all"
-                                        >{{ exportedFilename }}</span
-                                    >
+                                    Elapsed Time
                                 </p>
                                 <p
-                                    class="text-xs text-text-muted italic opacity-70"
+                                    class="text-xl font-mono font-bold text-text-main"
                                 >
-                                    Check your browser's downloads folder.
+                                    {{ stats.elapsedTime }}
+                                </p>
+                            </div>
+                            <div
+                                class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
+                            >
+                                <p
+                                    class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
+                                >
+                                    Estimated Left
+                                </p>
+                                <p
+                                    class="text-xl font-mono font-bold text-brand-accent"
+                                >
+                                    {{ stats.timeLeft }}
+                                </p>
+                            </div>
+                            <div
+                                class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
+                            >
+                                <p
+                                    class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
+                                >
+                                    Frames
+                                </p>
+                                <p
+                                    class="text-lg font-mono font-medium text-text-main"
+                                >
+                                    <span
+                                        class="text-text-main font-bold"
+                                        >{{ stats.currentFrame }}</span
+                                    >
+                                    <span class="opacity-50 mx-1">/</span
+                                    >{{ stats.totalFrames }}
+                                </p>
+                            </div>
+                            <div
+                                class="bg-canvas-lighter p-4 rounded-xl border border-canvas-border backdrop-blur-sm"
+                            >
+                                <p
+                                    class="text-xs text-text-muted uppercase font-bold tracking-wider mb-1"
+                                >
+                                    Speed
+                                </p>
+                                <p
+                                    class="text-lg font-mono font-medium text-text-main"
+                                >
+                                    {{ stats.fps }}
+                                    <span class="text-xs opacity-60"
+                                        >fps</span
+                                    >
                                 </p>
                             </div>
                         </div>
+
+                        <!-- Success Actions -->
+                        <div
+                            v-if="isDone"
+                            class="bg-green-500/10 border border-green-500/20 rounded-xl p-4 text-center space-y-2"
+                        >
+                            <p class="text-green-400 font-medium text-sm">
+                                Export successfully completed in
+                                <span class="font-bold text-green-300">{{
+                                    stats.elapsedTime
+                                }}</span>
+                            </p>
+                            <p class="text-xs text-text-muted">
+                                File saved as:
+                                <span
+                                    class="text-text-main font-mono break-all"
+                                    >{{ exportedFilename }}</span
+                                >
+                            </p>
+                            <p
+                                class="text-xs text-text-muted italic opacity-70"
+                            >
+                                Check your browser's downloads folder.
+                            </p>
+                        </div>
                     </div>
-                </transition>
-            </div>
-
-            <!-- Footer -->
-            <div
-                class="px-8 py-5 bg-canvas-light flex justify-end space-x-4 shrink-0 border-t border-canvas-border"
-            >
-                <button
-                    v-if="!isExporting || isDone"
-                    @click="close"
-                    class="px-5 py-2.5 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors font-medium text-sm"
-                >
-                    {{ isDone ? "Close" : "Cancel" }}
-                </button>
-
-                <button
-                    v-if="!isExporting && !isDone"
-                    @click="startExport"
-                    class="px-8 py-2.5 bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-white rounded-lg font-bold transition-all shadow-lg shadow-brand-primary/25 active:scale-95 flex items-center space-x-2"
-                >
-                    <span>Start Export</span>
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M14 5l7 7m0 0l-7 7m7-7H3"
-                        />
-                    </svg>
-                </button>
-            </div>
+                </div>
+            </transition>
         </div>
-    </div>
+
+        <template #footer>
+            <Button
+                v-if="!isExporting || isDone"
+                @click="close"
+                variant="ghost"
+                :label="isDone ? 'Close' : 'Cancel'"
+            />
+            <Button
+                v-if="!isExporting && !isDone"
+                @click="startExport"
+                variant="primary"
+                label="Start Export"
+                :icon="DownloadIcon"
+            />
+        </template>
+    </Dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onUnmounted } from "vue";
-import { X as XIcon, Check as CheckIcon } from "lucide-vue-next";
+import { X as XIcon, Check as CheckIcon, Download as DownloadIcon } from "lucide-vue-next";
 import { exportService } from "../../core/export/ExportService";
 import Select from "../UI/Input/Select.vue";
+import Dialog from "../UI/Overlay/Dialog.vue";
+import Button from "../UI/Button/Button.vue";
 
 defineProps<{
     modelValue: boolean;
 }>();
 
 const emit = defineEmits(["update:modelValue"]);
-
-const isOpen = ref(true);
 
 const isExporting = ref(false);
 const isDone = ref(false);
