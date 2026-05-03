@@ -155,26 +155,58 @@ function onWindowPointerMove(e: PointerEvent) {
     const clip = editorEngine.timelineSystem.getClip(draggingClipId);
     if (!clip) return;
 
-    // Delta in screen pixels
+    // 1. Project the screen delta onto the rotated axes of the object
     const dx = e.clientX - dragStartMouse.x;
     const dy = e.clientY - dragStartMouse.y;
     
-    // Convert pixel delta to scale delta using the gizmo rect as reference
+    const theta = dragStartRect.rotation;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+
+    // Rotate mouse delta into local space
+    const localDx = dx * cos + dy * sin;
+    const localDy = -dx * sin + dy * cos;
+    
     const rectW = dragStartRect.width;
     const rectH = dragStartRect.height;
 
-    // Scale factor change based on handle direction
-    const scaleX = activeHandle.dx !== 0
-        ? dragStartScale.x + (activeHandle.dx * dx) / rectW * dragStartScale.x * 2
-        : dragStartScale.x;
+    // Bypass TS narrowing for literal dx/dy types to avoid "no overlap" errors
+    const hDx = activeHandle.dx as number;
+    const hDy = activeHandle.dy as number;
 
-    const scaleY = activeHandle.dy !== 0
-        ? dragStartScale.y - (activeHandle.dy * dy) / rectH * dragStartScale.y * 2
-        : dragStartScale.y;
+    let newScaleX = dragStartScale.x;
+    let newScaleY = dragStartScale.y;
+
+    if (e.shiftKey) {
+        // Proportional scaling: calculate a single unified factor
+        let factor = 0;
+        
+        if (hDx !== 0 && hDy !== 0) {
+            // For corners, average the relative changes for a perfectly smooth transition
+            const fx = (hDx * localDx) / rectW * 2;
+            const fy = -(hDy * localDy) / rectH * 2;
+            factor = (fx + fy) / 2;
+        } else if (hDx !== 0) {
+            factor = (hDx * localDx) / rectW * 2;
+        } else if (hDy !== 0) {
+            factor = -(hDy * localDy) / rectH * 2;
+        }
+
+        newScaleX = dragStartScale.x * (1 + factor);
+        newScaleY = dragStartScale.y * (1 + factor);
+    } else {
+        // Independent scaling
+        if (hDx !== 0) {
+            newScaleX = dragStartScale.x + (hDx * localDx) / rectW * dragStartScale.x * 2;
+        }
+        if (hDy !== 0) {
+            newScaleY = dragStartScale.y - (hDy * localDy) / rectH * dragStartScale.y * 2;
+        }
+    }
 
     const newScale = {
-        x: Math.max(0.01, scaleX),
-        y: Math.max(0.01, scaleY),
+        x: Math.max(0.01, newScaleX),
+        y: Math.max(0.01, newScaleY),
         z: clip.data?.scale?.z ?? 1,
     };
 

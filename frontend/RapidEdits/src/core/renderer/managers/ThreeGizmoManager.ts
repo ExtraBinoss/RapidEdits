@@ -76,14 +76,6 @@ export class ThreeGizmoManager {
         const worldScale = new THREE.Vector3();
         clipMesh.getWorldScale(worldScale);
         
-        // Project a horizontal and vertical segment of the object's size
-        const halfW = worldScale.x / 2;
-        const halfH = worldScale.y / 2;
-
-        // We project two points that represent the "width" axis in screen space
-        // but we do it WITHOUT the rotation to get the base pixel size.
-        // Actually, projecting WITH rotation and taking the length is correct 
-        // because an Orthographic camera doesn't distort lengths during rotation.
         const rightPoint = new THREE.Vector3(0.5, 0, 0).applyMatrix4(clipMesh.matrixWorld);
         const topPoint = new THREE.Vector3(0, 0.5, 0).applyMatrix4(clipMesh.matrixWorld);
         

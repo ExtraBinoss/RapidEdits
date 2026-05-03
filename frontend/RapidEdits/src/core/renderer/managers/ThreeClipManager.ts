@@ -295,14 +295,18 @@ export class ThreeClipManager {
         if (position) object.position.set(position.x, position.y, object.position.z);
         if (rotation) {
             object.rotation.set(
-                THREE.MathUtils.degToRad(rotation.x || 0),
-                THREE.MathUtils.degToRad(rotation.y || 0),
-                THREE.MathUtils.degToRad(rotation.z || 0)
+                THREE.MathUtils.degToRad(rotation.x ?? 0),
+                THREE.MathUtils.degToRad(rotation.y ?? 0),
+                THREE.MathUtils.degToRad(rotation.z ?? 0)
             );
         }
         
         if (scale) {
-            object.scale.set(baseScale.x * scale.x, baseScale.y * scale.y, baseScale.z * scale.z);
+            object.scale.set(
+                baseScale.x * (scale.x ?? 1), 
+                baseScale.y * (scale.y ?? 1), 
+                baseScale.z * (scale.z ?? 1)
+            );
         } else {
             object.scale.copy(baseScale);
         }
