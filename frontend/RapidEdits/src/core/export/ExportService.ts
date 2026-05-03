@@ -8,6 +8,7 @@ import {
     Mp4OutputFormat,
     WebMOutputFormat,
     CanvasSource,
+    AudioBufferSource,
 } from "mediabunny";
 
 export interface ExportConfig {
@@ -52,6 +53,12 @@ export class ExportService {
                     ? new Mp4OutputFormat()
                     : new WebMOutputFormat();
 
+            const duration = this.getProjectDuration();
+            if (duration <= 0) throw new Error("Timeline is empty");
+            const tracks = editorEngine.getTracks();
+            const totalFrames = Math.ceil(duration * config.fps);
+            const frameDuration = 1 / config.fps;
+
             const output = new Output({
                 target,
                 format,
@@ -72,18 +79,29 @@ export class ExportService {
             // Add video track with specified FPS metadata
             output.addVideoTrack(videoSource, { frameRate: config.fps });
 
+            // 2.5 Setup Audio Track
+            onProgress(0, "Mixing Audio...");
+            let audioSource: AudioBufferSource | null = null;
+            let audioBuffer: AudioBuffer | null = null;
+            
+            try {
+                audioBuffer = await this.mixAudio(duration, tracks);
+                if (audioBuffer) {
+                    const audioCodec = config.format === "mp4" ? "aac" : "opus";
+                    audioSource = new AudioBufferSource({
+                        codec: audioCodec,
+                        bitrate: 128000,
+                    });
+                    output.addAudioTrack(audioSource);
+                }
+            } catch (err) {
+                console.warn("Audio mixing failed, exporting without sound:", err);
+            }
+
             await output.start();
 
             // 3. Rendering Loop
             onProgress(0, "Starting Rendering...");
-
-            const duration = this.getProjectDuration();
-            if (duration <= 0) throw new Error("Timeline is empty");
-
-            const totalFrames = Math.ceil(duration * config.fps);
-            const frameDuration = 1 / config.fps;
-
-            const tracks = editorEngine.getTracks();
 
             let lastYieldTime = performance.now();
 
@@ -162,6 +180,11 @@ export class ExportService {
 
             // 4. Finalize
             onProgress(100, "Finalizing Encoding...");
+            
+            if (audioSource && audioBuffer) {
+                await audioSource.add(audioBuffer);
+            }
+
             await output.finalize();
 
             const mimeType =
@@ -208,6 +231,64 @@ export class ExportService {
             });
         });
         return maxTime || 5;
+    }
+
+    private async mixAudio(duration: number, tracks: any[]): Promise<AudioBuffer | null> {
+        const sampleRate = 44100;
+        const numberOfChannels = 2;
+        const offlineCtx = new OfflineAudioContext(
+            numberOfChannels,
+            Math.ceil(duration * sampleRate),
+            sampleRate
+        );
+
+        let hasAudio = false;
+
+        for (const track of tracks) {
+            if (track.isMuted) continue;
+
+            for (const clip of track.clips) {
+                if (clip.type === "audio" || clip.type === "video") {
+                    const asset = editorEngine.getAsset(clip.assetId);
+                    if (!asset) continue;
+
+                    try {
+                        const response = await fetch(asset.url);
+                        const arrayBuffer = await response.arrayBuffer();
+                        const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
+
+                        const source = offlineCtx.createBufferSource();
+                        source.buffer = audioBuffer;
+
+                        const gain = offlineCtx.createGain();
+                        gain.gain.value = clip.data?.volume ?? 1.0;
+
+                        source.connect(gain);
+                        gain.connect(offlineCtx.destination);
+
+                        // Calculate timing
+                        // clip.offset is where in the source file we start
+                        // clip.start is where on the timeline we start
+                        // clip.duration is how long the clip is on the timeline
+                        
+                        // We need to play the segment [offset, offset + duration]
+                        // at time [start]
+                        const startTime = clip.start;
+                        const offset = clip.offset || 0;
+                        const clipDuration = clip.duration;
+
+                        source.start(startTime, offset, clipDuration);
+                        hasAudio = true;
+                    } catch (err) {
+                        console.error(`Failed to mix audio for clip ${clip.id}:`, err);
+                    }
+                }
+            }
+        }
+
+        if (!hasAudio) return null;
+
+        return await offlineCtx.startRendering();
     }
 
     private async waitForSeek(renderer: ThreeRenderer): Promise<void> {
