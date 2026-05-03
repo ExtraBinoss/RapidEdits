@@ -3,22 +3,30 @@ interface Props {
   width?: string;
   height?: string;
   borderRadius?: string;
+  circle?: boolean;
+  variant?: 'default' | 'subtle' | 'dark';
 }
 
 withDefaults(defineProps<Props>(), {
   width: '100%',
   height: '1rem',
-  borderRadius: '0.5rem'
+  borderRadius: '0.5rem',
+  circle: false,
+  variant: 'default'
 });
 </script>
 
 <template>
   <div 
     class="skeleton" 
+    :class="[
+        `skeleton-${variant}`,
+        { 'is-circle': circle }
+    ]"
     :style="{
       width,
       height,
-      borderRadius
+      borderRadius: circle ? '50%' : borderRadius
     }"
   >
     <div class="shimmer"></div>
@@ -30,7 +38,17 @@ withDefaults(defineProps<Props>(), {
   position: relative;
   overflow: hidden;
   background: var(--color-canvas-lighter, #1e2532);
-  border: 1px solid var(--color-canvas-border, #2a3445);
+  border: 1px solid var(--color-canvas-border, rgba(255, 255, 255, 0.05));
+}
+
+.skeleton-subtle {
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+}
+
+.skeleton-dark {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .shimmer {
@@ -43,11 +61,11 @@ withDefaults(defineProps<Props>(), {
     90deg,
     transparent 0%,
     rgba(255, 255, 255, 0.03) 40%,
-    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.06) 50%,
     rgba(255, 255, 255, 0.03) 60%,
     transparent 100%
   );
-  animation: shimmer 1.8s infinite linear;
+  animation: shimmer 2s infinite linear;
 }
 
 @keyframes shimmer {
@@ -60,8 +78,8 @@ withDefaults(defineProps<Props>(), {
 }
 
 :root.light .skeleton {
-  background: var(--color-canvas-lighter, #e2e8f0);
-  border: 1px solid var(--color-canvas-border, #cbd5e1);
+  background: #f1f5f9;
+  border-color: #e2e8f0;
 }
 
 :root.light .shimmer {
@@ -69,7 +87,7 @@ withDefaults(defineProps<Props>(), {
     90deg,
     transparent 0%,
     rgba(0, 0, 0, 0.02) 40%,
-    rgba(0, 0, 0, 0.05) 50%,
+    rgba(0, 0, 0, 0.04) 50%,
     rgba(0, 0, 0, 0.02) 60%,
     transparent 100%
   );

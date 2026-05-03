@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { Play, Pause, Volume2, Magnet, Circle, Check, AlertTriangle } from "lucide-vue-next";
+import { Play, Pause, Volume2, Magnet, Circle, Check, AlertTriangle, Save } from "lucide-vue-next";
 import { globalEventBus } from "../../../core/events/EventBus";
 import { EditorEventType } from "../../../types/Media";
 
@@ -26,6 +26,8 @@ const getIconComponent = (name: string) => {
             return Check;
         case "AlertTriangle":
             return AlertTriangle;
+        case "Save":
+            return Save;
         default:
             return Play;
     }

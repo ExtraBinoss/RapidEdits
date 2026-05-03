@@ -13,6 +13,11 @@ export const useProjectStore = defineStore("project", () => {
     const draggedAsset = shallowRef<Asset | null>(null);
     const draggedPlugin = shallowRef<any | null>(null);
 
+    // Project Metadata
+    const projectName = ref("Untitled Project");
+    const resolution = ref({ width: 1920, height: 1080 });
+    const fps = ref(30);
+
     // Dynamic duration based on content
     const duration = computed(() => {
         let maxTime = 0;
@@ -46,6 +51,11 @@ export const useProjectStore = defineStore("project", () => {
         isPlaying.value = playing;
     });
 
+    globalEventBus.on(EditorEventType.PROJECT_LOADED, () => {
+        assets.value = editorEngine.assetSystem.getAllAssets();
+        tracks.value = editorEngine.getTracks();
+    });
+
     // Actions
     const uploadFiles = async (files: FileList | File[]) => {
         const fileArray = Array.from(files);
@@ -57,6 +67,48 @@ export const useProjectStore = defineStore("project", () => {
     const deleteAsset = (id: string) => {
         editorEngine.removeAsset(id);
     };
+
+    const saveProject = () => {
+        const projectData = {
+            metadata: {
+                name: projectName.value,
+                resolution: resolution.value,
+                fps: fps.value,
+            },
+            ...editorEngine.serialize(),
+        };
+        const json = JSON.stringify(projectData);
+        localStorage.setItem("rapid-edits-project", json);
+        console.log("[ProjectStore] Project saved to localStorage");
+        
+        globalEventBus.emit({
+            type: EditorEventType.SHOW_FEEDBACK,
+            payload: { icon: "Save", text: "Project Saved" }
+        });
+    };
+
+    const loadProject = async (data?: any) => {
+        const json = data || localStorage.getItem("rapid-edits-project");
+        if (!json) return false;
+
+        try {
+            const projectData = typeof json === "string" ? JSON.parse(json) : json;
+            projectName.value = projectData.metadata.name;
+            resolution.value = projectData.metadata.resolution;
+            fps.value = projectData.metadata.fps;
+
+            await editorEngine.deserialize(projectData);
+            return true;
+        } catch (e) {
+            console.error("[ProjectStore] Failed to load project", e);
+            return false;
+        }
+    };
+
+    // Auto-save every minute
+    setInterval(() => {
+        saveProject();
+    }, 60000);
 
     const addClipToTimeline = (
         assetId: string,
@@ -97,8 +149,13 @@ export const useProjectStore = defineStore("project", () => {
         isPlaying,
         draggedAsset,
         draggedPlugin,
+        projectName,
+        resolution,
+        fps,
         uploadFiles,
         deleteAsset,
+        saveProject,
+        loadProject,
         addClipToTimeline,
         togglePlayback,
         seek,

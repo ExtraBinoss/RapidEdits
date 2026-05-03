@@ -5,6 +5,7 @@ import Tooltip from "./UI/Overlay/Tooltip.vue";
 import AppLogo from "./UI/Logo/AppLogo.vue";
 import ExportMenu from "./Export/ExportMenu.vue";
 import JobIndicator from "./Header/JobIndicator.vue";
+import ProjectSettingsPopover from "./Header/ProjectSettingsPopover.vue";
 import { ref } from "vue";
 
 import { useRecorder } from "../composables/useRecorder";
@@ -36,16 +37,7 @@ const handleRecordToggle = () => {
         </div>
 
         <!-- Center Project Info -->
-        <div
-            class="hidden md:flex items-center gap-4 text-sm text-text-muted bg-canvas px-4 py-1.5 rounded-full border border-canvas-border hover:border-brand-primary/30 transition-colors group"
-        >
-            <span
-                class="group-hover:text-text-main cursor-pointer transition-colors"
-                >Untitled Project</span
-            >
-            <span class="text-canvas-border">|</span>
-            <span class="text-xs">1920x1080 • 30fps</span>
-        </div>
+        <ProjectSettingsPopover />
 
         <!-- Right Actions -->
         <div class="flex items-center gap-3">

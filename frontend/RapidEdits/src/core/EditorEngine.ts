@@ -358,6 +358,52 @@ export class EditorEngine {
             this._renderer.setScaleMode(mode);
         }
     }
+
+    // --- Serialization ---
+
+    public serialize() {
+        return {
+            version: "1.0.0",
+            assets: this.assetSystem.getAllAssets().map(a => ({
+                id: a.id,
+                name: a.name,
+                type: a.type,
+                size: a.size,
+                duration: a.duration,
+                // We store the name, but in a real app we'd store a path or use a persistent storage like IndexedDB
+                path: (a.file as any)?.path || a.name 
+            })),
+            tracks: this.timelineSystem.getTracks()
+        };
+    }
+
+    public async deserialize(data: any) {
+        // 1. Clear current state
+        this.timelineSystem.tracks.length = 0;
+        this.assetSystem.destroy();
+
+        // 2. Restore Assets
+        // Note: Without real files, we can only restore metadata. 
+        // In a production app, we'd need a way to re-link or load from disk.
+        for (const assetData of data.assets) {
+            this.assetSystem.registerAsset({
+                id: assetData.id,
+                name: assetData.name,
+                type: assetData.type,
+                size: assetData.size,
+                duration: assetData.duration,
+                url: "", // Will be empty until re-linked or loaded
+                createdAt: Date.now()
+            });
+        }
+
+        // 3. Restore Tracks & Clips
+        if (data.tracks) {
+            this.timelineSystem.tracks.push(...data.tracks);
+        }
+
+        globalEventBus.emit({ type: EditorEventType.PROJECT_LOADED, payload: undefined });
+    }
 }
 
 export const editorEngine = new EditorEngine();

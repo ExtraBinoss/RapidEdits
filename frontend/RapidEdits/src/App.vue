@@ -15,12 +15,14 @@ import { CursorZoomPlugin } from "./core/plugins/effects/CursorZoomPlugin";
 import { useRecorder } from "./composables/useRecorder";
 import SourcePicker from "./components/Recorder/SourcePicker.vue";
 import RecordingToolbar from "./components/Recorder/RecordingToolbar.vue";
+import StartupScreen from "./components/Project/StartupScreen.vue";
 import { loadDefaultAssets } from "./core/utils/defaultAssetsLoader";
 
 const themeStore = useThemeStore();
 const { showPicker, setShowPicker } = useRecorder();
 
 const isToolbarMode = ref(window.location.search.includes('mode=toolbar'));
+const showStartup = ref(true);
 
 // --- Timeline Resizer Logic ---
 const DEFAULT_TIMELINE_HEIGHT = 288; // 288px = h-72
@@ -110,6 +112,8 @@ onMounted(async () => {
         v-if="!isToolbarMode"
         class="flex flex-col h-screen w-full bg-canvas text-text-main font-sans overflow-hidden"
     >
+        <StartupScreen :isOpen="showStartup" @started="showStartup = false" />
+
         <div v-if="showPicker" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md">
            <SourcePicker @close="setShowPicker(false)" />
         </div>
