@@ -113,7 +113,6 @@ function onHandlePointerDown(e: PointerEvent, handle: typeof HANDLES[number]) {
     e.stopPropagation();
 
     const selectedIds = editorEngine.getSelectedClipIds();
-    console.log("[Preview] Handle PointerDown", handle.id, "Selected:", selectedIds);
     if (selectedIds.length === 0) return;
 
     // KISS: Find the clip that actually has a visible mesh in the renderer
@@ -148,7 +147,6 @@ function onHandlePointerDown(e: PointerEvent, handle: typeof HANDLES[number]) {
 
     // Prevent canvas from stealing pointer while resizing
     (e.target as Element).setPointerCapture(e.pointerId);
-    console.log("[Preview] Handle drag started", draggingClipId);
 }
 
 function onWindowPointerMove(e: PointerEvent) {
@@ -180,14 +178,12 @@ function onWindowPointerMove(e: PointerEvent) {
         z: clip.data?.scale?.z ?? 1,
     };
 
-    console.log("[Preview] Updating scale", newScale.x.toFixed(2), newScale.y.toFixed(2));
     editorEngine.updateClip(draggingClipId, {
         data: { ...clip.data, scale: newScale },
     });
 }
 
 function onWindowPointerUp() {
-    console.log("[Preview] Handle PointerUp - drag stopped");
     activeHandle = null;
     draggingClipId = null;
     dragStartRect = null;

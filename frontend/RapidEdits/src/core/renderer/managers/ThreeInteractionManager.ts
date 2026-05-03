@@ -111,49 +111,25 @@ export class ThreeInteractionManager {
     // ── Pointer Down: selection + drag init ───────────────────────────────────
 
     private onPointerDown(event: PointerEvent) {
-        console.log("[Interaction] PointerDown at", event.clientX, event.clientY);
-        if (this.isInteracting) {
-            console.log("[Interaction] Interaction in progress, skipping click selection");
-            return;
-        }
+        if (this.isInteracting) return;
 
         const rect = this.rendererDomElement.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
         this.raycaster.setFromCamera(this.mouse, this.camera);
-        // Increase threshold for easier selection of small lines
         this.raycaster.params.Line.threshold = 10;
         
         const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-        console.log("[Interaction] Raycast intersects count:", intersects.length);
 
         let foundClipId: string | null = null;
-
         for (const intersect of intersects) {
             let obj: THREE.Object3D | null = intersect.object;
-            
-            // 1. Check if we hit the selection helper (the dashed box)
-            // We want to "click through" it to hit the actual mesh.
-            if (obj.userData?.isGizmo) {
-                console.log("[Interaction] Selection helper hit, passing through...");
-                continue;
-            }
-
-            console.log("[Interaction] Testing hit object:", obj.type, obj.name, obj.userData);
-
-            // 2. Specialized Gizmo check: TransformControls uses internal planes for calculation.
-            // We should NOT let these planes block our own selection logic unless a visual handle is hit.
-            if (obj.type === "TransformControlsPlane" || obj.name.includes("TransformControlsPlane")) {
-                console.log("[Interaction] TransformControls internal plane hit, passing through...");
-                continue; 
-            }
+            if (obj.userData?.isGizmo) continue;
+            if (obj.type === "TransformControlsPlane" || obj.name.includes("TransformControlsPlane")) continue;
 
             while (obj) {
-                if (this.isGizmo(obj)) {
-                    console.log("[Interaction] TransformControls visual handle hit - letting Three.js handle it");
-                    return; // Let TransformControls own the event
-                }
+                if (this.isGizmo(obj)) return;
                 if (obj.userData?.isSelectable && obj.userData?.clipId) {
                     foundClipId = obj.userData.clipId;
                     break;
@@ -164,7 +140,6 @@ export class ThreeInteractionManager {
         }
 
         if (foundClipId) {
-            console.log("[Interaction] SUCCESS: Found clip ID:", foundClipId);
             const selectedIds = editorEngine.getSelectedClipIds();
             if (!selectedIds.includes(foundClipId)) {
                 editorEngine.selectClip(foundClipId);
@@ -175,22 +150,16 @@ export class ThreeInteractionManager {
                 this.isDraggingObject = true;
                 this.draggedClipId = foundClipId;
                 const posObj = this.getPositionObject(clipMesh);
-                this.dragPlane.setFromNormalAndCoplanarPoint(
-                    new THREE.Vector3(0, 0, 1),
-                    posObj.position,
-                );
+                this.dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 0, 1), posObj.position);
                 const intersection = new THREE.Vector3();
                 this.raycaster.ray.intersectPlane(this.dragPlane, intersection);
                 this.dragOffset.subVectors(posObj.position, intersection);
                 this.orbitControls.enabled = false;
-                console.log("[Interaction] Dragging started for", foundClipId);
             }
         } else {
-            console.log("[Interaction] Nothing selectable hit, deselecting all");
             editorEngine.selectionSystem.deselectAll();
         }
     }
-    // ── Pointer Move: drag ────────────────────────────────────────────────────
 
     private onPointerMove(event: PointerEvent) {
         const rect = this.rendererDomElement.getBoundingClientRect();
@@ -207,22 +176,14 @@ export class ThreeInteractionManager {
                     const newPos = intersection.add(this.dragOffset);
                     posObj.position.x = newPos.x;
                     posObj.position.y = newPos.y;
-                    
-                    console.log("[Interaction] Dragging mesh", this.draggedClipId, "to:", posObj.position.x.toFixed(2), posObj.position.y.toFixed(2));
-                    
                     this.syncTransformToClip();
                     this.onTransformChanged();
-                } else {
-                    console.warn("[Interaction] Dragging, but clip mesh lost for", this.draggedClipId);
                 }
-            } else {
-                console.warn("[Interaction] Dragging, but ray missed plane");
             }
             this.rendererDomElement.style.cursor = "move";
             return;
         }
 
-        // Hover cursor
         this.raycaster.setFromCamera(this.mouse, this.camera);
         const intersects = this.raycaster.intersectObjects(this.scene.children, true);
         let foundSelectable = false;
@@ -237,18 +198,13 @@ export class ThreeInteractionManager {
         this.rendererDomElement.style.cursor = foundSelectable ? "move" : "default";
     }
 
-    // ── Pointer Up ────────────────────────────────────────────────────────────
-
     private onPointerUp() {
         if (this.isDraggingObject) {
-            console.log("[Interaction] PointerUp, ending drag for", this.draggedClipId);
             this.isDraggingObject = false;
             this.draggedClipId = null;
             this.orbitControls.enabled = true;
         }
     }
-
-    // ── Sync 3D → clip.data ───────────────────────────────────────────────────
 
     private syncTransformToClip() {
         const clipId = this.draggedClipId || editorEngine.getSelectedClipIds()[0];
@@ -261,7 +217,11 @@ export class ThreeInteractionManager {
         const scaleObj = this.getScaleObject(clipMesh);
 
         const position = { x: posObj.position.x, y: posObj.position.y, z: posObj.position.z };
-        const rotation = { x: posObj.rotation.x, y: posObj.rotation.y, z: posObj.rotation.z };
+        const rotation = { 
+            x: THREE.MathUtils.radToDeg(posObj.rotation.x), 
+            y: THREE.MathUtils.radToDeg(posObj.rotation.y), 
+            z: THREE.MathUtils.radToDeg(posObj.rotation.z) 
+        };
 
         const baseScale = (clipMesh.userData.baseScale as THREE.Vector3) ?? new THREE.Vector3(1, 1, 1);
         const scale = {
@@ -272,7 +232,6 @@ export class ThreeInteractionManager {
 
         const clip = editorEngine.timelineSystem.getClip(clipId);
         if (clip) {
-            console.log("[Interaction] Syncing to clip store:", clipId, { position, scale });
             editorEngine.updateClip(clipId, { data: { ...clip.data, position, rotation, scale } });
         }
     }

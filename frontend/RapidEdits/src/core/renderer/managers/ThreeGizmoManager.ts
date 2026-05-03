@@ -35,7 +35,6 @@ export class ThreeGizmoManager {
         
         if (selectedIds.length === 0) {
             if (this._lastRect) {
-                console.log("[GizmoManager] Selection empty, clearing rect");
                 this._lastRect = null;
             }
             return;
@@ -57,7 +56,6 @@ export class ThreeGizmoManager {
 
         if (!clipId || !clipMesh) {
             if (this._lastRect) {
-                console.log("[GizmoManager] No visible mesh found for any selected clip, clearing rect");
                 this._lastRect = null;
             }
             return;
@@ -66,7 +64,6 @@ export class ThreeGizmoManager {
         clipMesh.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(clipMesh);
         if (box.isEmpty()) { 
-            console.warn("[GizmoManager] Box is empty for:", clipId);
             this._lastRect = null; 
             return; 
         }
@@ -107,11 +104,6 @@ export class ThreeGizmoManager {
             rotation: euler.z,
         };
 
-        // Debug Log (throttled or once)
-        if (!this._lastRect || Math.abs(this._lastRect.width - rect.width) > 1) {
-            console.log("[GizmoManager] Updated rect:", rect);
-        }
-        
         this._lastRect = rect;
     }
 
