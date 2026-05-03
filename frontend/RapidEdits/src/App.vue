@@ -22,6 +22,36 @@ const { showPicker, setShowPicker } = useRecorder();
 
 const isToolbarMode = ref(window.location.search.includes('mode=toolbar'));
 
+// --- Timeline Resizer Logic ---
+const DEFAULT_TIMELINE_HEIGHT = 288; // 288px = h-72
+const MIN_TIMELINE_HEIGHT = 150;
+
+const timelineHeight = ref(DEFAULT_TIMELINE_HEIGHT);
+const isDraggingTimeline = ref(false);
+
+const startTimelineDrag = (_e: MouseEvent) => {
+    isDraggingTimeline.value = true;
+    document.body.style.cursor = 'row-resize';
+    document.addEventListener('mousemove', onTimelineDrag);
+    document.addEventListener('mouseup', stopTimelineDrag);
+};
+
+const onTimelineDrag = (e: MouseEvent) => {
+    if (!isDraggingTimeline.value) return;
+    const newHeight = window.innerHeight - e.clientY;
+    timelineHeight.value = Math.max(MIN_TIMELINE_HEIGHT, Math.min(newHeight, window.innerHeight * 0.8));
+};
+
+const stopTimelineDrag = () => {
+    isDraggingTimeline.value = false;
+    document.body.style.cursor = '';
+    document.removeEventListener('mousemove', onTimelineDrag);
+    document.removeEventListener('mouseup', stopTimelineDrag);
+};
+
+// We don't have onUnmounted imported in this file yet, so let's just make sure cleanup is solid
+// The window listeners are removed on mouse up anyway.
+
 onMounted(async () => {
     updateFavicon("#3b82f6"); // Brand primary color
     themeStore.initTheme();
@@ -108,8 +138,15 @@ onMounted(async () => {
 
                 <!-- Bottom: Timeline -->
                 <div
-                    class="h-72 border-t border-canvas-border bg-canvas-light flex flex-col"
+                    class="border-t border-canvas-border bg-canvas-light flex flex-col relative shrink-0"
+                    :style="{ height: timelineHeight + 'px' }"
                 >
+                    <!-- Resizer Handle -->
+                    <div 
+                        class="absolute left-0 top-0 right-0 h-1 cursor-row-resize hover:bg-brand-primary/50 z-50 transition-colors"
+                        :class="{ 'bg-brand-primary': isDraggingTimeline }"
+                        @mousedown="startTimelineDrag"
+                    ></div>
                     <Timeline />
                 </div>
             </div>
