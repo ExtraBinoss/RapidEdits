@@ -2,8 +2,10 @@ import * as THREE from "three";
 import { editorEngine } from "../../EditorEngine";
 import { TextureAllocator } from "../textures/TextureAllocator";
 import { pluginRegistry } from "../../plugins/PluginRegistry";
-import type { TransitionPlugin } from "../../plugins/PluginInterface";
-import type { Clip, Track } from "../../../types/Timeline";
+import type { EffectPlugin, TransitionPlugin } from "../../plugins/PluginInterface";
+import type { PluginId } from "../../plugins/PluginTypes";
+import { createPluginId, PluginCategory } from "../../plugins/PluginTypes";
+import { isMediaClip, isPluginClip, type Clip, type Track } from "../../../types/Timeline";
 
 export class ThreeClipManager {
     private scene: THREE.Scene;
@@ -12,6 +14,7 @@ export class ThreeClipManager {
     private pendingLoads: Set<Promise<any>> = new Set();
     private planeGeometry: THREE.PlaneGeometry;
     private getSceneDimensions: () => { width: number; height: number };
+    private scaleMode: "fit" | "fill" | number = "fit";
 
     constructor(
         scene: THREE.Scene,
@@ -53,17 +56,30 @@ export class ThreeClipManager {
         }
 
         // Separate Content vs Transitions vs Effects
+        // Use type-safe classification based on plugin metadata
         const contentClips: Clip[] = [];
         const transitionClips: Clip[] = [];
         const effectClips: Clip[] = [];
 
         visibleClips.forEach((clip) => {
-            const plugin = pluginRegistry.get(clip.type);
-            if (plugin) {
-                if (plugin.type === "transition") transitionClips.push(clip);
-                else if (plugin.type === "effect") effectClips.push(clip);
-                else contentClips.push(clip);
+            if (isPluginClip(clip)) {
+                const pluginId = clip.type as PluginId;
+                const plugin = pluginRegistry.get(pluginId);
+                if (plugin) {
+                    const metadata = plugin.getMetadata();
+                    if (metadata.type === "transition") {
+                        transitionClips.push(clip);
+                    } else if (metadata.type === "effect") {
+                        effectClips.push(clip);
+                    } else {
+                        contentClips.push(clip);
+                    }
+                } else {
+                    // Plugin not found, treat as content (will render as placeholder)
+                    contentClips.push(clip);
+                }
             } else {
+                // Media clip
                 contentClips.push(clip);
             }
         });
@@ -89,32 +105,36 @@ export class ThreeClipManager {
                 });
             }
 
-            const plugin = pluginRegistry.get(clip.type);
-            if (plugin) {
-                if (!object) {
-                    const contentMesh = plugin.render(clip);
-                    if (contentMesh) {
-                        const group = new THREE.Group();
-                        group.add(contentMesh);
-                        this.scene.add(group);
-                        this.clipMeshes.set(clip.id, group);
-                        object = group;
+            if (isPluginClip(clip)) {
+                // Plugin-based content clip
+                const pluginId = clip.type as PluginId;
+                const plugin = pluginRegistry.get(pluginId);
+                if (plugin) {
+                    if (!object) {
+                        const contentMesh = plugin.render(clip);
+                        if (contentMesh) {
+                            const group = new THREE.Group();
+                            group.add(contentMesh);
+                            this.scene.add(group);
+                            this.clipMeshes.set(clip.id, group);
+                            object = group;
+                        }
                     }
-                }
 
-                if (object) {
-                    object.position.z = 500 + trackIndex;
-                    if (object.children.length > 0) {
-                        plugin.update(
-                            object.children[0]!,
-                            clip,
-                            currentTime - clip.start,
-                            1 / 60,
-                        );
+                    if (object) {
+                        object.position.z = 500 + trackIndex;
+                        if (object.children.length > 0) {
+                            plugin.update(
+                                object.children[0]!,
+                                clip,
+                                currentTime - clip.start,
+                                1 / 60,
+                            );
+                        }
                     }
                 }
             } else {
-                // Default Asset Handling (Video/Image)
+                // Media clip
                 if (!object) {
                     const material = new THREE.MeshBasicMaterial({
                         color: 0x222222,
@@ -155,47 +175,7 @@ export class ThreeClipManager {
 
             // 3. Apply Attached Transitions (Fade In/Out from Drop)
             if (object && clip.data?.transitions) {
-                const transitions = clip.data.transitions;
-                const fadePlugin = pluginRegistry.get(
-                    "transitions.fade",
-                ) as TransitionPlugin;
-
-                if (fadePlugin) {
-                    // Fade In
-                    if (transitions.fadeIn) {
-                        const duration = transitions.fadeIn.duration || 1.0;
-                        const progress = (currentTime - clip.start) / duration;
-                        if (progress >= 0 && progress <= 1) {
-                            const mockClip = {
-                                ...clip,
-                                data: {
-                                    fadeType: "in",
-                                    easing: transitions.fadeIn.easing || "linear",
-                                },
-                                duration: duration,
-                            };
-                            fadePlugin.apply(mockClip, [object], progress, currentTime);
-                        }
-                    }
-
-                    // Fade Out
-                    if (transitions.fadeOut) {
-                        const duration = transitions.fadeOut.duration || 1.0;
-                        const fadeOutStart = clip.start + clip.duration - duration;
-                        const progress = (currentTime - fadeOutStart) / duration;
-                        if (progress >= 0 && progress <= 1) {
-                            const mockClip = {
-                                ...clip,
-                                data: {
-                                    fadeType: "out",
-                                    easing: transitions.fadeOut.easing || "linear",
-                                },
-                                duration: duration,
-                            };
-                            fadePlugin.apply(mockClip, [object], progress, currentTime);
-                        }
-                    }
-                }
+                this.applyAttachedTransitions(clip, object, currentTime);
             }
         });
 
@@ -203,7 +183,8 @@ export class ThreeClipManager {
         [...transitionClips, ...effectClips].forEach((clip) => {
             let object = this.clipMeshes.get(clip.id);
             const trackIndex = tracks.findIndex(t => t.id === clip.trackId);
-            const plugin = pluginRegistry.get(clip.type);
+            const pluginId = clip.type as PluginId;
+            const plugin = pluginRegistry.get(pluginId);
 
             if (plugin) {
                 if (!object) {
@@ -228,7 +209,8 @@ export class ThreeClipManager {
                     }
 
                     // Transitions usually go on top, but effects might vary.
-                    const zBase = plugin.type === "transition" ? 1000 : 800;
+                    const metadata = plugin.getMetadata();
+                    const zBase = metadata.type === "transition" ? 1000 : 800;
                     object.position.z = zBase + trackIndex;
                     
                     if (object.children.length > 0) {
@@ -249,20 +231,22 @@ export class ThreeClipManager {
             .filter((obj) => obj !== undefined) as THREE.Object3D[];
 
         transitionClips.forEach((tClip) => {
-            const plugin = pluginRegistry.get(tClip.type) as any;
-            if (!plugin || typeof plugin.apply !== 'function') return;
+            const pluginId = tClip.type as PluginId;
+            const transitionPlugin = pluginRegistry.getTransition(pluginId);
+            if (!transitionPlugin) return;
 
             const progress = (currentTime - tClip.start) / tClip.duration;
             const clampedProgress = Math.max(0, Math.min(1, progress));
 
-            plugin.apply(tClip, contentTargets, clampedProgress, currentTime);
+            transitionPlugin.apply(tClip, contentTargets, clampedProgress, currentTime);
         });
 
         effectClips.forEach((eClip) => {
-            const plugin = pluginRegistry.get(eClip.type) as any;
-            if (!plugin || typeof plugin.apply !== 'function') return;
+            const pluginId = eClip.type as PluginId;
+            const effectPlugin = pluginRegistry.getEffect(pluginId);
+            if (!effectPlugin) return;
 
-            plugin.apply(eClip, contentTargets, currentTime - eClip.start, currentTime);
+            effectPlugin.apply(eClip, contentTargets, currentTime - eClip.start, currentTime);
         });
 
         // Capture Mode Update
@@ -281,6 +265,62 @@ export class ThreeClipManager {
         }
 
         return visibleClips;
+    }
+
+    /**
+     * Apply attached transitions (fade in/out) to a clip.
+     * These are metadata transitions stored in clip.data.transitions.
+     */
+    private applyAttachedTransitions(
+        clip: Clip,
+        object: THREE.Object3D,
+        currentTime: number,
+    ): void {
+        const transitions = clip.data?.transitions;
+        if (!transitions) return;
+
+        const fadeId = createPluginId(PluginCategory.Transitions, "fade") as PluginId;
+
+        // Fade In
+        if (transitions.fadeIn) {
+            const duration = transitions.fadeIn.duration || 1.0;
+            const progress = (currentTime - clip.start) / duration;
+            if (progress >= 0 && progress <= 1) {
+                const mockClip = {
+                    ...clip,
+                    data: {
+                        fadeType: "in",
+                        easing: transitions.fadeIn.easing || "linear",
+                    },
+                    duration: duration,
+                };
+                const fadePlugin = pluginRegistry.getTransition(fadeId);
+                if (fadePlugin) {
+                    fadePlugin.apply(mockClip, [object], progress, currentTime);
+                }
+            }
+        }
+
+        // Fade Out
+        if (transitions.fadeOut) {
+            const duration = transitions.fadeOut.duration || 1.0;
+            const fadeOutStart = clip.start + clip.duration - duration;
+            const progress = (currentTime - fadeOutStart) / duration;
+            if (progress >= 0 && progress <= 1) {
+                const mockClip = {
+                    ...clip,
+                    data: {
+                        fadeType: "out",
+                        easing: transitions.fadeOut.easing || "linear",
+                    },
+                    duration: duration,
+                };
+                const fadePlugin = pluginRegistry.getTransition(fadeId);
+                if (fadePlugin) {
+                    fadePlugin.apply(mockClip, [object], progress, currentTime);
+                }
+            }
+        }
     }
 
     private disposeObject(object: THREE.Object3D) {
@@ -337,9 +377,12 @@ export class ThreeClipManager {
         texture.magFilter = THREE.LinearFilter;
         texture.generateMipmaps = false; 
         
-        const renderer = editorEngine.getRenderer();
-        if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function') {
-            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        const engineRenderer = editorEngine.getRenderer();
+        if (engineRenderer) {
+            const nativeRenderer = engineRenderer.sceneManager.renderer;
+            if (nativeRenderer.capabilities) {
+                texture.anisotropy = nativeRenderer.capabilities.getMaxAnisotropy();
+            }
         } else {
             texture.anisotropy = 1;
         }
@@ -348,13 +391,32 @@ export class ThreeClipManager {
         const currentAspect = renderWidth / renderHeight;
 
         let w, h;
-        // Letterbox/Pillarbox logic using exact container size
-        if (aspect > currentAspect) {
-            w = renderWidth;
-            h = w / aspect;
+        // Fitting logic
+        if (this.scaleMode === "fill") {
+            if (aspect > currentAspect) {
+                h = renderHeight;
+                w = h * aspect;
+            } else {
+                w = renderWidth;
+                h = w / aspect;
+            }
+        } else if (typeof this.scaleMode === "number") {
+            if (aspect > currentAspect) {
+                w = renderWidth * (this.scaleMode as number);
+                h = w / aspect;
+            } else {
+                h = renderHeight * (this.scaleMode as number);
+                w = h * aspect;
+            }
         } else {
-            h = renderHeight;
-            w = h * aspect;
+            // Default "fit" (Letterbox/Pillarbox) logic
+            if (aspect > currentAspect) {
+                w = renderWidth;
+                h = w / aspect;
+            } else {
+                h = renderHeight;
+                w = h * aspect;
+            }
         }
         
         if (Math.random() < 0.05) {
@@ -394,6 +456,22 @@ export class ThreeClipManager {
         if (this.pendingLoads.size === 0) return;
         await Promise.all(Array.from(this.pendingLoads));
         this.pendingLoads.clear();
+    }
+
+    public setScaleMode(mode: "fit" | "fill" | number) {
+        this.scaleMode = mode;
+        this.refitAllMeshes();
+    }
+
+    private refitAllMeshes() {
+        for (const [clipId, object] of this.clipMeshes) {
+            if (object instanceof THREE.Mesh) {
+                const mat = object.material as THREE.MeshBasicMaterial;
+                if (mat.map) {
+                    this.fitMeshToScreen(object, mat.map);
+                }
+            }
+        }
     }
 
     public dispose() {

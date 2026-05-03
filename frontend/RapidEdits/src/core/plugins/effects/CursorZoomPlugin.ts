@@ -1,27 +1,63 @@
 import * as THREE from "three";
 import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
-import { BasePlugin } from "./PluginInterface";
-import type { Clip } from "../../types/Timeline";
-import type { PluginPropertyDefinition } from "./PluginTypes";
-import type { RecordedCursorPoint } from "../../types/Recording";
+import { BasePlugin } from "../PluginInterface";
+import type { EffectPlugin } from "../PluginInterface";
+import type { Clip } from "../../../types/Timeline";
+import type { PluginPropertyDefinition, PluginMetadata } from "../PluginTypes";
+import { createPluginId, PluginCategory } from "../PluginTypes";
+import type { RecordedCursorPoint } from "../../../types/Recording";
 
-export class CursorZoomPlugin extends BasePlugin {
-    id = "effects.cursor_zoom";
-    name = "Cursor & Smooth Zoom";
-    type = "effect" as const;
-
+/**
+ * Cursor & Smooth Zoom Effect Plugin.
+ * 
+ * Records and replays cursor movements with synchronized zoom effects.
+ * Useful for creating tutorial videos or demo recordings.
+ * 
+ * Data schema:
+ * - enabled: boolean
+ * - showCursor: boolean
+ * - cursorScale: number
+ * - offsetX/offsetY: number
+ * - smoothZoom: boolean
+ * - zoomIntensity: number
+ * - zoomDuration: number
+ * - mirrorX/invertY: boolean
+ * - customZoomJson: string
+ * - debug: boolean
+ * - recordedData: RecordedCursorPoint[]
+ */
+export class CursorZoomPlugin extends BasePlugin implements EffectPlugin {
     private cursorGroups: Map<string, THREE.Group> = new Map();
     private isInitialized: boolean = false;
 
-    properties: PluginPropertyDefinition[] = [
-        { label: "Cursor Scale", key: "cursorScale", type: "slider", props: { min: 0.1, max: 10.0, step: 0.1 }, defaultValue: 1.0 },
-        { label: "Smooth Zoom", key: "smoothZoom", type: "boolean", defaultValue: true },
-        { label: "Zoom Intensity", key: "zoomIntensity", type: "slider", props: { min: 0, max: 1.0, step: 0.05 }, defaultValue: 0.3 },
-        { label: "Zoom Duration", key: "zoomDuration", type: "slider", props: { min: 0.1, max: 2.0, step: 0.1 }, defaultValue: 0.4 },
-        { label: "Mirror X", key: "mirrorX", type: "boolean", defaultValue: false },
-        { label: "Invert Y", key: "invertY", type: "boolean", defaultValue: false },
-        { label: "Debug Mode", key: "debug", type: "boolean", defaultValue: true }
-    ];
+    private metadata: PluginMetadata = {
+        id: createPluginId(PluginCategory.Effects, "cursor_zoom"),
+        name: "Cursor & Smooth Zoom",
+        type: "effect",
+        version: "1.0.0",
+        description: "Record and replay cursor movements with zoom effects",
+        isTrackDroppable: false,
+    };
+
+    getMetadata(): PluginMetadata {
+        return this.metadata;
+    }
+
+    getProperties(): PluginPropertyDefinition[] {
+        return [
+            { label: "Show Cursor", key: "showCursor", type: "boolean", defaultValue: true },
+            { label: "Cursor Scale", key: "cursorScale", type: "slider", props: { min: 0.1, max: 10.0, step: 0.1 }, defaultValue: 1.0 },
+            { label: "Offset X (px)", key: "offsetX", type: "number", defaultValue: 0 },
+            { label: "Offset Y (px)", key: "offsetY", type: "number", defaultValue: 0 },
+            { label: "Smooth Zoom", key: "smoothZoom", type: "boolean", defaultValue: true },
+            { label: "Zoom Intensity", key: "zoomIntensity", type: "slider", props: { min: 0, max: 1.0, step: 0.05 }, defaultValue: 0.3 },
+            { label: "Zoom Duration", key: "zoomDuration", type: "slider", props: { min: 0.1, max: 2.0, step: 0.1 }, defaultValue: 0.4 },
+            { label: "Mirror X", key: "mirrorX", type: "boolean", defaultValue: false },
+            { label: "Invert Y", key: "invertY", type: "boolean", defaultValue: false },
+            { label: "Custom Zoom (JSON)", key: "customZoomJson", type: "long-text", props: { rows: 6, placeholder: "[\n  {\n    \"start\": 1000,\n    \"duration\": 400,\n    \"intensity\": 0.5\n  }\n]" }, defaultValue: "" },
+            { label: "Debug Mode", key: "debug", type: "boolean", defaultValue: true }
+        ];
+    }
 
     override async init() {
         if (this.isInitialized) return;
@@ -105,12 +141,16 @@ export class CursorZoomPlugin extends BasePlugin {
     createData() {
         return {
             enabled: true,
+            showCursor: true,
             cursorScale: 1.0,
+            offsetX: 0,
+            offsetY: 0,
             smoothZoom: true,
             zoomIntensity: 0.3,
             zoomDuration: 0.4,
             mirrorX: false,
             invertY: false,
+            customZoomJson: "",
             debug: true,
             recordedData: [] as RecordedCursorPoint[]
         };
@@ -135,25 +175,92 @@ export class CursorZoomPlugin extends BasePlugin {
         const points = data.recordedData as RecordedCursorPoint[];
         
         if (data.smoothZoom) {
-            const durationMs = (data.zoomDuration || 0.4) * 1000;
-            const recentClick = points.find((p) => 
-                p.isClick && 
-                p.t <= timeMs && 
-                timeMs <= p.t + durationMs
-            );
+            let zoomEvents: any[] = [];
+            
+            // Allow manual customization of zoom via JSON override
+            if (data.customZoomJson && data.customZoomJson.trim().length > 0) {
+                try {
+                    zoomEvents = JSON.parse(data.customZoomJson);
+                } catch(e) { /* ignore invalid json string gracefully */ }
+            }
+            
+            // Automatically group double clicks and create smooth zoom intervals
+            if (zoomEvents.length === 0) {
+                const globalDuration = (data.zoomDuration || 0.4) * 1000;
+                const globalIntensity = data.zoomIntensity || 0.3;
+                let lastEvent: any = null;
+
+                for (let i = 0; i < points.length; i++) {
+                    const p = points[i];
+                    if (!p) continue;
+                    if (p.isClick) {
+                        if (!lastEvent || p.t > (lastEvent.start + lastEvent.duration + 200)) {
+                            // New click cluster
+                            lastEvent = {
+                                start: p.t,
+                                duration: globalDuration,
+                                intensity: globalIntensity,
+                                x: p.x,
+                                y: p.y,
+                                screenWidth: p.screenWidth,
+                                screenHeight: p.screenHeight
+                            };
+                            zoomEvents.push(lastEvent);
+                        } else {
+                            // Debounce double-clicks into single smooth zoom but track position
+                            const oldEnd = lastEvent.start + lastEvent.duration;
+                            const newEnd = Math.max(oldEnd, p.t + globalDuration);
+                            lastEvent.duration = newEnd - lastEvent.start; // extend duration
+                            // Track the newest click position for pan
+                            lastEvent.x = p.x;
+                            lastEvent.y = p.y;
+                        }
+                    }
+                }
+            }
+
+            let zoomFactor = 0;
+            let currentEvent: any = null;
+            const rampTime = 300; // 300ms smooth cubic ease
+
+            for (const ev of zoomEvents) {
+                const eStart = ev.start;
+                const eEnd = ev.start + (ev.duration || ((data.zoomDuration || 0.4) * 1000));
+                
+                if (timeMs >= eStart - rampTime && timeMs <= eEnd + rampTime) {
+                    currentEvent = ev;
+                    if (timeMs < eStart) { // ease in
+                        const t = (timeMs - (eStart - rampTime)) / rampTime;
+                        zoomFactor = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                    } else if (timeMs > eEnd) { // ease out
+                        const t = 1.0 - (timeMs - eEnd) / rampTime;
+                        zoomFactor = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                    } else { // active hold
+                        zoomFactor = 1.0;
+                    }
+                    break;
+                }
+            }
 
             let zoom = 1.0;
             let targetX = 0;
             let targetY = 0;
 
-            if (recentClick) {
-                const elapsed = timeMs - recentClick.t;
-                const p = elapsed / durationMs;
-                const ease = Math.sin(p * Math.PI); 
-                zoom = 1.0 + (ease * (data.zoomIntensity || 0.3));
+            if (currentEvent && zoomFactor > 0) {
+                const intensity = currentEvent.intensity !== undefined ? currentEvent.intensity : (data.zoomIntensity || 0.3);
+                zoom = 1.0 + (zoomFactor * intensity);
                 
-                targetX = (recentClick.x / recentClick.screenWidth) * 2 - 1;
-                targetY = -(recentClick.y / recentClick.screenHeight) * 2 + 1;
+                // Track cursor continuously during the zoom for natural panning
+                let trackPoint = points.find(p => p && p.t >= timeMs) || currentEvent;
+                
+                let px = trackPoint?.x !== undefined ? trackPoint.x : currentEvent.x;
+                let py = trackPoint?.y !== undefined ? trackPoint.y : currentEvent.y;
+                let sw = trackPoint?.screenWidth !== undefined ? trackPoint.screenWidth : currentEvent.screenWidth;
+                let sh = trackPoint?.screenHeight !== undefined ? trackPoint.screenHeight : currentEvent.screenHeight;
+                
+                // Add offsets from sliders to fix recording precision manually
+                targetX = ((px + (data.offsetX || 0)) / sw) * 2 - 1;
+                targetY = -((py + (data.offsetY || 0)) / sh) * 2 + 1;
                 
                 if (data.mirrorX) targetX = -targetX;
                 if (data.invertY) targetY = -targetY;
@@ -162,24 +269,17 @@ export class CursorZoomPlugin extends BasePlugin {
             targets.forEach(target => {
                 const isCursor = target.name === "cursor_group" || target.name === "cursor_mesh";
                 
-                // For zooming videos/images, we want to zoom related to their actual size, 
-                // but move them relative to the viewport size so they stay centered under the cursor point natively.
                 let rW = target.userData.logicalWidth || 1920;
                 let rH = target.userData.logicalHeight || 1080;
-
                 const halfW = rW / 2;
                 const halfH = rH / 2;
 
                 if (!isCursor) {
-                    // Les clips vidéo zooment normalement
-                    // Fallback at rW, rH if no baseScale
                     const baseScale = target.userData.baseScale as THREE.Vector3 || new THREE.Vector3(rW, rH, 1);
                     target.scale.set(baseScale.x * zoom, baseScale.y * zoom, 1);
                 }
 
-                if (recentClick) {
-                    // La vidéo ET le curseur doivent se déplacer pour rester synchronisés
-                    // On déplace le mesh pour que le point cliqué (targetX, targetY) soit au centre
+                if (zoomFactor > 0) {
                     const basePos = target.userData.basePosition as THREE.Vector3 || new THREE.Vector3(0, 0, 0);
                     target.position.x = basePos.x - targetX * (zoom - 1) * halfW;
                     target.position.y = basePos.y - targetY * (zoom - 1) * halfH;
@@ -189,7 +289,6 @@ export class CursorZoomPlugin extends BasePlugin {
                     target.position.y = basePos.y;
                 }
             });
-
         }
     }
 
@@ -200,7 +299,7 @@ export class CursorZoomPlugin extends BasePlugin {
         _frameDuration: number,
     ) {
         const data = clip.data;
-        if (!data || !data.enabled || !data.recordedData || data.recordedData.length === 0) {
+        if (!data || !data.enabled || !data.recordedData || data.recordedData.length === 0 || data.showCursor === false) {
             object.visible = false;
             return;
         }
@@ -236,8 +335,12 @@ export class CursorZoomPlugin extends BasePlugin {
             }
         }
 
-        let posX = (point.x / point.screenWidth) * 2 - 1;
-        let posY = -(point.y / point.screenHeight) * 2 + 1;
+        // Apply offsets if there's any bounding box difference
+        const adjustedX = point.x + (data.offsetX || 0);
+        const adjustedY = point.y + (data.offsetY || 0);
+
+        let posX = (adjustedX / point.screenWidth) * 2 - 1;
+        let posY = -(adjustedY / point.screenHeight) * 2 + 1;
         
         if (data.mirrorX) posX = -posX;
         if (data.invertY) posY = -posY;

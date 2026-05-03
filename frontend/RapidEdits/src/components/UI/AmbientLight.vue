@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { globalEventBus } from "../../core/events/EventBus";
+import { EditorEventType } from "../../types/Media";
 
 const ambientShadow = ref<string>("transparent");
 
@@ -9,11 +10,11 @@ const handleAmbientUpdate = (color: any) => {
 };
 
 onMounted(() => {
-    globalEventBus.on("AMBIENT_COLOR_UPDATE", handleAmbientUpdate);
+    globalEventBus.on(EditorEventType.AMBIENT_COLOR_UPDATE, handleAmbientUpdate);
 });
 
 onBeforeUnmount(() => {
-    globalEventBus.off("AMBIENT_COLOR_UPDATE", handleAmbientUpdate);
+    globalEventBus.off(EditorEventType.AMBIENT_COLOR_UPDATE, handleAmbientUpdate);
 });
 </script>
 

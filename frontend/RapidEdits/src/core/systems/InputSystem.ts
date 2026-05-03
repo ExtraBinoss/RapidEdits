@@ -2,6 +2,7 @@ import { globalEventBus } from "../events/EventBus";
 import { PlaybackSystem } from "./PlaybackSystem";
 import { TimelineSystem } from "./TimelineSystem";
 import { SelectionSystem } from "./SelectionSystem";
+import { EditorEventType } from "../../types/Media";
 
 export class InputSystem {
     private mouseX: number = 0;
@@ -60,7 +61,7 @@ export class InputSystem {
                     if (this.playbackSystem) {
                         this.playbackSystem.togglePlayback();
                         globalEventBus.emit({
-                            type: "SHOW_FEEDBACK",
+                            type: EditorEventType.SHOW_FEEDBACK,
                             payload: {
                                 icon: this.playbackSystem.getIsPlaying()
                                     ? "Play"

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import type { Clip, Track } from "../../../../types/Timeline";
+import { isPluginClip } from "../../../../types/Timeline";
+import type { PluginId } from "../../../../core/plugins/PluginTypes";
 import Filmstrip from "../Media/Filmstrip.vue";
 import AudioWaveform from "../Media/AudioWaveform.vue";
 import { editorEngine } from "../../../../core/EditorEngine";
@@ -20,11 +22,14 @@ const isDragging = ref(false);
 // Optimistic UI state during drag
 const tempStart = ref(props.clip.start);
 
-// Video/Image clips always get filmstrip. Text/Plugin clips only if long enough (>2s) to avoid lag.
+// Video/Image clips always get filmstrip. Plugin clips only if long enough (>2s) to avoid lag.
 const shouldShowFilmstrip = computed(() => {
     if (props.clip.type === "video" || props.clip.type === "image") return true;
-    if (pluginRegistry.get(props.clip.type)) {
-        return props.clip.duration > 2.0;
+    if (isPluginClip(props.clip)) {
+        const pluginId = props.clip.type as PluginId;
+        if (pluginRegistry.has(pluginId)) {
+            return props.clip.duration > 2.0;
+        }
     }
     return false;
 });

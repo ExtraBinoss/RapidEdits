@@ -42,8 +42,11 @@ const visibleClips = computed(() => {
 
 const isDropAllowed = computed(() => {
     const dragged = pluginRegistry.state.draggedPlugin;
-    if (dragged && dragged.isTrackDroppable === false) {
-        return false;
+    if (dragged) {
+        const meta = dragged.getMetadata();
+        if (meta.isTrackDroppable === false) {
+            return false;
+        }
     }
     return true;
 });

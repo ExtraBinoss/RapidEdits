@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls, TransformControls } from "three-stdlib";
 import { editorEngine } from "../../EditorEngine";
 import { globalEventBus } from "../../events/EventBus";
+import { EditorEventType } from "../../../types/Media";
 
 export class ThreeInteractionManager {
     private camera: THREE.OrthographicCamera;
@@ -90,7 +91,7 @@ export class ThreeInteractionManager {
             this.onPointerUp.bind(this),
         );
 
-        globalEventBus.on("SELECTION_CHANGED", () => {
+        globalEventBus.on(EditorEventType.SELECTION_CHANGED, () => {
             this.onSelectionChanged();
         });
     }

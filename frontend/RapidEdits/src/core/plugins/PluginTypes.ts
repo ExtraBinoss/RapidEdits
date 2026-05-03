@@ -1,3 +1,7 @@
+/**
+ * Plugin system: strict type-safe identities and contracts
+ */
+
 export const PluginCategory = {
     Core: "core",
     Effects: "effects",
@@ -7,21 +11,70 @@ export const PluginCategory = {
 export type PluginCategory =
     (typeof PluginCategory)[keyof typeof PluginCategory];
 
-export const PluginType = {
-    Text: "text",
-    Image: "image",
-    Video: "video",
-} as const;
+/**
+ * Branded type for plugin IDs.
+ * Ensures IDs follow the pattern: category.name
+ * All plugin IDs must be created through createPluginId helper.
+ */
+export type PluginId = string & { readonly __brand: "PluginId" };
 
-export type PluginType = (typeof PluginType)[keyof typeof PluginType];
-
-export type PluginId = `${PluginCategory}.${string}`;
-
+/**
+ * Create a strongly-typed plugin ID.
+ * @param category One of "core" | "effects" | "transitions"
+ * @param name The plugin name (lowercase, hyphen-separated)
+ * @returns A branded PluginId that is safe to use in type-safe lookups
+ */
 export function createPluginId(
     category: PluginCategory,
     name: string,
 ): PluginId {
-    return `${category}.${name}`;
+    const id = `${category}.${name}` as PluginId;
+    return id;
+}
+
+/**
+ * Plugin metadata for introspection and discovery.
+ * Enables the UI and runtime to understand plugin capabilities without instantiation.
+ */
+export interface PluginMetadata {
+    /** Unique plugin identifier */
+    id: PluginId;
+    /** Human-readable name */
+    name: string;
+    /** Category: "object" | "effect" | "transition" */
+    type: "object" | "effect" | "transition";
+    /** Version for future migration support */
+    version: string;
+    /** Short description */
+    description?: string;
+    /** Icon (URL, SVG string, or Vue component) */
+    icon?: any;
+    /** Can this plugin be dragged directly onto a track? (default: true for objects, false for effects/transitions) */
+    isTrackDroppable?: boolean;
+    /** Dependencies on other plugins, if any */
+    dependencies?: PluginId[];
+}
+
+/**
+ * Property definition for plugin data schema.
+ * Each property connects to a key in the plugin's data object.
+ * Supports nested paths and conditional rendering.
+ */
+export interface PluginPropertyDefinition {
+    /** Display label in UI */
+    label: string;
+    /** Path to data field, e.g., "fontSize" or "position.x" */
+    key: string;
+    /** Property type determines rendering component */
+    type: PluginPropertyType;
+    /** Default value if not set */
+    defaultValue?: any;
+    /** HTML/component props like min, max, step, placeholder */
+    props?: Record<string, any>;
+    /** For select type: available options */
+    options?: { label: string; value: any }[];
+    /** Conditional visibility based on clip data */
+    showIf?: (data: any) => boolean;
 }
 
 export interface FilmstripConfig {

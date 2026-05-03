@@ -1,5 +1,6 @@
 import { globalEventBus } from "../events/EventBus";
 import { audioManager } from "../AudioManager";
+import { EditorEventType } from "../../types/Media";
 
 export class PlaybackSystem {
     private currentTime: number = 0;
@@ -12,7 +13,7 @@ export class PlaybackSystem {
     public togglePlayback() {
         this.isPlaying = !this.isPlaying;
         globalEventBus.emit({
-            type: "PLAYBACK_TOGGLED",
+            type: EditorEventType.PLAYBACK_TOGGLED,
             payload: this.isPlaying,
         });
 
@@ -28,7 +29,7 @@ export class PlaybackSystem {
 
                 this.currentTime += delta;
                 globalEventBus.emit({
-                    type: "PLAYBACK_TIME_UPDATED",
+                    type: EditorEventType.PLAYBACK_TIME_UPDATED,
                     payload: this.currentTime,
                 });
 
@@ -56,7 +57,7 @@ export class PlaybackSystem {
     public seek(time: number) {
         this.currentTime = Math.max(0, time);
         globalEventBus.emit({
-            type: "PLAYBACK_TIME_UPDATED",
+            type: EditorEventType.PLAYBACK_TIME_UPDATED,
             payload: this.currentTime,
         });
         // Sync immediately to scrub sound? Maybe debounce this
@@ -66,11 +67,11 @@ export class PlaybackSystem {
     public setVolume(vol: number) {
         this.masterVolume = Math.max(0, Math.min(1, vol));
         globalEventBus.emit({
-            type: "VOLUME_CHANGED",
+            type: EditorEventType.VOLUME_CHANGED,
             payload: this.masterVolume,
         });
         globalEventBus.emit({
-            type: "SHOW_FEEDBACK",
+            type: EditorEventType.SHOW_FEEDBACK,
             payload: {
                 icon: "Volume",
                 text: `${Math.round(this.masterVolume * 100)}%`,

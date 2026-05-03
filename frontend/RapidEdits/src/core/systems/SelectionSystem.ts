@@ -1,6 +1,7 @@
 import { globalEventBus } from "../events/EventBus";
 import { TimelineSystem } from "./TimelineSystem";
 import type { Clip } from "../../types/Timeline";
+import { EditorEventType } from "../../types/Media";
 
 export class SelectionSystem {
     private selectedClipIds: Set<string> = new Set();
@@ -17,48 +18,38 @@ export class SelectionSystem {
 
         if (!id) {
             globalEventBus.emit({
-                type: "SELECTION_CHANGED",
+                type: EditorEventType.SELECTION_CHANGED,
                 payload: Array.from(this.selectedClipIds),
             });
             return;
         }
 
         const tracks = this.timelineSystem.getTracks();
+        const allClips = tracks.flatMap((t) => t.clips);
+        const targetClip = allClips.find((c) => c.id === id);
 
-        // Find if this clip has a group
-        let groupId: string | undefined;
-        for (const track of tracks) {
-            const c = track.clips.find((clip) => clip.id === id);
-            if (c) {
-                groupId = c.groupId;
-                break;
-            }
-        }
+        if (targetClip?.groupId) {
+            const groupId = targetClip.groupId;
+            const groupClips = allClips.filter((c) => c.groupId === groupId);
 
-        if (groupId) {
-            // Select all in group
-            tracks.forEach((track) => {
-                track.clips.forEach((c) => {
-                    if (c.groupId === groupId) {
-                        if (this.selectedClipIds.has(c.id) && toggle) {
-                            this.selectedClipIds.delete(c.id);
-                        } else {
-                            this.selectedClipIds.add(c.id);
-                        }
-                    }
-                });
+            groupClips.forEach((c) => {
+                if (this.selectedClipIds.has(c.id) && toggle) {
+                    this.selectedClipIds.delete(c.id);
+                } else {
+                    this.selectedClipIds.add(c.id);
+                }
             });
-        } else {
+        } else if (targetClip) {
             // Single
-            if (this.selectedClipIds.has(id) && toggle) {
-                this.selectedClipIds.delete(id);
+            if (this.selectedClipIds.has(targetClip.id) && toggle) {
+                this.selectedClipIds.delete(targetClip.id);
             } else {
-                this.selectedClipIds.add(id);
+                this.selectedClipIds.add(targetClip.id);
             }
         }
 
         globalEventBus.emit({
-            type: "SELECTION_CHANGED",
+            type: EditorEventType.SELECTION_CHANGED,
             payload: Array.from(this.selectedClipIds),
         });
     }
@@ -67,7 +58,7 @@ export class SelectionSystem {
         if (this.selectedClipIds.size > 0) {
             this.selectedClipIds.clear();
             globalEventBus.emit({
-                type: "SELECTION_CHANGED",
+                type: EditorEventType.SELECTION_CHANGED,
                 payload: [],
             });
         }
@@ -100,11 +91,11 @@ export class SelectionSystem {
             this.timelineSystem.cleanupEmptyTracks();
 
             globalEventBus.emit({
-                type: "TIMELINE_UPDATED",
+                type: EditorEventType.TIMELINE_UPDATED,
                 payload: undefined,
             });
         }
-        globalEventBus.emit({ type: "SELECTION_CHANGED", payload: [] });
+        globalEventBus.emit({ type: EditorEventType.SELECTION_CHANGED, payload: [] });
     }
 
     public unlinkSelectedClips() {
@@ -134,7 +125,7 @@ export class SelectionSystem {
 
         if (anythingChanged) {
             globalEventBus.emit({
-                type: "TIMELINE_UPDATED",
+                type: EditorEventType.TIMELINE_UPDATED,
                 payload: undefined,
             });
         }

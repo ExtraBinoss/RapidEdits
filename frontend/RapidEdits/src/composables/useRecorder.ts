@@ -1,6 +1,7 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { editorEngine } from '../core/EditorEngine';
 import { globalEventBus } from '../core/events/EventBus';
+import { EditorEventType } from '../types/Media';
 
 export function useRecorder() {
   const recordingSystem = editorEngine.recordingSystem;
@@ -25,15 +26,15 @@ export function useRecorder() {
     };
 
     onMounted(() => {
-        const unsubState = globalEventBus.on('RECORDING_STATE_CHANGED', (val) => {
+        const unsubState = globalEventBus.on(EditorEventType.RECORDING_STATE_CHANGED, (val) => {
             isRecording.value = val;
         });
         
-        const unsubSources = globalEventBus.on('RECORDING_SOURCES_UPDATED', (val) => {
+        const unsubSources = globalEventBus.on(EditorEventType.RECORDING_SOURCES_UPDATED, (val) => {
             sources.value = val;
         });
 
-        const unsubSettings = globalEventBus.on('RECORDING_SETTINGS_UPDATED', () => {
+        const unsubSettings = globalEventBus.on(EditorEventType.RECORDING_SETTINGS_UPDATED, () => {
             syncState();
         });
 

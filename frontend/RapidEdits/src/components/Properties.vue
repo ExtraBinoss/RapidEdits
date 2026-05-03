@@ -4,6 +4,8 @@ import { useProjectStore } from "../stores/projectStore";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import { pluginRegistry } from "../core/plugins/PluginRegistry";
+import { createPluginId, PluginCategory } from "../core/plugins/PluginTypes";
+import type { PluginId } from "../core/plugins/PluginTypes";
 import PluginPropertiesRenderer from "./Plugins/PluginPropertiesRenderer.vue";
 import Switch from "./UI/Switch/Switch.vue";
 import Slider from "./UI/Slider/Slider.vue";
@@ -12,12 +14,18 @@ import Select from "./UI/Input/Select.vue";
 const store = useProjectStore();
 const { selectedClipIds, tracks } = storeToRefs(store);
 
+// Typed reference to the fade transition plugin
+const FADE_TRANSITION_ID = createPluginId(PluginCategory.Transitions, "fade") as PluginId;
+
 const easingOptions = computed(() => {
-    const fadePlugin = pluginRegistry.get("transitions.fade");
-    if (fadePlugin && fadePlugin.properties) {
-        const easingProp = fadePlugin.properties.find(p => p.key === "easing");
-        if (easingProp && easingProp.type === "select" && easingProp.options) {
-            return easingProp.options;
+    const fadePlugin = pluginRegistry.get(FADE_TRANSITION_ID);
+    if (fadePlugin) {
+        const properties = fadePlugin.getProperties?.();
+        if (properties) {
+            const easingProp = properties.find(p => p.key === "easing");
+            if (easingProp && easingProp.type === "select" && easingProp.options) {
+                return easingProp.options;
+            }
         }
     }
     // Fallback if plugin/prop not found
@@ -41,7 +49,7 @@ const selectedClip = computed(() => {
 
 const plugin = computed(() => {
     if (!selectedClip.value) return null;
-    return pluginRegistry.get(selectedClip.value.type);
+    return pluginRegistry.get(selectedClip.value.type as PluginId);
 });
 
 const updateClipData = (newData: any) => {
@@ -49,6 +57,15 @@ const updateClipData = (newData: any) => {
         store.updateClip(selectedClip.value.id, { data: newData });
     }
 };
+
+/**
+ * Get properties from the plugin.
+ * Handles the optional nature of getProperties().
+ */
+const pluginProperties = computed(() => {
+    if (!plugin.value) return undefined;
+    return plugin.value.getProperties?.();
+});
 
 const toggleTransition = (type: "fadeIn" | "fadeOut", enabled: boolean) => {
     const currentData = selectedClip.value?.data || {};
@@ -109,15 +126,9 @@ const updateTransition = (
             <!-- Plugin Specific Properties -->
             <!-- Plugin Specific Properties -->
             <PluginPropertiesRenderer
-                v-if="plugin && plugin.properties"
+                v-if="plugin && pluginProperties"
                 :clip="selectedClip"
-                :properties="plugin.properties"
-            />
-
-            <component
-                v-else-if="plugin && plugin.propertiesComponent"
-                :is="plugin.propertiesComponent"
-                :clip="selectedClip"
+                :properties="pluginProperties"
             />
 
             <!-- Fallback / Default Properties (for video/images) -->

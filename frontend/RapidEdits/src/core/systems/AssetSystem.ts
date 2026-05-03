@@ -1,6 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 import { globalEventBus } from "../events/EventBus";
-import { MediaType, type Asset, type MediaTypeValue } from "../../types/Media";
+import {
+    MediaType,
+    type Asset,
+    type MediaTypeValue,
+    EditorEventType,
+} from "../../types/Media";
 
 export class AssetSystem {
     private assets: Map<string, Asset> = new Map();
@@ -10,9 +15,17 @@ export class AssetSystem {
         const url = URL.createObjectURL(file);
 
         let duration = 0;
-        if (type === MediaType.VIDEO || type === MediaType.AUDIO) {
-            duration = await this.getMediaDuration(url);
-        } else {
+        try {
+            if (type === MediaType.VIDEO || type === MediaType.AUDIO) {
+                duration = await this.getMediaDuration(url);
+            } else {
+                duration = 5;
+            }
+        } catch (error) {
+            console.error(
+                "Failed to determine duration, fallback to 5s. Error:",
+                error,
+            );
             duration = 5;
         }
 
@@ -28,7 +41,42 @@ export class AssetSystem {
         };
 
         this.assets.set(asset.id, asset);
-        globalEventBus.emit({ type: "ASSET_ADDED", payload: asset });
+        globalEventBus.emit({ type: EditorEventType.ASSET_ADDED, payload: asset });
+        return asset;
+    }
+
+    /**
+     * Adds an asset from a remote URL or public path.
+     */
+    public async addRemoteAsset(
+        url: string,
+        name: string,
+        type: MediaTypeValue,
+    ): Promise<Asset> {
+        let duration = 0;
+        try {
+            if (type === MediaType.VIDEO || type === MediaType.AUDIO) {
+                duration = await this.getMediaDuration(url);
+            } else {
+                duration = 5;
+            }
+        } catch (error) {
+            console.warn(`Could not determine duration for ${url}, using 5s`);
+            duration = 5;
+        }
+
+        const asset: Asset = {
+            id: uuidv4(),
+            url,
+            name,
+            type,
+            size: 0,
+            duration,
+            createdAt: Date.now(),
+        };
+
+        this.assets.set(asset.id, asset);
+        globalEventBus.emit({ type: EditorEventType.ASSET_ADDED, payload: asset });
         return asset;
     }
 
@@ -43,7 +91,7 @@ export class AssetSystem {
             const asset = this.assets.get(id);
             if (asset?.url) URL.revokeObjectURL(asset.url);
             this.assets.delete(id);
-            globalEventBus.emit({ type: "ASSET_REMOVED", payload: id });
+            globalEventBus.emit({ type: EditorEventType.ASSET_REMOVED, payload: id });
         }
     }
 
@@ -53,6 +101,16 @@ export class AssetSystem {
 
     public getAllAssets(): Asset[] {
         return Array.from(this.assets.values());
+    }
+
+    public destroy() {
+        // Revoke all Blob URLs to free memory
+        for (const asset of this.assets.values()) {
+            if (asset.url) {
+                URL.revokeObjectURL(asset.url);
+            }
+        }
+        this.assets.clear();
     }
 
     // --- Helpers ---
@@ -65,13 +123,13 @@ export class AssetSystem {
     }
 
     private getMediaDuration(url: string): Promise<number> {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const element = document.createElement("video");
             element.preload = "metadata";
 
             const timeout = setTimeout(() => {
                 console.warn("Metadata load timed out for:", url);
-                resolve(0);
+                reject(new Error("Metadata load timed out"));
                 element.remove();
             }, 3000);
 
@@ -89,7 +147,7 @@ export class AssetSystem {
             element.onerror = () => {
                 clearTimeout(timeout);
                 console.error("Failed to load metadata:", element.error, url);
-                resolve(0);
+                reject(new Error(`Failed to load metadata for ${url}`));
                 element.remove();
             };
 

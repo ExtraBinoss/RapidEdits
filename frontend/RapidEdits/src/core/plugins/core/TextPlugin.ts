@@ -12,80 +12,40 @@ import {
     PluginCategory,
     type FilmstripConfig,
     type PluginPropertyDefinition,
+    type PluginMetadata,
 } from "../PluginTypes";
 
+/**
+ * Text 3D Plugin: renders stylized 3D text.
+ * 
+ * Data schema:
+ * - text: string
+ * - fontSize: number
+ * - color: hex color string
+ * - position: { x, y, z }
+ * - rotation: { x, y, z }
+ * - scale: { x, y, z }
+ * - is3D: boolean
+ * - depth: number (if is3D)
+ * - autoFit: boolean
+ */
 export class TextPlugin extends BasePlugin {
-    id = createPluginId(PluginCategory.Core, "text");
-    name = "Text 3D";
-    type = "object" as const; // Satisfies IPlugin 'type'
-    // Subtype information is encoded in ID or can be added if needed
-    // propertiesComponent = null; // No longer used, using schema below
-
-    properties: PluginPropertyDefinition[] = [
-        {
-            label: "Content",
-            key: "text",
-            type: "long-text",
-            props: { rows: 2, placeholder: "Enter text..." },
-        },
-        {
-            label: "Appearance",
-            key: "sep1",
-            type: "divider",
-        },
-        {
-            label: "Size",
-            key: "fontSize",
-            type: "slider",
-            props: { min: 1, max: 200, step: 1 },
-        },
-        {
-            label: "Color",
-            key: "color",
-            type: "color",
-        },
-        {
-            label: "Transform",
-            key: "sep2",
-            type: "divider",
-        },
-        {
-            label: "Position",
-            key: "position",
-            type: "vector3",
-        },
-        {
-            label: "3D Settings",
-            key: "sep3",
-            type: "divider",
-        },
-        {
-            label: "3D Extrusion",
-            key: "is3D",
-            type: "boolean",
-        },
-        {
-            label: "Depth",
-            key: "depth",
-            type: "slider",
-            props: { min: 1, max: 50, step: 1 },
-            showIf: (data: any) => data.is3D,
-        },
-        {
-            label: "System",
-            key: "sep4",
-            type: "divider",
-        },
-        {
-            label: "Filmstrip Auto-Fit",
-            key: "autoFit",
-            type: "boolean",
-        },
-    ];
-
     private font: Font | null = null;
     private loader = new FontLoader();
     private loadError = false;
+
+    private metadata: PluginMetadata = {
+        id: createPluginId(PluginCategory.Core, "text"),
+        name: "Text 3D",
+        type: "object",
+        version: "1.0.0",
+        description: "Render stylized 3D text with customizable appearance",
+        isTrackDroppable: true,
+    };
+
+    getMetadata(): PluginMetadata {
+        return this.metadata;
+    }
 
     async init() {
         // Load a default font
@@ -112,6 +72,70 @@ export class TextPlugin extends BasePlugin {
             depth: 5,
             autoFit: false,
         };
+    }
+
+    getProperties(): PluginPropertyDefinition[] {
+        return [
+            {
+                label: "Content",
+                key: "text",
+                type: "long-text",
+                props: { rows: 2, placeholder: "Enter text..." },
+            },
+            {
+                label: "Appearance",
+                key: "sep1",
+                type: "divider",
+            },
+            {
+                label: "Size",
+                key: "fontSize",
+                type: "slider",
+                props: { min: 1, max: 200, step: 1 },
+            },
+            {
+                label: "Color",
+                key: "color",
+                type: "color",
+            },
+            {
+                label: "Transform",
+                key: "sep2",
+                type: "divider",
+            },
+            {
+                label: "Position",
+                key: "position",
+                type: "vector3",
+            },
+            {
+                label: "3D Settings",
+                key: "sep3",
+                type: "divider",
+            },
+            {
+                label: "3D Extrusion",
+                key: "is3D",
+                type: "boolean",
+            },
+            {
+                label: "Depth",
+                key: "depth",
+                type: "slider",
+                props: { min: 1, max: 50, step: 1 },
+                showIf: (data: any) => data.is3D,
+            },
+            {
+                label: "System",
+                key: "sep4",
+                type: "divider",
+            },
+            {
+                label: "Filmstrip Auto-Fit",
+                key: "autoFit",
+                type: "boolean",
+            },
+        ];
     }
 
     render(clip: Clip): THREE.Object3D | null {

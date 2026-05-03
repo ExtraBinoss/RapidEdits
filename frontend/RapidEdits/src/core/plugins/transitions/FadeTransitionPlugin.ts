@@ -1,52 +1,70 @@
-import { BasePlugin, type TransitionPlugin } from "../PluginInterface";
+import { BasePlugin } from "../PluginInterface";
+import type { TransitionPlugin } from "../PluginInterface";
 import type { Clip } from "../../../types/Timeline";
 import * as THREE from "three";
 import {
     createPluginId,
     PluginCategory,
     type PluginPropertyDefinition,
+    type PluginMetadata,
 } from "../PluginTypes";
 
-export class FadeTransitionPlugin
-    extends BasePlugin
-    implements TransitionPlugin
-{
-    id = createPluginId(PluginCategory.Transitions, "fade");
-    name = "Fade / Dissolve";
-    type = "transition" as const;
-    isTrackDroppable = false;
+/**
+ * Fade/Dissolve Transition Plugin.
+ * 
+ * Applies opacity-based transitions between clips.
+ * 
+ * Data schema:
+ * - fadeType: "in" | "out" | "cross"
+ * - easing: "linear" | "easeIn" | "easeOut" | "easeInOut"
+ */
+export class FadeTransitionPlugin extends BasePlugin implements TransitionPlugin {
+    private metadata: PluginMetadata = {
+        id: createPluginId(PluginCategory.Transitions, "fade"),
+        name: "Fade / Dissolve",
+        type: "transition",
+        version: "1.0.0",
+        description: "Fade in, fade out, or cross-dissolve between clips",
+        isTrackDroppable: false,
+    };
 
-    properties: PluginPropertyDefinition[] = [
-        {
-            label: "Fade Type",
-            key: "fadeType",
-            type: "select",
-            options: [
-                { label: "Fade In (0% -> 100%)", value: "in" },
-                { label: "Fade Out (100% -> 0%)", value: "out" },
-                { label: "Cross Dissolve", value: "cross" }, // Acts like opacity over time
-            ],
-            defaultValue: "in",
-        },
-        {
-            label: "Easing",
-            key: "easing",
-            type: "select",
-            options: [
-                { label: "Linear", value: "linear" },
-                { label: "Ease In", value: "easeIn" },
-                { label: "Ease Out", value: "easeOut" },
-                { label: "Ease In Out", value: "easeInOut" },
-            ],
-            defaultValue: "linear",
-        },
-    ];
+    getMetadata(): PluginMetadata {
+        return this.metadata;
+    }
 
     createData() {
         return {
             fadeType: "in",
             easing: "linear",
         };
+    }
+
+    getProperties(): PluginPropertyDefinition[] {
+        return [
+            {
+                label: "Fade Type",
+                key: "fadeType",
+                type: "select",
+                options: [
+                    { label: "Fade In (0% -> 100%)", value: "in" },
+                    { label: "Fade Out (100% -> 0%)", value: "out" },
+                    { label: "Cross Dissolve", value: "cross" },
+                ],
+                defaultValue: "in",
+            },
+            {
+                label: "Easing",
+                key: "easing",
+                type: "select",
+                options: [
+                    { label: "Linear", value: "linear" },
+                    { label: "Ease In", value: "easeIn" },
+                    { label: "Ease Out", value: "easeOut" },
+                    { label: "Ease In Out", value: "easeInOut" },
+                ],
+                defaultValue: "linear",
+            },
+        ];
     }
 
     // Transitions usually don't render their own mesh, they affect others.

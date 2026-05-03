@@ -1,6 +1,6 @@
 <template>
     <div class="space-y-5">
-        <div v-for="(prop, index) in properties" :key="index">
+        <div v-for="(prop, index) in safeProperties" :key="index">
             <template v-if="shouldShow(prop)">
                 <!-- Divider -->
                 <div v-if="prop.type === 'divider'" class="py-2">
@@ -161,6 +161,7 @@ import type { Clip } from "../../types/Timeline";
 import type { PluginPropertyDefinition } from "../../core/plugins/PluginTypes";
 import { editorEngine } from "../../core/EditorEngine";
 import { globalEventBus } from "../../core/events/EventBus";
+import { EditorEventType } from "../../types/Media";
 import Input from "../UI/Input/Input.vue";
 import Divider from "../UI/Divider/Divider.vue";
 import TextArea from "../UI/TextArea/TextArea.vue";
@@ -170,10 +171,12 @@ import Switch from "../UI/Switch/Switch.vue";
 
 const props = defineProps<{
     clip: Clip;
-    properties: PluginPropertyDefinition[];
+    properties: PluginPropertyDefinition[] | undefined;
 }>();
 
 const clipData = computed(() => props.clip.data || {});
+
+const safeProperties = computed(() => props.properties ?? []);
 
 const getValue = (key: string) => {
     // Should probably support nested keys eventually, but for now flat
@@ -223,7 +226,7 @@ const applyUpdate = (newData: any) => {
     editorEngine.updateClip(props.clip.id, { data: newData });
 
     globalEventBus.emit({
-        type: "PLUGIN_PROPERTY_CHANGED",
+        type: EditorEventType.PLUGIN_PROPERTY_CHANGED,
         payload: { clipId: props.clip.id },
     });
 };

@@ -2,12 +2,12 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { editorEngine } from "../core/EditorEngine";
 import { globalEventBus } from "../core/events/EventBus";
-import type { Asset } from "../types/Media";
+import { EditorEventType, type Asset } from "../types/Media";
 import type { Track, Clip } from "../types/Timeline";
 
 export const useProjectStore = defineStore("project", () => {
     const assets = ref<Asset[]>([]);
-    const tracks = ref<Track[]>(editorEngine.getTracks());
+    const tracks = computed(() => editorEngine.getTracks());
     const currentTime = ref(0);
     const isPlaying = ref(false);
 
@@ -28,24 +28,19 @@ export const useProjectStore = defineStore("project", () => {
     });
 
     // Sync state with Engine events
-    globalEventBus.on("ASSET_ADDED", (asset: any) => {
+    globalEventBus.on(EditorEventType.ASSET_ADDED, (asset: any) => {
         assets.value.push(asset);
     });
 
-    globalEventBus.on("ASSET_REMOVED", (id: any) => {
+    globalEventBus.on(EditorEventType.ASSET_REMOVED, (id: any) => {
         assets.value = assets.value.filter((a) => a.id !== id);
     });
 
-    globalEventBus.on("TIMELINE_UPDATED", () => {
-        // Reactivity trigger: Create new array AND new track objects
-        // to ensure components detecting prop changes update correctly
-        tracks.value = editorEngine.getTracks().map((t) => ({
-            ...t,
-            clips: [...t.clips],
-        }));
+    globalEventBus.on(EditorEventType.TIMELINE_UPDATED, () => {
+        // No longer needed to deep clone tracks, as they are a Vue reactive object inside TimelineSystem natively!
     });
 
-    globalEventBus.on("PLAYBACK_TIME_UPDATED", (time: any) => {
+    globalEventBus.on(EditorEventType.PLAYBACK_TIME_UPDATED, (time: any) => {
         currentTime.value = time;
     });
 
@@ -121,6 +116,6 @@ export const useProjectStore = defineStore("project", () => {
 });
 
 const selectionState = ref<string[]>([]);
-globalEventBus.on("SELECTION_CHANGED", (ids: any) => {
+globalEventBus.on(EditorEventType.SELECTION_CHANGED, (ids: any) => {
     selectionState.value = ids;
 });

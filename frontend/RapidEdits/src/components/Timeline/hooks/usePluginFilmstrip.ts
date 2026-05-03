@@ -3,12 +3,13 @@ import { pluginRegistry } from "../../../core/plugins/PluginRegistry";
 import type { Clip } from "../../../types/Timeline";
 import { globalEventBus } from "../../../core/events/EventBus";
 import { PluginThumbnailRenderer } from "../utils/PluginThumbnailRenderer";
+import type { PluginId } from "../../../core/plugins/PluginTypes";
+import { EditorEventType } from "../../../types/Media";
 
 export function usePluginFilmstrip(
     clipGetter: () => Clip,
     widthRef: { value: number },
 ) {
-    // console.log("[Filmstrip] Hook Mounted", clipGetter().id);
     const thumbnails = ref<{ id: number; url: string; loaded: boolean }[]>([]);
     const version = ref(0);
 
@@ -28,13 +29,13 @@ export function usePluginFilmstrip(
         }
     };
 
-    globalEventBus.on("PLUGIN_PROPERTY_CHANGED", handlePropertyChange);
+    globalEventBus.on(EditorEventType.PLUGIN_PROPERTY_CHANGED, handlePropertyChange);
 
     onUnmounted(() => {
         if (debounceTimer) {
             clearTimeout(debounceTimer);
         }
-        globalEventBus.off("PLUGIN_PROPERTY_CHANGED", handlePropertyChange);
+        globalEventBus.off(EditorEventType.PLUGIN_PROPERTY_CHANGED, handlePropertyChange);
     });
 
     watch(
@@ -42,7 +43,6 @@ export function usePluginFilmstrip(
             widthRef.value,
             clipGetter().type,
             version.value,
-            // We can also watch clipGetter().id to reset if clip changes
             clipGetter().id,
         ],
         async (newVal, oldVal, onCleanup) => {
@@ -60,7 +60,7 @@ export function usePluginFilmstrip(
             }
 
             const clip = clipGetter();
-            const plugin = pluginRegistry.get(clip.type);
+            const plugin = pluginRegistry.get(clip.type as PluginId);
             if (!plugin) return;
 
             // If width is 0, don't bother yet
@@ -104,7 +104,6 @@ export function usePluginFilmstrip(
                 if (cancelRender) cancelRender();
             });
         },
-        // Removed deep: true as we are watching primitives
     );
 
     return { thumbnails };

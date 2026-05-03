@@ -1,5 +1,6 @@
 import { globalEventBus } from "../events/EventBus";
 import Worker from "../../workers/waveform.worker?worker";
+import { EditorEventType } from "../../types/Media";
 
 export class WaveformGenerator {
     private audioContext: AudioContext;
@@ -56,7 +57,7 @@ export class WaveformGenerator {
     ): Promise<void> {
         try {
             globalEventBus.emit({
-                type: "WAVEFORM_GENERATION_START",
+                type: EditorEventType.WAVEFORM_GENERATION_START,
                 payload: { assetId },
             });
 
@@ -72,7 +73,7 @@ export class WaveformGenerator {
             const processNextChunk = () => {
                 if (currentTime >= totalDuration) {
                     globalEventBus.emit({
-                        type: "WAVEFORM_GENERATION_END",
+                        type: EditorEventType.WAVEFORM_GENERATION_END,
                         payload: { assetId },
                     });
                     return;
@@ -99,7 +100,7 @@ export class WaveformGenerator {
                     this.worker.removeEventListener("message", workerHandler);
 
                     globalEventBus.emit({
-                        type: "WAVEFORM_CHUNK_GENERATED",
+                        type: EditorEventType.WAVEFORM_CHUNK_GENERATED,
                         payload: {
                             assetId,
                             start: currentTime,
@@ -129,7 +130,7 @@ export class WaveformGenerator {
         } catch (e) {
             console.error("Waveform generation failed", e);
             globalEventBus.emit({
-                type: "WAVEFORM_GENERATION_END",
+                type: EditorEventType.WAVEFORM_GENERATION_END,
                 payload: { assetId },
             });
         }

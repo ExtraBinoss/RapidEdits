@@ -4,6 +4,7 @@ import { waveformGenerator } from "../../../../core/generators/WaveformGenerator
 import { globalEventBus } from "../../../../core/events/EventBus";
 import type { Clip } from "../../../../types/Timeline";
 import { editorEngine } from "../../../../core/EditorEngine";
+import { EditorEventType } from "../../../../types/Media";
 
 const props = defineProps<{
     clip: Clip;
@@ -137,7 +138,7 @@ onMounted(() => {
     peaks.value = new Float32Array(totalSamples);
 
     // Listen
-    globalEventBus.on("WAVEFORM_CHUNK_GENERATED", handleChunk);
+    globalEventBus.on(EditorEventType.WAVEFORM_CHUNK_GENERATED, handleChunk);
 
     // Request Generation
     waveformGenerator.requestWaveform(asset.url, asset.id, totalSamples);
@@ -147,7 +148,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     cancelAnimationFrame(animationFrame);
-    globalEventBus.off("WAVEFORM_CHUNK_GENERATED", handleChunk);
+    globalEventBus.off(EditorEventType.WAVEFORM_CHUNK_GENERATED, handleChunk);
 });
 
 watch(

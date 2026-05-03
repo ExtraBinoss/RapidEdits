@@ -40,13 +40,15 @@ const activePlugins = computed(() => {
     if (activeTab.value === "transitions") type = "transition";
 
     if (!type) return [];
-    return pluginRegistry.state.availablePlugins.filter((p) => p.type === type);
+    return pluginRegistry.state.availablePlugins.filter((p) => {
+        const meta = p.getMetadata();
+        return meta.type === type;
+    });
 });
 
 const addPlugin = (plugin: IPlugin) => {
-    // If logic: If track droppable is false, we generally don't want to create a new track for it.
-    // It's meant to be applied to existing clips.
-    if (plugin.isTrackDroppable === false) {
+    const meta = plugin.getMetadata();
+    if (meta.isTrackDroppable === false) {
         // Option: we could show a toast "Drag this onto a clip"
         // For now, just silently prevent adding to a new track
         return;
@@ -60,28 +62,30 @@ const addPlugin = (plugin: IPlugin) => {
     // Register Virtual Asset
     editorEngine.assetSystem.registerAsset({
         id: assetId,
-        name: plugin.name,
-        type: "image",
+        name: meta.name,
+        type: "text", // Use text type to avoid texture allocation attempts
         url: "",
         size: 0,
         createdAt: Date.now(),
         duration: 5,
     });
 
-    // Add to timeline
-    editorEngine.addClip(assetId, track.id, editorEngine.getCurrentTime());
-
-    // Find the newly added clip
-    const addedClip = track.clips[track.clips.length - 1];
-
-    if (addedClip) {
-        editorEngine.updateClip(addedClip.id, {
-            type: plugin.id,
-            name: plugin.name,
-            data: plugin.createData(),
-            duration: 5,
-        });
-    }
+    // Add to timeline using Batch to ensure atomic creation with correct Kind/Type
+    // This prevents the renderer from trying to treat it as a Media clip for even a single frame
+    editorEngine.addClipsBatch([
+        {
+            assetId: assetId,
+            trackId: track.id,
+            start: editorEngine.getCurrentTime(),
+            extraData: {
+                kind: "plugin",
+                type: meta.id,
+                name: meta.name,
+                data: plugin.createData(),
+                duration: 5,
+            },
+        },
+    ]);
 };
 
 const handlePluginDragStart = (e: DragEvent, plugin: IPlugin) => {
@@ -89,11 +93,12 @@ const handlePluginDragStart = (e: DragEvent, plugin: IPlugin) => {
         // Track the dragged plugin globally for drop validation
         pluginRegistry.setDraggedPlugin(plugin);
 
+        const meta = plugin.getMetadata();
         const payload = {
             type: "plugin",
-            pluginId: plugin.id,
-            pluginType: plugin.type,
-            name: plugin.name,
+            pluginId: meta.id,
+            pluginType: meta.type,
+            name: meta.name,
         };
         e.dataTransfer.setData("application/json", JSON.stringify(payload));
         e.dataTransfer.effectAllowed = "copy";
@@ -165,10 +170,10 @@ const handlePluginDragEnd = () => {
                     >
                         <div
                             v-for="plugin in activePlugins"
-                            :key="plugin.id"
+                            :key="plugin.getMetadata().id"
                             class="aspect-square bg-canvas border border-canvas-border rounded-lg hover:border-brand-primary hover:bg-canvas-darker flex flex-col items-center justify-center gap-2 transition-all group select-none"
                             :class="
-                                plugin.isTrackDroppable !== false
+                                plugin.getMetadata().isTrackDroppable !== false
                                     ? 'cursor-pointer'
                                     : 'cursor-grab'
                             "
@@ -183,12 +188,12 @@ const handlePluginDragEnd = () => {
                             @dragend="handlePluginDragEnd"
                         >
                             <component
-                                :is="plugin.icon || DefaultPluginIcon"
+                                :is="plugin.getMetadata().icon || DefaultPluginIcon"
                                 class="w-8 h-8 text-text-muted group-hover:text-brand-primary"
                             />
                             <span
                                 class="text-xs text-text-muted font-medium group-hover:text-text-main"
-                                >{{ plugin.name }}</span
+                                >{{ plugin.getMetadata().name }}</span
                             >
                         </div>
 

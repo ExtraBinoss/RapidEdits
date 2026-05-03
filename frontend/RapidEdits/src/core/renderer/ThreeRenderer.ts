@@ -7,6 +7,7 @@ import { ThreeInteractionManager } from "./managers/ThreeInteractionManager";
 import { ThreeSelectionManager } from "./managers/ThreeSelectionManager";
 import { ThreeClipManager } from "./managers/ThreeClipManager";
 import { ThreeVideoManager } from "./managers/ThreeVideoManager";
+import { EditorEventType } from "../../types/Media";
 
 export interface ThreeRendererOptions {
     container?: HTMLElement;
@@ -190,7 +191,7 @@ export class ThreeRenderer {
 
             // Emit event
             globalEventBus.emit({
-                type: "AMBIENT_COLOR_UPDATE",
+                type: EditorEventType.AMBIENT_COLOR_UPDATE,
                 payload: color,
             });
         } catch (e) {

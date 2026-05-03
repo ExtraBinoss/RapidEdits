@@ -1,20 +1,21 @@
 import { v4 as uuidv4 } from "uuid";
+import { reactive } from "vue";
 import { globalEventBus } from "../events/EventBus";
-import { MediaType, type Asset, type MediaTypeValue } from "../../types/Media";
-import type { Track, Clip } from "../../types/Timeline";
+import {
+    MediaType,
+    type Asset,
+    type MediaTypeValue,
+    EditorEventType,
+} from "../../types/Media";
+import { type Track, type Clip, ClipKind } from "../../types/Timeline";
 import { AssetSystem } from "./AssetSystem";
 
 export class TimelineSystem {
-    private tracks: Track[] = [];
+    public tracks: Track[] = reactive([]);
     private assetSystem: AssetSystem;
 
     constructor(assetSystem: AssetSystem) {
         this.assetSystem = assetSystem;
-        this.initializeTracks();
-    }
-
-    private initializeTracks() {
-        this.tracks = [];
     }
 
     public getTracks(): Track[] {
@@ -54,7 +55,10 @@ export class TimelineSystem {
         };
 
         this.tracks.push(newTrack);
-        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
+        globalEventBus.emit({
+            type: EditorEventType.TIMELINE_UPDATED,
+            payload: undefined,
+        });
         return newTrack;
     }
 
@@ -137,7 +141,10 @@ export class TimelineSystem {
                 audioTrack.clips.sort((a, b) => a.start - b.start);
             }
         }
-        globalEventBus.emit({ type: "TIMELINE_UPDATED", payload: undefined });
+        globalEventBus.emit({
+            type: EditorEventType.TIMELINE_UPDATED,
+            payload: undefined,
+        });
     }
 
     public addClipsBatch(
@@ -206,7 +213,7 @@ export class TimelineSystem {
 
         if (affectedTrackIds.size > 0) {
             globalEventBus.emit({
-                type: "TIMELINE_UPDATED",
+                type: EditorEventType.TIMELINE_UPDATED,
                 payload: undefined,
             });
         }
@@ -217,7 +224,7 @@ export class TimelineSystem {
         if (index !== -1) {
             this.tracks.splice(index, 1);
             globalEventBus.emit({
-                type: "TIMELINE_UPDATED",
+                type: EditorEventType.TIMELINE_UPDATED,
                 payload: undefined,
             });
         }
@@ -237,6 +244,7 @@ export class TimelineSystem {
             start,
             duration: asset.duration || 5,
             offset: 0,
+            kind: ClipKind.MEDIA,
             type: typeOverride || asset.type,
             speed: 1,
         };
@@ -293,7 +301,7 @@ export class TimelineSystem {
 
         if (anySplit) {
             globalEventBus.emit({
-                type: "TIMELINE_UPDATED",
+                type: EditorEventType.TIMELINE_UPDATED,
                 payload: undefined,
             });
         }
@@ -346,7 +354,7 @@ export class TimelineSystem {
 
         // Emit Event for this specific split
         globalEventBus.emit({
-            type: "CLIP_SPLIT",
+            type: EditorEventType.CLIP_SPLIT,
             payload: {
                 originalClipId: originalClip.id,
                 newClipId: secondHalfClip.id,
@@ -434,7 +442,7 @@ export class TimelineSystem {
 
         if (anythingChanged) {
             globalEventBus.emit({
-                type: "TIMELINE_UPDATED",
+                type: EditorEventType.TIMELINE_UPDATED,
                 payload: undefined,
             });
         }
@@ -459,7 +467,7 @@ export class TimelineSystem {
                 ...updates,
             } as Track;
             globalEventBus.emit({
-                type: "TIMELINE_UPDATED",
+                type: EditorEventType.TIMELINE_UPDATED,
                 payload: undefined,
             });
         }
@@ -471,7 +479,7 @@ export class TimelineSystem {
     public toggleSnapping() {
         this.isSnappingEnabled = !this.isSnappingEnabled;
         globalEventBus.emit({
-            type: "SHOW_FEEDBACK",
+            type: EditorEventType.SHOW_FEEDBACK,
             payload: {
                 icon: "Magnet",
                 text: this.isSnappingEnabled ? "Snapping On" : "Snapping Off",
@@ -540,7 +548,7 @@ export class TimelineSystem {
 
         if (this.tracks.length !== initialCount) {
             globalEventBus.emit({
-                type: "TIMELINE_UPDATED",
+                type: EditorEventType.TIMELINE_UPDATED,
                 payload: undefined,
             });
         }

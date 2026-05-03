@@ -3,6 +3,8 @@ import { ref, onMounted, computed } from "vue";
 import { useFilmstrip } from "../../hooks/useFilmstrip";
 import { usePluginFilmstrip } from "../../hooks/usePluginFilmstrip";
 import type { Clip } from "../../../../types/Timeline";
+import { isPluginClip } from "../../../../types/Timeline";
+import type { PluginId } from "../../../../core/plugins/PluginTypes";
 import { editorEngine } from "../../../../core/EditorEngine";
 import { pluginRegistry } from "../../../../core/plugins/PluginRegistry";
 
@@ -14,9 +16,10 @@ const container = ref<HTMLElement | null>(null);
 const width = ref(0);
 const asset = editorEngine.getAsset(props.clip.assetId);
 
-// Check if this is a plugin clip
+// Check if this is a plugin clip and if the plugin exists
 const isPlugin = computed(() => {
-    return pluginRegistry.get(props.clip.type) !== undefined;
+    if (!isPluginClip(props.clip)) return false;
+    return pluginRegistry.has(props.clip.type as PluginId);
 });
 
 // Only run filmstrip logic if NOT a plugin and has valid asset

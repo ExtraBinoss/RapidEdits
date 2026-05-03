@@ -20,31 +20,67 @@ export interface Asset {
     createdAt: number;
 }
 
+export const EditorEventType = {
+    ASSET_ADDED: "ASSET_ADDED",
+    ASSET_LOADED: "ASSET_LOADED",
+    WAVEFORM_GENERATION_START: "WAVEFORM_GENERATION_START",
+    WAVEFORM_GENERATION_END: "WAVEFORM_GENERATION_END",
+    WAVEFORM_CHUNK_GENERATED: "WAVEFORM_CHUNK_GENERATED",
+    ASSET_REMOVED: "ASSET_REMOVED",
+    PROJECT_LOADED: "PROJECT_LOADED",
+    TIMELINE_UPDATED: "TIMELINE_UPDATED",
+    PLAYBACK_TIME_UPDATED: "PLAYBACK_TIME_UPDATED",
+    VOLUME_CHANGED: "VOLUME_CHANGED",
+    PLAYBACK_TOGGLED: "PLAYBACK_TOGGLED",
+    SHOW_FEEDBACK: "SHOW_FEEDBACK",
+    AMBIENT_COLOR_UPDATE: "AMBIENT_COLOR_UPDATE",
+    SELECTION_CHANGED: "SELECTION_CHANGED",
+    CLIP_SPLIT: "CLIP_SPLIT",
+    TOOL_CHANGED: "TOOL_CHANGED",
+    PLUGIN_PROPERTY_CHANGED: "PLUGIN_PROPERTY_CHANGED",
+    RECORDING_STATE_CHANGED: "RECORDING_STATE_CHANGED",
+    RECORDING_SOURCES_UPDATED: "RECORDING_SOURCES_UPDATED",
+    RECORDING_SETTINGS_UPDATED: "RECORDING_SETTINGS_UPDATED",
+    RECORDING_FINISHED: "RECORDING_FINISHED",
+} as const;
+
+export type EditorEventTypeValue =
+    (typeof EditorEventType)[keyof typeof EditorEventType];
+
 export type EditorEvent =
-    | { type: "ASSET_ADDED"; payload: Asset }
-    | { type: "ASSET_LOADED"; payload: Asset }
-    | { type: "WAVEFORM_GENERATION_START"; payload: { assetId: string } }
-    | { type: "WAVEFORM_GENERATION_END"; payload: { assetId: string } }
+    | { type: typeof EditorEventType.ASSET_ADDED; payload: Asset }
+    | { type: typeof EditorEventType.ASSET_LOADED; payload: Asset }
     | {
-          type: "WAVEFORM_CHUNK_GENERATED";
+          type: typeof EditorEventType.WAVEFORM_GENERATION_START;
+          payload: { assetId: string };
+      }
+    | {
+          type: typeof EditorEventType.WAVEFORM_GENERATION_END;
+          payload: { assetId: string };
+      }
+    | {
+          type: typeof EditorEventType.WAVEFORM_CHUNK_GENERATED;
           payload: {
               assetId: string;
-              start: number; // Time start of this chunk
-              end: number; // Time end of this chunk
+              start: number;
+              end: number;
               data: Float32Array;
           };
       }
-    | { type: "ASSET_REMOVED"; payload: string } // ID
-    | { type: "PROJECT_LOADED"; payload: void }
-    | { type: "TIMELINE_UPDATED"; payload: void }
-    | { type: "PLAYBACK_TIME_UPDATED"; payload: number }
-    | { type: "VOLUME_CHANGED"; payload: number } // 0-100
-    | { type: "PLAYBACK_TOGGLED"; payload: boolean }
-    | { type: "SHOW_FEEDBACK"; payload: { icon: string; text?: string } }
-    | { type: "AMBIENT_COLOR_UPDATE"; payload: string }
-    | { type: "SELECTION_CHANGED"; payload: string[] }
+    | { type: typeof EditorEventType.ASSET_REMOVED; payload: string }
+    | { type: typeof EditorEventType.PROJECT_LOADED; payload: void }
+    | { type: typeof EditorEventType.TIMELINE_UPDATED; payload: void }
+    | { type: typeof EditorEventType.PLAYBACK_TIME_UPDATED; payload: number }
+    | { type: typeof EditorEventType.VOLUME_CHANGED; payload: number }
+    | { type: typeof EditorEventType.PLAYBACK_TOGGLED; payload: boolean }
     | {
-          type: "CLIP_SPLIT";
+          type: typeof EditorEventType.SHOW_FEEDBACK;
+          payload: { icon: string; text?: string };
+      }
+    | { type: typeof EditorEventType.AMBIENT_COLOR_UPDATE; payload: string }
+    | { type: typeof EditorEventType.SELECTION_CHANGED; payload: string[] }
+    | {
+          type: typeof EditorEventType.CLIP_SPLIT;
           payload: {
               originalClipId: string;
               newClipId: string;
@@ -52,9 +88,15 @@ export type EditorEvent =
               trackId: number;
           };
       }
-    | { type: "TOOL_CHANGED"; payload: "select" | "razor" }
-    | { type: "PLUGIN_PROPERTY_CHANGED"; payload: { clipId: string } }
-    | { type: "RECORDING_STATE_CHANGED"; payload: boolean }
-    | { type: "RECORDING_SOURCES_UPDATED"; payload: any[] }
-    | { type: "RECORDING_SETTINGS_UPDATED"; payload: any }
-    | { type: "RECORDING_FINISHED"; payload: { blob: Blob; cursorData: any[] } };
+    | { type: typeof EditorEventType.TOOL_CHANGED; payload: "select" | "razor" }
+    | {
+          type: typeof EditorEventType.PLUGIN_PROPERTY_CHANGED;
+          payload: { clipId: string };
+      }
+    | { type: typeof EditorEventType.RECORDING_STATE_CHANGED; payload: boolean }
+    | { type: typeof EditorEventType.RECORDING_SOURCES_UPDATED; payload: any[] }
+    | { type: typeof EditorEventType.RECORDING_SETTINGS_UPDATED; payload: any }
+    | {
+          type: typeof EditorEventType.RECORDING_FINISHED;
+          payload: { blob: Blob; cursorData: any[] };
+      };

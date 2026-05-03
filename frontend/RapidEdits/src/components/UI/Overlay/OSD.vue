@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { Play, Pause, Volume2 } from "lucide-vue-next";
+import { Play, Pause, Volume2, Magnet, Circle, Check, AlertTriangle } from "lucide-vue-next";
 import { globalEventBus } from "../../../core/events/EventBus";
+import { EditorEventType } from "../../../types/Media";
 
 const isVisible = ref(false);
 const icon = ref<any>(Play);
@@ -17,13 +18,21 @@ const getIconComponent = (name: string) => {
             return Pause;
         case "Volume":
             return Volume2;
+        case "Magnet":
+            return Magnet;
+        case "Circle":
+            return Circle;
+        case "Check":
+            return Check;
+        case "AlertTriangle":
+            return AlertTriangle;
         default:
             return Play;
     }
 };
 
 onMounted(() => {
-    globalEventBus.on("SHOW_FEEDBACK", (payload: any) => {
+    globalEventBus.on(EditorEventType.SHOW_FEEDBACK, (payload: any) => {
         if (timeout) clearTimeout(timeout);
 
         icon.value = getIconComponent(payload.icon);
