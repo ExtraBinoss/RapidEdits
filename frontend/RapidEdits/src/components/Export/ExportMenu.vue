@@ -251,6 +251,36 @@
                             </div>
                         </div>
 
+                        <!-- Diagnostics Breakdown -->
+                        <div v-if="!isDone && diagnostics" class="bg-black/20 rounded-xl p-4 border border-canvas-border space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] uppercase tracking-widest font-bold text-text-muted">Hardware Status</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded bg-brand-primary/20 text-brand-primary font-bold border border-brand-primary/30">
+                                    {{ diagnostics.hardware }}
+                                </span>
+                            </div>
+                            
+                            <div class="grid grid-cols-3 gap-2">
+                                <div class="text-center p-2 rounded bg-white/5 border border-white/5">
+                                    <p class="text-[9px] text-text-muted uppercase mb-1">Seek Wait</p>
+                                    <p class="text-xs font-mono font-bold text-brand-accent">{{ diagnostics.wait }}</p>
+                                </div>
+                                <div class="text-center p-2 rounded bg-white/5 border border-white/5">
+                                    <p class="text-[9px] text-text-muted uppercase mb-1">GPU Render</p>
+                                    <p class="text-xs font-mono font-bold text-green-400">{{ diagnostics.render }}</p>
+                                </div>
+                                <div class="text-center p-2 rounded bg-white/5 border border-white/5">
+                                    <p class="text-[9px] text-text-muted uppercase mb-1">Encoding</p>
+                                    <p class="text-xs font-mono font-bold text-blue-400">{{ diagnostics.encode }}</p>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center text-[10px] text-text-muted border-t border-white/5 pt-2">
+                                <span>Codec: <span class="text-text-main font-mono">{{ diagnostics.codec }}</span></span>
+                                <span v-if="parseFloat(diagnostics.encode) < 5" class="text-green-400/80">★ Hardware Optimized</span>
+                            </div>
+                        </div>
+
                         <!-- Success Actions -->
                         <div
                             v-if="isDone"
@@ -322,6 +352,7 @@ const statusText = ref("");
 const error = ref<string | null>(null);
 const timerInterval = ref<number | null>(null);
 const exportedFilename = ref("");
+const diagnostics = ref<any>(null);
 
 const stats = reactive({
     currentFrame: 0,
@@ -455,9 +486,10 @@ const startExport = async () => {
                 bitrate: config.bitrate,
                 format: config.format as "mp4" | "webm",
             },
-            (p: number, status: string) => {
+            (p: number, status: string, d?: any) => {
                 progress.value = p;
                 statusText.value = status;
+                if (d) diagnostics.value = d;
 
                 // Try to extract frame info from status string "Rendering Frame X/Y"
                 // This is a bit brittle, but effective given current service impl.

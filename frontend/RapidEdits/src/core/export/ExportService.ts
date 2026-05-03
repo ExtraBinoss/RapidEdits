@@ -24,7 +24,7 @@ export class ExportService {
 
     async exportVideo(
         config: ExportConfig,
-        onProgress: (progress: number, status: string) => void,
+        onProgress: (progress: number, status: string, stats?: any) => void,
     ) {
         this.abortController = new AbortController();
 
@@ -160,13 +160,28 @@ export class ExportService {
                 // 5. Yield occasionally to keep UI responsive
                 const now = performance.now();
                 if (now - lastYieldTime > 100) {
-                    await new Promise((r) => setTimeout(r, 0));
+                    // Small breathing room for the decoder every 10 frames or so
+                    const waitTime = i % 10 === 0 ? 10 : 0;
+                    await new Promise((r) => setTimeout(r, waitTime));
                     lastYieldTime = now;
                 }
 
+                // Live stats for UI
+                const avgWait = stats.wait / stats.frameCount;
+                const avgRender = stats.render / stats.frameCount;
+                const avgEncode = stats.encode / stats.frameCount;
+                const currentFps = 1000 / (stats.total / stats.frameCount);
+
                 onProgress(
                     Math.round((i / totalFrames) * 100),
-                    `Rendering Frame ${i}/${totalFrames}`,
+                    `Rendering Frame ${i}/${totalFrames} (${currentFps.toFixed(1)} FPS)`,
+                    {
+                        wait: avgWait.toFixed(1) + "ms",
+                        render: avgRender.toFixed(1) + "ms",
+                        encode: avgEncode.toFixed(1) + "ms",
+                        hardware: config.format === "mp4" ? "Prefer Hardware (AVC)" : "Prefer Hardware (VP9)",
+                        codec: codec
+                    }
                 );
             }
 
@@ -293,21 +308,40 @@ export class ExportService {
 
     private async waitForSeek(renderer: ThreeRenderer): Promise<void> {
         const videos = renderer.getActiveVideoElements();
-        const promises = videos.map((video) => {
-            if (video.readyState >= 2 && !video.seeking)
+        if (videos.length === 0) return;
+
+        const promises = videos.map((v) => {
+            const video = v as HTMLVideoElement;
+            
+            // If already at target or not seeking, don't wait
+            if (!video.seeking && video.readyState >= 2) {
                 return Promise.resolve();
+            }
+
             return new Promise<void>((resolve) => {
+                let resolved = false;
+
                 const onSeeked = () => {
-                    video.removeEventListener("seeked", onSeeked);
-                    resolve();
+                    if (!resolved) {
+                        resolved = true;
+                        video.removeEventListener("seeked", onSeeked);
+                        resolve();
+                    }
                 };
+
+                // Safety timeout to avoid getting stuck
                 setTimeout(() => {
-                    video.removeEventListener("seeked", onSeeked);
-                    resolve();
-                }, 1000);
+                    if (!resolved) {
+                        resolved = true;
+                        video.removeEventListener("seeked", onSeeked);
+                        resolve();
+                    }
+                }, 250); 
+
                 video.addEventListener("seeked", onSeeked, { once: true });
             });
         });
+
         await Promise.all(promises);
     }
 }
