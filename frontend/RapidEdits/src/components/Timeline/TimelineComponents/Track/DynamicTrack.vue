@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Track } from "../../../../types/Timeline";
+import { TrackType, type Track } from "../../../../types/Timeline";
 import TimelineClip from "../Track/TimelineClip.vue";
 import { ref, computed } from "vue";
 import { pluginRegistry } from "../../../../core/plugins/PluginRegistry";
@@ -46,13 +46,31 @@ const visibleClips = computed(() => {
 // ... (rest of filtering logic implemented implicitly via computed above)
 
 const isDropAllowed = computed(() => {
-    const dragged = pluginRegistry.state.draggedPlugin;
-    if (dragged) {
-        const meta = dragged.getMetadata();
-        if (meta.isTrackDroppable === false) {
-            return false;
+    const draggedAsset = store.draggedAsset;
+    const draggedPlugin = store.draggedPlugin;
+
+    // Plugin restrictions
+    if (draggedPlugin) {
+        const meta = draggedPlugin.getMetadata();
+        if (meta.isTrackDroppable === false) return false;
+        return true;
+    }
+
+    // Asset restrictions based on track type
+    if (draggedAsset) {
+        const type = props.track.type;
+        
+        if (type === TrackType.VIDEO) {
+            return draggedAsset.type === MediaType.VIDEO || draggedAsset.type === MediaType.IMAGE;
+        } else if (type === TrackType.AUDIO) {
+            return draggedAsset.type === MediaType.AUDIO;
+        } else {
+            // For "Overlay & Effects" (text, image, custom), block raw video/audio
+            // Only allow images or plugins
+            return draggedAsset.type === MediaType.IMAGE;
         }
     }
+
     return true;
 });
 
@@ -161,7 +179,7 @@ const handleContainerClick = (e: MouseEvent) => {
     >
         <!-- Ghost Preview Clip -->
         <GhostClip 
-            v-if="isOver"
+            v-if="isOver && isDropAllowed"
             :ghost-data="ghostData" 
             :x="ghostX" 
             :zoom-level="zoomLevel" 

@@ -1,6 +1,17 @@
 import type { Asset } from "./Media";
 import type { PluginId } from "../core/plugins/PluginTypes";
 
+export const TrackType = {
+    VIDEO: "video",
+    AUDIO: "audio",
+    TEXT: "text",
+    IMAGE: "image",
+    CUSTOM: "custom",
+} as const;
+
+export type TrackTypeValue = (typeof TrackType)[keyof typeof TrackType];
+
+
 /**
  * Track: a horizontal container for clips on the timeline.
  *
@@ -10,7 +21,7 @@ import type { PluginId } from "../core/plugins/PluginTypes";
 export interface Track {
     id: number;
     name: string;
-    type: "video" | "audio" | "text" | "image" | "custom";
+    type: TrackTypeValue;
     isMuted: boolean;
     isLocked: boolean;
     clips: Clip[];

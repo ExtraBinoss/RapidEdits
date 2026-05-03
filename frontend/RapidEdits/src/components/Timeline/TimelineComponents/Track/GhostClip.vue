@@ -17,7 +17,7 @@ const props = defineProps<{
 <template>
     <div
         v-if="ghostData"
-        class="absolute top-1 bottom-1 h-auto opacity-40 pointer-events-none z-50 border-2 border-white/30 rounded-md overflow-hidden flex flex-col"
+        class="absolute top-1 bottom-1 h-auto opacity-40 pointer-events-none z-20 border-2 border-white/30 rounded-md overflow-hidden flex flex-col"
         :class="ghostData.color"
         :style="{
             left: `${x}px`,

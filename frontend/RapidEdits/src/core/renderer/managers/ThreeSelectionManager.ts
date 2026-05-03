@@ -48,13 +48,10 @@ export class ThreeSelectionManager {
 
                         if (Math.abs(width - this.lastWidth) > 0.1 || Math.abs(height - this.lastHeight) > 0.1) {
                             this.createSelectionHelper(target);
-                            return; // createSelectionHelper handles position/rotation/scale
+                            return; 
                         }
 
-                        this.selectionHelper.position.copy(target.position);
-                        this.selectionHelper.position.z += 1; // Offset
-                        this.selectionHelper.rotation.copy(target.rotation);
-                        this.selectionHelper.scale.copy(target.scale);
+                        this.syncGizmo(target);
                     }
                 }
             }
@@ -113,16 +110,28 @@ export class ThreeSelectionManager {
             this.selectionHelper = null;
         }
 
-        const box = new THREE.Box3().setFromObject(target);
-        // Expand slightly
-        box.min.subScalar(5);
-        box.max.addScalar(5);
+        // Get local bounds
+        // For Troika or any mesh, we can use the geometry bounding box
+        let geometry = (target as any).geometry;
+        if (!geometry && target.children.length > 0) {
+            geometry = (target.children[0] as any).geometry;
+        }
+        
+        if (!geometry) {
+            // Fallback to world box if no geometry found (less accurate for rotation)
+            const box = new THREE.Box3().setFromObject(target);
+            this.lastWidth = box.max.x - box.min.x;
+            this.lastHeight = box.max.y - box.min.y;
+        } else {
+            if (!geometry.boundingBox) geometry.computeBoundingBox();
+            const box = geometry.boundingBox;
+            this.lastWidth = box.max.x - box.min.x;
+            this.lastHeight = box.max.y - box.min.y;
+        }
 
-        const width = box.max.x - box.min.x;
-        const height = box.max.y - box.min.y;
-        this.lastWidth = width;
-        this.lastHeight = height;
-        const radius = Math.max(2, Math.min(width, height) * 0.1); // Minimum radius of 2
+        const width = this.lastWidth + 10; // Add some padding
+        const height = this.lastHeight + 10;
+        const radius = Math.max(2, Math.min(width, height) * 0.1);
 
         // Create Rounded Rect Path
         const shape = new THREE.Shape();
@@ -144,8 +153,8 @@ export class ThreeSelectionManager {
         shape.lineTo(x + radius, y);
         shape.quadraticCurveTo(x, y, x, y + radius);
 
-        const points = shape.getPoints(12); // Smoother rounded corners
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const points = shape.getPoints(12);
+        const bufferGeometry = new THREE.BufferGeometry().setFromPoints(points);
 
         const material = new THREE.LineDashedMaterial({
             color: 0xffff00,
@@ -158,20 +167,31 @@ export class ThreeSelectionManager {
             opacity: 0.9
         });
 
-        const line = new THREE.Line(geometry, material);
-        line.renderOrder = 999999; // Ultra-high priority
+        const line = new THREE.Line(bufferGeometry, material);
+        line.renderOrder = 999999;
         line.computeLineDistances();
         this.selectionHelper = line;
-
-        const center = new THREE.Vector3();
-        box.getCenter(center);
-        this.selectionHelper.position.copy(center);
-        this.selectionHelper.position.z += 1; // Offset to sit on top of object
 
         this.scene.add(this.selectionHelper);
 
         // Initial sync
-        this.selectionHelper.position.copy(target.position);
+        this.syncGizmo(target);
+    }
+
+    private syncGizmo(target: THREE.Object3D) {
+        if (!this.selectionHelper) return;
+        
+        // Calculate the offset if the geometry isn't centered on local 0,0,0
+        let geometry = (target as any).geometry;
+        if (!geometry && target.children.length > 0) geometry = (target.children[0] as any).geometry;
+        
+        const centerOffset = new THREE.Vector3();
+        if (geometry && geometry.boundingBox) {
+            geometry.boundingBox.getCenter(centerOffset);
+        }
+        
+        // Apply target transform + local offset
+        this.selectionHelper.position.copy(centerOffset).applyMatrix4(target.matrixWorld);
         this.selectionHelper.position.z += 1;
         this.selectionHelper.rotation.copy(target.rotation);
         this.selectionHelper.scale.copy(target.scale);
