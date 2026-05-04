@@ -91,8 +91,24 @@ const pluginProperties = computed(() => {
 // --- Dynamic Global Inspectors ---
 
 const globalInspectorPlugins = computed(() => {
+    if (!selectedClip.value) return [];
+    
+    const isAudio = selectedClip.value.type === 'audio';
+
     return pluginRegistry.getAll()
         .filter(p => !!p.getMetadata().isGlobalInspector)
+        .filter(p => {
+            const id = p.getMetadata().id;
+            const isVisualInspector = id.includes('transform') || id.includes('appearance') || id.includes('crop');
+            
+            if (isAudio) {
+                // Audio clips only get audio-inspector
+                return id.includes('audio-inspector');
+            } else {
+                // Video/Image/Plugins get visual inspectors + audio-inspector (for video sound)
+                return isVisualInspector || id.includes('audio-inspector');
+            }
+        })
         .sort((a, b) => (a.getMetadata().priority || 0) - (b.getMetadata().priority || 0));
 });
 

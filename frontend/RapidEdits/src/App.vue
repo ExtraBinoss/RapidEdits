@@ -18,6 +18,7 @@ import { ZoomOutPlugin } from "./core/plugins/transitions/ZoomOutPlugin";
 import { TransformPlugin } from "./core/plugins/inspector/TransformPlugin";
 import { AppearancePlugin } from "./core/plugins/inspector/AppearancePlugin";
 import { CropPlugin } from "./core/plugins/inspector/CropPlugin";
+import { AudioPlugin } from "./core/plugins/inspector/AudioPlugin";
 import { CursorZoomPlugin } from "./core/plugins/effects/CursorZoomPlugin";
 import { useRecorder } from "./composables/useRecorder";
 import SourcePicker from "./components/Recorder/SourcePicker.vue";
@@ -81,6 +82,7 @@ onMounted(async () => {
         new TransformPlugin(),
         new AppearancePlugin(),
         new CropPlugin(),
+        new AudioPlugin(),
         new CursorZoomPlugin()
     ];
 
