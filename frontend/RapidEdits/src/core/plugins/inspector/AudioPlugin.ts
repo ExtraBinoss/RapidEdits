@@ -7,6 +7,8 @@ import {
 } from "../PluginTypes";
 import { Volume2 } from "lucide-vue-next";
 
+import type { Clip } from "../../../types/Timeline";
+
 export class AudioPlugin extends BasePlugin {
     private metadata: PluginMetadata = {
         id: createPluginId(PluginCategory.Core, "audio-inspector"),
@@ -31,7 +33,10 @@ export class AudioPlugin extends BasePlugin {
         };
     }
 
-    getProperties(_data?: any): PluginPropertyDefinition[] {
+    getProperties(clip: Clip): PluginPropertyDefinition[] | undefined {
+        // Only show for audio clips or video clips (which usually have sound)
+        if (clip.type !== "audio" && clip.type !== "video") return undefined;
+
         return [
             {
                 label: "Volume",

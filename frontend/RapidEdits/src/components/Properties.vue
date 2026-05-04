@@ -84,8 +84,8 @@ const updateClipData = (newData: any) => {
 };
 
 const pluginProperties = computed(() => {
-    if (!plugin.value) return undefined;
-    return plugin.value.getProperties?.(selectedClip.value?.data);
+    if (!plugin.value || !selectedClip.value) return undefined;
+    return plugin.value.getProperties?.(selectedClip.value);
 });
 
 // --- Dynamic Global Inspectors ---
@@ -93,21 +93,12 @@ const pluginProperties = computed(() => {
 const globalInspectorPlugins = computed(() => {
     if (!selectedClip.value) return [];
     
-    const isAudio = selectedClip.value.type === 'audio';
-
     return pluginRegistry.getAll()
         .filter(p => !!p.getMetadata().isGlobalInspector)
         .filter(p => {
-            const id = p.getMetadata().id;
-            const isVisualInspector = id.includes('transform') || id.includes('appearance') || id.includes('crop');
-            
-            if (isAudio) {
-                // Audio clips only get audio-inspector
-                return id.includes('audio-inspector');
-            } else {
-                // Video/Image/Plugins get visual inspectors + audio-inspector (for video sound)
-                return isVisualInspector || id.includes('audio-inspector');
-            }
+            // Let the plugin decide if it has properties for this clip
+            const props = p.getProperties?.(selectedClip.value!);
+            return props && props.length > 0;
         })
         .sort((a, b) => (a.getMetadata().priority || 0) - (b.getMetadata().priority || 0));
 });
@@ -204,7 +195,7 @@ const getTransitionClip = (pluginId: string): Clip => {
                     <div class="py-1">
                         <PluginPropertiesRenderer
                             :clip="selectedClip"
-                            :properties="inspPlugin.getProperties?.(selectedClip.data)"
+                            :properties="inspPlugin.getProperties?.(selectedClip)"
                             @update:clip-data="(newData: any) => updateClipData(newData)"
                         />
                     </div>
@@ -249,7 +240,7 @@ const getTransitionClip = (pluginId: string): Clip => {
                             <div class="mt-1 ml-2 pl-3 border-l-2 border-brand-primary/20 pb-2">
                                 <PluginPropertiesRenderer
                                     :clip="getTransitionClip(trans.id)"
-                                    :properties="trans.plugin.getProperties?.(getTransitionData(trans.id))"
+                                    :properties="trans.plugin.getProperties?.(getTransitionClip(trans.id))"
                                     disable-direct-update
                                     @update:clip-data="(newData: any) => updateTransitionData(trans.id, newData)"
                                 />

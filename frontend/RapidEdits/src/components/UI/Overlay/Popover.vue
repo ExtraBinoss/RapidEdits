@@ -180,7 +180,7 @@ defineExpose({
                 <div
                     v-if="isActuallyOpen"
                     ref="contentRef"
-                    class="fixed bg-canvas-light border border-canvas-border rounded-lg shadow-2xl overflow-hidden"
+                    class="fixed bg-canvas-light border border-canvas-border shadow-2xl overflow-hidden"
                     :style="{
                         top: `${coords.top}px`,
                         left: `${coords.left}px`,

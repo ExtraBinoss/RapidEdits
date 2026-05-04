@@ -31,7 +31,7 @@ export class FadeInPlugin extends BasePlugin implements TransitionPlugin {
         };
     }
 
-    getProperties(): PluginPropertyDefinition[] {
+    getProperties(_clip: Clip): PluginPropertyDefinition[] {
         return [
             {
                 label: "Duration",

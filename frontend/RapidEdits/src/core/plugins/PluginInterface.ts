@@ -15,6 +15,7 @@ import type {
     FilmstripConfig,
     PluginPropertyDefinition,
     PluginMetadata,
+    QuickActionDefinition,
 } from "./PluginTypes";
 
 /**
@@ -44,7 +45,12 @@ export interface IPlugin {
      * Properties schema for UI generation.
      * Each property corresponds to a key in createData.
      */
-    getProperties?(data?: any): PluginPropertyDefinition[] | undefined;
+    getProperties?(clip: Clip): PluginPropertyDefinition[] | undefined;
+
+    /**
+     * Contextual quick actions shown near selection handles.
+     */
+    getQuickActions?(clip: Clip): QuickActionDefinition[] | undefined;
 
     /**
      * Render: create or return the THREE.Object3D for this clip.
@@ -151,7 +157,14 @@ export abstract class BasePlugin implements IPlugin {
      * Optional: define properties for the UI.
      * Return undefined if this plugin has no configurable properties.
      */
-    getProperties?(data?: any): PluginPropertyDefinition[] | undefined {
+    getProperties(_clip: Clip): PluginPropertyDefinition[] | undefined {
+        return undefined;
+    }
+
+    /**
+     * Default: no quick actions.
+     */
+    getQuickActions(_clip: Clip): QuickActionDefinition[] | undefined {
         return undefined;
     }
 

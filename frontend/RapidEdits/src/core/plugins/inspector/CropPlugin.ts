@@ -6,6 +6,8 @@ import {
     type PluginMetadata,
 } from "../PluginTypes";
 
+import type { Clip } from "../../../types/Timeline";
+
 export class CropPlugin extends BasePlugin {
     private metadata: PluginMetadata = {
         id: createPluginId(PluginCategory.Core, "crop"),
@@ -26,7 +28,10 @@ export class CropPlugin extends BasePlugin {
         };
     }
 
-    getProperties(): PluginPropertyDefinition[] {
+    getProperties(clip: Clip): PluginPropertyDefinition[] | undefined {
+        // Crop only for video/image, not text or audio
+        if (clip.type === "audio" || clip.type.includes("text")) return undefined;
+
         return [
             {
                 label: "Left",

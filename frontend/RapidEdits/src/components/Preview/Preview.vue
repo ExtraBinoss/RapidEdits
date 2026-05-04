@@ -7,6 +7,7 @@ import { editorEngine } from "../../core/EditorEngine";
 import OSD from "../UI/Overlay/OSD.vue";
 import AmbientLight from "../UI/AmbientLight.vue";
 import Select from "../UI/Input/Select.vue";
+import QuickActions from "./QuickActions.vue";
 
 const canvasContainer = ref<HTMLElement | null>(null);
 const store = useProjectStore();
@@ -318,6 +319,9 @@ const handleDrop = (e: DragEvent) => {
                     transform: `rotate(${gizmoRect.rotation}rad)`,
                 }"
             >
+                <!-- Quick Actions Popover -->
+                <QuickActions :gizmo-rect="gizmoRect" />
+
                 <!-- 8 Resize Handles: corners + edge midpoints -->
                 <div
                     v-for="handle in HANDLES"

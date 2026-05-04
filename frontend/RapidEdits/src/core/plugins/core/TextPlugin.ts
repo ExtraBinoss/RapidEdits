@@ -10,7 +10,9 @@ import {
     type FilmstripConfig,
     type PluginPropertyDefinition,
     type PluginMetadata,
+    type QuickActionDefinition,
 } from "../PluginTypes";
+import { Type, Palette } from "lucide-vue-next";
 
 /**
  * Text 3D Plugin: renders stylized text using Troika-three-text.
@@ -122,7 +124,8 @@ export class TextPlugin extends BasePlugin {
         };
     }
 
-    getProperties(data?: any): PluginPropertyDefinition[] {
+    getProperties(clip: Clip): PluginPropertyDefinition[] {
+        const data = clip.data;
         const selectedFamily = data?.fontFamily || "Arial";
         const familyFonts = TextPlugin.fontsByFamily.get(selectedFamily) || [];
 
@@ -267,6 +270,52 @@ export class TextPlugin extends BasePlugin {
                 label: "Rotation",
                 key: "rotation",
                 type: "vector3",
+            },
+        ];
+    }
+
+    getQuickActions(_clip: Clip): QuickActionDefinition[] {
+        return [
+            {
+                id: "typography",
+                label: "Typography",
+                icon: Type,
+                properties: [
+                    {
+                        label: "Font Family",
+                        key: "fontFamily",
+                        type: "select",
+                        options: TextPlugin.systemFamilies,
+                        defaultValue: "Arial",
+                    },
+                    {
+                        label: "Size",
+                        key: "fontSize",
+                        type: "slider",
+                        props: { min: 1, max: 200, step: 1 },
+                        defaultValue: 60,
+                    },
+                ],
+            },
+            {
+                id: "colors",
+                label: "Appearance",
+                icon: Palette,
+                properties: [
+                    {
+                        label: "Color",
+                        key: "color",
+                        type: "color",
+                        defaultValue: "#ffffff",
+                    },
+                    {
+                        label: "Extrusion Color",
+                        key: "depthColor",
+                        type: "color",
+                        showIf: (data: any) => data.is3D,
+                        defaultValue: "#3b82f6",
+                    },
+                ],
             },
         ];
     }

@@ -1,10 +1,13 @@
 import { BasePlugin } from "../PluginInterface";
+import type { Clip } from "../../../types/Timeline";
 import {
     createPluginId,
     PluginCategory,
     type PluginPropertyDefinition,
     type PluginMetadata,
+    type QuickActionDefinition,
 } from "../PluginTypes";
+import { SquareRoundCorner } from "lucide-vue-next";
 
 export class AppearancePlugin extends BasePlugin {
     private metadata: PluginMetadata = {
@@ -28,7 +31,10 @@ export class AppearancePlugin extends BasePlugin {
         };
     }
 
-    getProperties(_data?: any): PluginPropertyDefinition[] {
+    getProperties(clip: Clip): PluginPropertyDefinition[] | undefined {
+        // Appearance properties are for visual clips
+        if (clip.type === "audio") return undefined;
+
         return [
             {
                 label: "Opacity",
@@ -50,6 +56,35 @@ export class AppearancePlugin extends BasePlugin {
                 type: "slider",
                 props: { min: 0, max: 1, step: 0.01 },
                 defaultValue: 0,
+            },
+        ];
+    }
+
+    getQuickActions(clip: Clip): QuickActionDefinition[] | undefined {
+        // Rounding contextual actions: hide for text and audio
+        if (clip.type === "audio" || clip.type.includes("text")) return undefined;
+
+        return [
+            {
+                id: "rounding",
+                label: "Rounding",
+                icon: SquareRoundCorner,
+                properties: [
+                    {
+                        label: "Round Edges",
+                        key: "borderRadius",
+                        type: "slider",
+                        props: { min: 0, max: 1, step: 0.01 },
+                        defaultValue: 0,
+                    },
+                    {
+                        label: "Edge Softness",
+                        key: "edgeSoftness",
+                        type: "slider",
+                        props: { min: 0, max: 1, step: 0.01 },
+                        defaultValue: 0,
+                    },
+                ],
             },
         ];
     }

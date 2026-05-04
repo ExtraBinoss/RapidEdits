@@ -6,6 +6,8 @@ import {
     type PluginMetadata,
 } from "../PluginTypes";
 
+import type { Clip } from "../../../types/Timeline";
+
 export class TransformPlugin extends BasePlugin {
     private metadata: PluginMetadata = {
         id: createPluginId(PluginCategory.Core, "transform"),
@@ -28,9 +30,10 @@ export class TransformPlugin extends BasePlugin {
         };
     }
 
-    getProperties(_data?: any): PluginPropertyDefinition[] {
-        // Only show for media clips (or any clip that has position/scale/rotation data)
-        // Actually, we can just return the properties and let the UI decide if it wants to show it.
+    getProperties(clip: Clip): PluginPropertyDefinition[] | undefined {
+        // Transform is for visual clips
+        if (clip.type === "audio") return undefined;
+
         return [
             {
                 label: "Position",

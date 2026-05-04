@@ -137,12 +137,14 @@ export type PluginPropertyType =
     | "slider"
     | "divider";
 
-export interface PluginPropertyDefinition {
+/**
+ * Quick Actions: Small floating UI for contextual edits.
+ * Displayed near selection handles.
+ */
+export interface QuickActionDefinition {
+    id: string;
     label: string;
-    key: string; // path to data e.g. "fontSize" or "position" (for vector3 it takes the object)
-    type: PluginPropertyType;
-    defaultValue?: any;
-    props?: Record<string, any>; // HTML props like min, max, step, placeholder
-    options?: { label: string; value: any }[]; // For select type
-    showIf?: (data: any) => boolean; // Conditional rendering
+    icon: any; // Lucide component or similar
+    /** The properties to show in the popover when this action is clicked */
+    properties: PluginPropertyDefinition[];
 }

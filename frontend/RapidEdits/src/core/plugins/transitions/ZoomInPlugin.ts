@@ -32,7 +32,7 @@ export class ZoomInPlugin extends BasePlugin implements TransitionPlugin {
         };
     }
 
-    getProperties(): PluginPropertyDefinition[] {
+    getProperties(_clip: Clip): PluginPropertyDefinition[] {
         return [
             {
                 label: "Duration",
