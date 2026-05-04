@@ -71,18 +71,18 @@ const activePopoverId = ref<string | null>(null);
         }"
     >
         <!-- Action Buttons Sidebar -->
-        <div class="flex flex-col gap-1 p-1 bg-canvas-dark border border-canvas-border shadow-2xl">
+        <div class="flex flex-col gap-1 p-1 bg-canvas-dark border border-canvas-border shadow-2xl rounded-md">
             <div v-for="action in activeActions" :key="action.definition.id">
                 <Popover 
                     :is-open="activePopoverId === action.definition.id"
                     @update:is-open="(val) => activePopoverId = val ? action.definition.id : null"
-                    position="bottom-right"
+                    position="right"
                     :offset="12"
                     :z-index="1000"
                     trigger="manual"
                 >
                     <template #trigger>
-                        <Tooltip :text="action.definition.label" position="right">
+                        <Tooltip :text="action.definition.label" position="right" :disabled="activePopoverId === action.definition.id">
                             <Button 
                                 variant="icon"
                                 size="md"

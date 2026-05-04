@@ -185,15 +185,16 @@ const getTransitionClip = (pluginId: string): Clip => {
         <div v-if="selectedClip" class="p-2 space-y-2">
             <!-- Global Inspector Plugins (Transform, Appearance, Crop, etc.) -->
             <div 
-                v-for="inspPlugin in globalInspectorPlugins" 
-                :key="inspPlugin.getMetadata().id"
+                v-for="(inspPlugin, index) in globalInspectorPlugins" 
+                :key="selectedClip.id + '-' + inspPlugin.getMetadata().id"
             >
                 <Accordion 
                     :title="inspPlugin.getMetadata().name" 
-                    :defaultOpen="inspPlugin.getMetadata().id.includes('transform')"
+                    :defaultOpen="index === 0 || inspPlugin.getMetadata().id.includes('transform')"
                 >
                     <div class="py-1">
                         <PluginPropertiesRenderer
+                            :key="selectedClip.id + '-' + inspPlugin.getMetadata().id"
                             :clip="selectedClip"
                             :properties="inspPlugin.getProperties?.(selectedClip)"
                             @update:clip-data="(newData: any) => updateClipData(newData)"
@@ -212,7 +213,7 @@ const getTransitionClip = (pluginId: string): Clip => {
             />
 
             <!-- Dynamic Transitions Section -->
-            <div v-if="activeTransitions.length > 0" class="mt-2">
+            <div v-if="activeTransitions.length > 0" class="mt-2" :key="'transitions-' + selectedClip.id">
                 <Accordion title="Transitions" defaultOpen>
                     <div class="space-y-2 py-2">
                         <div 

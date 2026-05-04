@@ -16,7 +16,7 @@ export class AudioPlugin extends BasePlugin {
         type: "object",
         version: "1.0.0",
         isGlobalInspector: true,
-        priority: 5, // Show at the top for audio clips
+        priority: 100, // Show at the bottom for video clips, first for audio clips
         icon: Volume2
     };
 

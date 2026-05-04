@@ -2,6 +2,7 @@
     <div class="flex flex-col gap-1 pb-2">
         <template v-for="(group, groupIndex) in groupedProperties" :key="groupIndex">
             <component 
+                v-if="hasVisibleProps(group)"
                 :is="group.name ? Accordion : 'div'" 
                 v-bind="group.name ? { title: group.name, defaultOpen: groupIndex === firstCategoryIndex } : { class: 'flex flex-col gap-px mb-2' }"
             >
@@ -194,8 +195,12 @@ const groupedProperties = computed(() => {
 });
 
 const firstCategoryIndex = computed(() => {
-    return groupedProperties.value.findIndex(g => g.name !== '');
+    return groupedProperties.value.findIndex(g => g.name !== '' && g.props.some(p => shouldShow(p)));
 });
+
+const hasVisibleProps = (group: { props: PluginPropertyDefinition[] }) => {
+    return group.props.some(p => shouldShow(p));
+};
 
 const plugin = computed(() => {
     return pluginRegistry.get(props.clip.type as PluginId);

@@ -10,7 +10,7 @@ let resizeObserver: ResizeObserver | null = null;
 const props = withDefaults(
     defineProps<{
         isOpen?: boolean;
-        position?: "bottom-right" | "bottom-left" | "top-right" | "top-left" | "bottom" | "top";
+        position?: "bottom-right" | "bottom-left" | "top-right" | "top-left" | "bottom" | "top" | "right" | "left";
         trigger?: "click" | "hover" | "manual";
         matchWidth?: boolean;
         offset?: number;
@@ -91,30 +91,50 @@ const updatePosition = () => {
     let top = 0;
     let left = 0;
     let width = props.matchWidth ? triggerRect.width : 0;
+    let currentPos = props.position;
 
-    if (props.position === "bottom-right") {
-        top = triggerRect.bottom + gap;
-        left = triggerRect.right - contentWidth;
-    } else if (props.position === "bottom-left" || props.position === "bottom") {
-        top = triggerRect.bottom + gap;
-        left = triggerRect.left;
-    } else if (props.position === "top-right") {
-        top = triggerRect.top - contentHeight - gap;
-        left = triggerRect.right - contentWidth;
-    } else if (props.position === "top-left" || props.position === "top") {
-        top = triggerRect.top - contentHeight - gap;
-        left = triggerRect.left;
+    // Flip logic: Horizontal (for right/left)
+    if (currentPos === "right" && triggerRect.right + gap + contentWidth > viewportWidth - gap) {
+        currentPos = "left";
+    } else if (currentPos === "left" && triggerRect.left - gap - contentWidth < gap) {
+        currentPos = "right";
     }
 
-    // Smart adjustment: Vertical
-    if (top + contentHeight > viewportHeight - gap) {
+    // Flip logic: Vertical (for top/bottom)
+    if (currentPos.startsWith("bottom") && triggerRect.bottom + gap + contentHeight > viewportHeight - gap) {
+        currentPos = currentPos.replace("bottom", "top") as any;
+    } else if (currentPos.startsWith("top") && triggerRect.top - gap - contentHeight < gap) {
+        currentPos = currentPos.replace("top", "bottom") as any;
+    }
+
+    if (currentPos === "bottom-right") {
+        top = triggerRect.bottom + gap;
+        left = triggerRect.right - contentWidth;
+    } else if (currentPos === "bottom-left" || currentPos === "bottom") {
+        top = triggerRect.bottom + gap;
+        left = triggerRect.left;
+    } else if (currentPos === "top-right") {
         top = triggerRect.top - contentHeight - gap;
+        left = triggerRect.right - contentWidth;
+    } else if (currentPos === "top-left" || currentPos === "top") {
+        top = triggerRect.top - contentHeight - gap;
+        left = triggerRect.left;
+    } else if (currentPos === "right") {
+        top = triggerRect.top;
+        left = triggerRect.right + gap;
+    } else if (currentPos === "left") {
+        top = triggerRect.top;
+        left = triggerRect.left - contentWidth - gap;
+    }
+
+    // Secondary overflow adjustments (if flipping wasn't enough or wasn't applicable)
+    if (top + contentHeight > viewportHeight - gap) {
+        top = viewportHeight - contentHeight - gap;
     }
     if (top < gap) {
-        top = triggerRect.bottom + gap;
+        top = gap;
     }
 
-    // Smart adjustment: Horizontal
     if (left + contentWidth > viewportWidth - gap) {
         left = viewportWidth - contentWidth - gap;
     }
@@ -180,7 +200,7 @@ defineExpose({
                 <div
                     v-if="isActuallyOpen"
                     ref="contentRef"
-                    class="fixed bg-canvas-light border border-canvas-border shadow-2xl overflow-hidden"
+                    class="fixed bg-canvas-light border border-canvas-border shadow-2xl overflow-hidden rounded-lg"
                     :style="{
                         top: `${coords.top}px`,
                         left: `${coords.left}px`,

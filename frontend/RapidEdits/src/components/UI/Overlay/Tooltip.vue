@@ -4,6 +4,7 @@ import { ref } from "vue";
 const props = defineProps<{
     text: string;
     position?: "top" | "bottom" | "left" | "right";
+    disabled?: boolean;
 }>();
 
 const isVisible = ref(false);
@@ -95,6 +96,7 @@ const updatePosition = () => {
 };
 
 const show = () => {
+    if (props.disabled) return;
     isVisible.value = true;
     // Wait for render to calculate size
     setTimeout(updatePosition, 0);
