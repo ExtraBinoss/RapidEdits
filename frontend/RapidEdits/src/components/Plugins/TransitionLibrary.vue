@@ -434,8 +434,8 @@ const handlePluginDragEnd = () => {
                         class="absolute inset-0 pointer-events-none bg-canvas/40"
                     ></div>
 
-                    <div class="absolute left-2 right-2 bottom-2 z-20 pointer-events-none">
-                        <span class="block text-center text-[10px] text-text-main font-medium bg-canvas/80 px-1.5 py-0.5 rounded shadow-sm">
+                    <div class="absolute inset-x-2 bottom-2 z-20 pointer-events-none">
+                        <span class="block text-center text-[10px] text-white font-semibold bg-black/60 backdrop-blur-md px-2 py-1 rounded shadow-lg border border-white/10 uppercase tracking-wider">
                             {{ plugin.getMetadata().name }}
                         </span>
                     </div>

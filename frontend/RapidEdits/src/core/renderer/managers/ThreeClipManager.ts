@@ -259,23 +259,40 @@ export class ThreeClipManager {
             .map((c) => this.clipMeshes.get(c.id))
             .filter((obj): obj is THREE.Object3D => obj !== undefined);
 
+        const getTargetsForModifierClip = (modifierClip: Clip): THREE.Object3D[] => {
+            // Restrict transition/effect scope to the same track by default.
+            const sameTrackTargets = contentClips
+                .filter((c) => c.trackId === modifierClip.trackId)
+                .map((c) => this.clipMeshes.get(c.id))
+                .filter((obj): obj is THREE.Object3D => obj !== undefined);
+
+            if (sameTrackTargets.length > 0) return sameTrackTargets;
+
+            // If no content clip exists on that track at this frame, do not affect the whole scene.
+            return [];
+        };
+
         transitionClips.forEach((tClip) => {
             const pluginId = tClip.type as PluginId;
             const transitionPlugin = pluginRegistry.getTransition(pluginId);
             if (!transitionPlugin) return;
+            const transitionTargets = getTargetsForModifierClip(tClip);
+            if (transitionTargets.length === 0) return;
 
             const progress = (currentTime - tClip.start) / tClip.duration;
             const clampedProgress = Math.max(0, Math.min(1, progress));
 
-            transitionPlugin.apply(tClip, contentTargets, clampedProgress, currentTime);
+            transitionPlugin.apply(tClip, transitionTargets, clampedProgress, currentTime);
         });
 
         effectClips.forEach((eClip) => {
             const pluginId = eClip.type as PluginId;
             const effectPlugin = pluginRegistry.getEffect(pluginId);
             if (!effectPlugin) return;
+            const effectTargets = getTargetsForModifierClip(eClip);
+            if (effectTargets.length === 0) return;
 
-            effectPlugin.apply(eClip, contentTargets, currentTime - eClip.start, currentTime);
+            effectPlugin.apply(eClip, effectTargets, currentTime - eClip.start, currentTime);
         });
 
         // Capture Mode Update
