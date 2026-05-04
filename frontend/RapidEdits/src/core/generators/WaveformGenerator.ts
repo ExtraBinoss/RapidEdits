@@ -127,11 +127,11 @@ export class WaveformGenerator {
             };
 
             processNextChunk();
-        } catch (e) {
+        } catch (e: any) {
             console.error("Waveform generation failed", e);
             globalEventBus.emit({
                 type: EditorEventType.WAVEFORM_GENERATION_END,
-                payload: { assetId },
+                payload: { assetId, error: e.message || "Unknown error" },
             });
         }
     }

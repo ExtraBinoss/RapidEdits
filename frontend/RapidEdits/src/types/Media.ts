@@ -56,7 +56,7 @@ export type EditorEvent =
       }
     | {
           type: typeof EditorEventType.WAVEFORM_GENERATION_END;
-          payload: { assetId: string };
+          payload: { assetId: string; error?: string };
       }
     | {
           type: typeof EditorEventType.WAVEFORM_CHUNK_GENERATED;

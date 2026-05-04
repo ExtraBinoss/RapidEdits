@@ -115,6 +115,8 @@ const loop = () => {
     animationFrame = requestAnimationFrame(loop);
 };
 
+const error = ref<string | null>(null);
+
 const handleChunk = (payload: any) => {
     if (payload.assetId !== props.clip.assetId || !peaks.value) return;
 
@@ -129,6 +131,12 @@ const handleChunk = (payload: any) => {
     }
 };
 
+const handleEnd = (payload: any) => {
+    if (payload.assetId === props.clip.assetId && payload.error) {
+        error.value = payload.error;
+    }
+};
+
 onMounted(() => {
     if (!asset) return;
 
@@ -139,6 +147,7 @@ onMounted(() => {
 
     // Listen
     globalEventBus.on(EditorEventType.WAVEFORM_CHUNK_GENERATED, handleChunk);
+    globalEventBus.on(EditorEventType.WAVEFORM_GENERATION_END, handleEnd);
 
     // Request Generation
     waveformGenerator.requestWaveform(asset.url, asset.id, totalSamples);
@@ -149,12 +158,14 @@ onMounted(() => {
 onBeforeUnmount(() => {
     cancelAnimationFrame(animationFrame);
     globalEventBus.off(EditorEventType.WAVEFORM_CHUNK_GENERATED, handleChunk);
+    globalEventBus.off(EditorEventType.WAVEFORM_GENERATION_END, handleEnd);
 });
 
 watch(
     () => props.clip.assetId,
     () => {
         peaks.value = null;
+        error.value = null;
         // Logic to re-request would go here
     },
 );
@@ -165,7 +176,13 @@ watch(
         ref="container"
         class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none opacity-80"
     >
+        <div v-if="error" class="absolute inset-0 flex items-center justify-center bg-red-500/5">
+            <span class="text-[9px] font-bold text-red-500/60 uppercase tracking-wider">
+                No Audio Data Found
+            </span>
+        </div>
         <canvas
+            v-else
             ref="canvas"
             class="absolute top-0 h-full"
             :style="{ left: `${canvasLeft}px`, width: `${canvasWidth}px` }"
