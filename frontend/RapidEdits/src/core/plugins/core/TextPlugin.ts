@@ -360,6 +360,8 @@ export class TextPlugin extends BasePlugin {
         textObj.anchorX = "center";
         textObj.anchorY = "middle";
         textObj.position.z = z;
+        textObj.castShadow = true;
+        textObj.receiveShadow = true;
         this.updateLayerProperties(textObj, data, color);
         
         this.getFontUrl(data.fontFamily, data.fontWeight, data.fontStyle).then(url => {
@@ -380,10 +382,13 @@ export class TextPlugin extends BasePlugin {
         layer.lineHeight = data.lineHeight || 1.2;
         layer.curveRadius = data.curveRadius || 0;
         
-        // Advanced material props for glow
+        // Use lit/PBR-like params so text reacts to scene lights.
         layer.materialProps = {
+            roughness: 0.35,
+            metalness: 0.2,
             emissive: new THREE.Color(color),
-            emissiveIntensity: data.emissiveIntensity || 0,
+            emissiveIntensity: Math.min(0.6, data.emissiveIntensity || 0),
+            toneMapped: true,
         };
 
         // Outline

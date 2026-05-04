@@ -55,8 +55,30 @@ export class ThreeGizmoManager {
         clipMesh.updateMatrixWorld(true);
 
         // 1. Get the screen-space center
-        const worldCenter = new THREE.Vector3();
-        clipMesh.getWorldPosition(worldCenter);
+        // We use the center of the bounding box instead of the pivot
+        const localBox = new THREE.Box3();
+        const inverseWorld = clipMesh.matrixWorld.clone().invert();
+        
+        let hasGeometry = false;
+        clipMesh.traverse(child => {
+            if (child instanceof THREE.Mesh) {
+                if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+                if (child.geometry.boundingBox) {
+                    const b = child.geometry.boundingBox.clone();
+                    b.applyMatrix4(child.matrixWorld.clone().premultiply(inverseWorld));
+                    localBox.union(b);
+                    hasGeometry = true;
+                }
+            }
+        });
+
+        if (!hasGeometry || localBox.isEmpty()) { 
+            localBox.set(new THREE.Vector3(-0.5, -0.5, 0), new THREE.Vector3(0.5, 0.5, 0));
+        }
+
+        const localCenter = new THREE.Vector3();
+        localBox.getCenter(localCenter);
+        const worldCenter = localCenter.clone().applyMatrix4(clipMesh.matrixWorld);
         const screenCenter = worldCenter.clone().project(this.camera);
 
         const cw = this.rendererDomElement.clientWidth;
@@ -72,12 +94,11 @@ export class ThreeGizmoManager {
         const rotationZ = Math.atan2(te[1], te[0]);
 
         // 3. Get the logical size in world units by projecting unrotated local axes
-        // We create a temporary matrix that has the same scale but NO rotation
-        const worldScale = new THREE.Vector3();
-        clipMesh.getWorldScale(worldScale);
+        const size = new THREE.Vector3();
+        localBox.getSize(size);
         
-        const rightPoint = new THREE.Vector3(0.5, 0, 0).applyMatrix4(clipMesh.matrixWorld);
-        const topPoint = new THREE.Vector3(0, 0.5, 0).applyMatrix4(clipMesh.matrixWorld);
+        const rightPoint = localCenter.clone().add(new THREE.Vector3(size.x / 2, 0, 0)).applyMatrix4(clipMesh.matrixWorld);
+        const topPoint = localCenter.clone().add(new THREE.Vector3(0, size.y / 2, 0)).applyMatrix4(clipMesh.matrixWorld);
         
         const projCenter = worldCenter.clone().project(this.camera);
         const projRight = rightPoint.project(this.camera);

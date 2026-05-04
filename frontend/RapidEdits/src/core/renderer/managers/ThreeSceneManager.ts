@@ -18,6 +18,8 @@ export class ThreeSceneManager {
     public planeGeometry: THREE.PlaneGeometry;
     public placeholderMesh: THREE.Mesh;
     public borderMesh: THREE.LineSegments;
+    public ambientLight: THREE.AmbientLight;
+    public keyLight: THREE.DirectionalLight;
 
     private width: number = 1920;
     private height: number = 1080;
@@ -61,6 +63,8 @@ export class ThreeSceneManager {
         this.renderer.toneMapping = THREE.NoToneMapping;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.setClearColor(0x000000, 0); // Transparent outside the canvas
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
         if (this.container && !options.canvas) {
             this.container.appendChild(this.renderer.domElement);
@@ -86,6 +90,18 @@ export class ThreeSceneManager {
         );
         this.borderMesh.position.z = -5;
         this.scene.add(this.borderMesh);
+
+        // 7. Lighting for 3D objects (e.g., text plugins using lit materials)
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+        this.scene.add(this.ambientLight);
+
+        this.keyLight = new THREE.DirectionalLight(0xffffff, 1.15);
+        this.keyLight.position.set(500, 700, 1200);
+        this.keyLight.castShadow = true;
+        this.keyLight.shadow.mapSize.set(1024, 1024);
+        this.keyLight.shadow.camera.near = 1;
+        this.keyLight.shadow.camera.far = 5000;
+        this.scene.add(this.keyLight);
     }
 
     public zoom: number | "fit" | "fill" = "fit";
