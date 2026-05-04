@@ -324,14 +324,18 @@ export class ThreeClipManager {
         // For Plugins, baseScale is 1,1,1
         const baseScale = (object.userData.baseScale as THREE.Vector3) || new THREE.Vector3(1, 1, 1);
 
-        if (position) object.position.set(position.x, position.y, object.position.z);
-        if (rotation) {
-            object.rotation.set(
-                THREE.MathUtils.degToRad(rotation.x ?? 0),
-                THREE.MathUtils.degToRad(rotation.y ?? 0),
-                THREE.MathUtils.degToRad(rotation.z ?? 0)
-            );
-        }
+        // Always reset to a deterministic base before effects/transitions mutate transforms.
+        // If clip has no explicit position, fallback to basePosition or origin.
+        const basePosition = (object.userData.basePosition as THREE.Vector3) || new THREE.Vector3(0, 0, object.position.z);
+        object.position.x = position?.x ?? basePosition.x ?? 0;
+        object.position.y = position?.y ?? basePosition.y ?? 0;
+
+        // Always set a full rotation state (otherwise rotations can persist frame-to-frame).
+        object.rotation.set(
+            THREE.MathUtils.degToRad(rotation?.x ?? 0),
+            THREE.MathUtils.degToRad(rotation?.y ?? 0),
+            THREE.MathUtils.degToRad(rotation?.z ?? 0)
+        );
         
         if (scale) {
             object.scale.set(
