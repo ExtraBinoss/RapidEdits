@@ -81,29 +81,37 @@ const render = () => {
     const centerY = height / 2;
     const scaleY = height / 2;
 
+    const volume = props.clip.data?.volume ?? 1.0;
+    const isNormalized = props.clip.data?.normalization ?? false;
+    
+    let normalizationScale = 1.0;
+    if (isNormalized && peaks.value) {
+        let maxPeak = 0;
+        // Sample some peaks to find max (for performance, don't check every single one if buffer is huge)
+        const step = Math.max(1, Math.floor(peaks.value.length / 1000));
+        for (let i = 0; i < peaks.value.length; i += step) {
+            if (peaks.value[i] > maxPeak) maxPeak = peaks.value[i];
+        }
+        if (maxPeak > 0) normalizationScale = 1.0 / maxPeak;
+    }
+
+    const totalScale = volume * normalizationScale;
+
     // Map pixels to peaks
-    // Clip Duration (s) -> Container Width (px) -> Peaks (index)
-    // Pixels Per Second = containerRect.width / props.clip.duration
     const pixelsPerSecond = containerRect.width / props.clip.duration;
 
-    // We want to draw `renderWidthPx` pixels starting at `renderStartPx`
-    // Start Time = renderStartPx / pixelsPerSecond
-    // const startTime = renderStartPx / pixelsPerSecond; // unused
-    // const endTime = (renderStartPx + renderWidthPx) / pixelsPerSecond; // unused
-
-    // Loop through pixels (optimization: one line per pixel column)
+    // Loop through pixels
     for (let x = 0; x < renderWidthPx; x++) {
-        // Pixel global position
         const globalX = renderStartPx + x;
         const time = globalX / pixelsPerSecond;
-
-        // Find corresponding peak
         const peakIndex = Math.floor(time * PEAKS_PER_SECOND);
 
         if (peakIndex < peaks.value.length) {
-            const val = peaks.value[peakIndex] ?? 0;
+            let val = peaks.value[peakIndex] ?? 0;
+            val *= totalScale;
+            
             if (val > 0.01) {
-                const magnitude = val * scaleY;
+                const magnitude = Math.min(1.0, val) * scaleY;
                 ctx.fillRect(x, centerY - magnitude, 1, magnitude * 2);
             }
         }
