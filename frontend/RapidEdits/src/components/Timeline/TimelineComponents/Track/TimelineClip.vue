@@ -234,13 +234,19 @@ const handleDrop = (e: DragEvent) => {
             const meta = plugin?.getMetadata();
             const slot = meta?.transitionSlot || "in";
 
+            // Determine effective slot if 'any'
+            let effectiveSlot = slot;
+            if (slot === 'any') {
+                effectiveSlot = percentage < 0.5 ? 'in' : 'out';
+            }
+
             const currentTransitions = { ...(props.clip.data?.transitions || {}) };
             
             // Enforce "one transition per slot": remove any existing transition that shares the same slot
-            if (slot !== "any") {
+            if (effectiveSlot !== "any") {
                 Object.keys(currentTransitions).forEach(id => {
                     const existingPlugin = pluginRegistry.get(id as PluginId);
-                    if (existingPlugin?.getMetadata().transitionSlot === slot) {
+                    if (existingPlugin?.getMetadata().transitionSlot === effectiveSlot) {
                         delete currentTransitions[id];
                     }
                 });
@@ -249,7 +255,7 @@ const handleDrop = (e: DragEvent) => {
             // Use the actual plugin ID as the key for the transition config
             currentTransitions[pluginId] = {
                 ...plugin?.createData(),
-                ...(meta?.transitionSlot === "any" ? { slot: percentage < 0.5 ? "in" : "out" } : {})
+                ...(slot === "any" ? { slot: effectiveSlot } : {})
             };
 
             store.updateClip(props.clip.id, {

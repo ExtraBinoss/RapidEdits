@@ -61,6 +61,8 @@ export interface PluginMetadata {
     priority?: number;
     /** Dependencies on other plugins, if any */
     dependencies?: PluginId[];
+    /** Default data for initialization */
+    defaultData?: any;
 }
 
 /**

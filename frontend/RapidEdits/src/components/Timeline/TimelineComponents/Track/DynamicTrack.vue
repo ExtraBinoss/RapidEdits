@@ -3,7 +3,7 @@ import { TrackType, type Track } from "../../../../types/Timeline";
 import TimelineClip from "../Track/TimelineClip.vue";
 import { ref, computed } from "vue";
 import { pluginRegistry } from "../../../../core/plugins/PluginRegistry";
-import { Ban, Video, Music, Image as ImageIcon, Box } from "lucide-vue-next";
+import { Ban, Video, Music, Image as ImageIcon, Box, Trash2 } from "lucide-vue-next";
 import { useProjectStore } from "../../../../stores/projectStore";
 import { MediaType } from "../../../../types/Media";
 import { editorEngine } from "../../../../core/EditorEngine";
@@ -44,7 +44,48 @@ const visibleClips = computed(() => {
         return start < props.visibleEnd! && end > props.visibleStart!;
     });
 });
-// ... (rest of filtering logic implemented implicitly via computed above)
+
+// Gaps logic
+const gaps = computed(() => {
+    const trackGaps: { start: number; end: number; id: string }[] = [];
+    const sortedClips = [...props.track.clips].sort((a, b) => a.start - b.start);
+    
+    // Gap before first clip
+    if (sortedClips.length > 0 && sortedClips[0].start > 0.05) {
+        trackGaps.push({
+            start: 0,
+            end: sortedClips[0].start,
+            id: 'gap-start'
+        });
+    }
+    
+    // Gaps between clips
+    for (let i = 0; i < sortedClips.length - 1; i++) {
+        const currentEnd = sortedClips[i].start + sortedClips[i].duration;
+        const nextStart = sortedClips[i+1].start;
+        if (nextStart > currentEnd + 0.05) {
+            trackGaps.push({
+                start: currentEnd,
+                end: nextStart,
+                id: `gap-${sortedClips[i].id}`
+            });
+        }
+    }
+    
+    return trackGaps;
+});
+
+const handleCloseGap = (gapStart: number, gapEnd: number) => {
+    const gapDuration = gapEnd - gapStart;
+    // Find all clips in this track that are AFTER this gap
+    const clipsToShift = props.track.clips.filter(c => c.start >= gapEnd - 0.01);
+    
+    clipsToShift.forEach(clip => {
+        store.updateClip(clip.id, {
+            start: clip.start - gapDuration
+        });
+    });
+};
 
 const isDropAllowed = computed(() => {
     const draggedAsset = store.draggedAsset;
@@ -113,6 +154,7 @@ const ghostData = computed(() => {
 });
 
 const ghostDuration = ref(5.0);
+const ghostTransitionSlot = ref<string | undefined>(undefined);
 
 const handleDragOver = (e: DragEvent) => {
     if (!isDropAllowed.value) {
@@ -129,6 +171,8 @@ const handleDragOver = (e: DragEvent) => {
     // Snapping Logic
     let finalTime = rawTime;
     let finalDuration = ghostData.value?.duration || 5.0;
+    let showGhost = true;
+    let effectiveSlot: string | undefined = undefined;
 
     const meta = store.draggedPlugin?.getMetadata();
     if (meta?.type === 'transition') {
@@ -142,12 +186,34 @@ const handleDragOver = (e: DragEvent) => {
             const slot = meta.transitionSlot || 'in';
             const duration = meta.defaultData?.duration || 1.0;
             
-            if (slot === 'in') {
-                finalTime = clip.start;
-            } else if (slot === 'out') {
-                finalTime = clip.start + clip.duration - duration;
+            const percentage = (rawTime - clip.start) / clip.duration;
+            
+            // If slot is 'any', decide based on which side of the clip we are closer to
+            effectiveSlot = slot;
+            if (slot === 'any') {
+                effectiveSlot = percentage < 0.5 ? 'in' : 'out';
             }
-            finalDuration = duration;
+
+            // If it's a specific slot ('in' or 'out'), only show it if the mouse is on that side
+            // This improves "precision" and prevents jumping to the other side of a long clip
+            if (slot === 'in' && percentage > 0.6) {
+                showGhost = false;
+            } else if (slot === 'out' && percentage < 0.4) {
+                showGhost = false;
+            }
+
+            if (showGhost) {
+                if (effectiveSlot === 'in') {
+                    finalTime = clip.start;
+                } else if (effectiveSlot === 'out') {
+                    finalTime = clip.start + clip.duration - duration;
+                }
+                finalDuration = duration;
+                ghostTransitionSlot.value = effectiveSlot;
+            }
+        } else {
+            // Transition MUST be over a clip
+            showGhost = false;
         }
     } else if (editorEngine.getIsSnappingEnabled()) {
         const thresholdSeconds = 15 / props.zoomLevel;
@@ -160,7 +226,8 @@ const handleDragOver = (e: DragEvent) => {
 
     ghostX.value = finalTime * props.zoomLevel;
     ghostDuration.value = finalDuration;
-    isOver.value = true;
+    ghostTransitionSlot.value = effectiveSlot;
+    isOver.value = showGhost;
 
     // Allow drop
     if (e.dataTransfer) {
@@ -207,10 +274,32 @@ const handleContainerClick = (e: MouseEvent) => {
         @drop="handleDrop"
         @click="handleContainerClick"
     >
+        <!-- Gap Indicators -->
+        <div 
+            v-for="gap in gaps" 
+            :key="gap.id"
+            class="absolute top-0 bottom-0 z-10 group/gap cursor-pointer"
+            :style="{
+                left: `${gap.start * zoomLevel}px`,
+                width: `${(gap.end - gap.start) * zoomLevel}px`
+            }"
+            @click.stop="handleCloseGap(gap.start, gap.end)"
+        >
+            <div class="absolute inset-0 bg-white/0 group-hover/gap:bg-white/5 transition-colors flex items-center justify-center gap-2">
+                <div class="h-8 px-3 rounded-lg bg-brand-primary/0 group-hover/gap:bg-brand-primary/90 flex items-center justify-center gap-2 scale-75 group-hover/gap:scale-100 transition-all shadow-lg opacity-0 group-hover/gap:opacity-100">
+                    <Trash2 class="w-4 h-4 text-white" />
+                    <span class="text-[10px] text-white font-bold uppercase tracking-wider whitespace-nowrap">Delete Gap</span>
+                </div>
+            </div>
+            <!-- Ripple Effect Decoration -->
+            <div class="absolute left-0 top-0 bottom-0 w-1 bg-brand-primary/0 group-hover/gap:bg-brand-primary/30 transition-colors"></div>
+            <div class="absolute right-0 top-0 bottom-0 w-1 bg-brand-primary/0 group-hover/gap:bg-brand-primary/30 transition-colors"></div>
+        </div>
+
         <!-- Ghost Preview Clip -->
         <GhostClip 
             v-if="isOver && isDropAllowed && ghostData"
-            :ghost-data="ghostData ? { ...ghostData, duration: ghostDuration } : null" 
+            :ghost-data="ghostData ? { ...ghostData, duration: ghostDuration, transitionSlot: ghostTransitionSlot } : null" 
             :x="ghostX" 
             :zoom-level="zoomLevel" 
         />
@@ -237,3 +326,7 @@ const handleContainerClick = (e: MouseEvent) => {
         />
     </div>
 </template>
+
+<style scoped>
+/* Any track-specific styles */
+</style>

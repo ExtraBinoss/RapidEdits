@@ -107,6 +107,12 @@ const ghostData = computed(() => {
 });
 
 const handleZoneDragOver = (e: DragEvent, type: "video" | "audio") => {
+    // Transitions cannot be dropped on empty zones to create tracks
+    if (store.draggedPlugin?.getMetadata().type === 'transition') {
+        hoverZone.value = null;
+        return;
+    }
+
     hoverZone.value = type;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const rawX = e.clientX - rect.left;
@@ -248,12 +254,19 @@ const handleTrackDrop = (e: DragEvent, trackId: number) => {
                     const currentData = { ...(clip.data || {}) };
                     const transitions = { ...(currentData.transitions || {}) };
                     const slot = meta.transitionSlot || "in";
+                    
+                    // Determine effective slot if 'any'
+                    let effectiveSlot = slot;
+                    if (slot === 'any') {
+                        const percentage = (rawTime - clip.start) / clip.duration;
+                        effectiveSlot = percentage < 0.5 ? 'in' : 'out';
+                    }
 
                     // Enforce "one transition per slot"
-                    if (slot !== "any") {
+                    if (effectiveSlot !== "any") {
                         Object.keys(transitions).forEach(id => {
                             const existingPlugin = pluginRegistry.get(id as PluginId);
-                            if (existingPlugin?.getMetadata().transitionSlot === slot) {
+                            if (existingPlugin?.getMetadata().transitionSlot === effectiveSlot) {
                                 delete transitions[id];
                             }
                         });
@@ -261,7 +274,10 @@ const handleTrackDrop = (e: DragEvent, trackId: number) => {
                     
                     // Create default data for this transition
                     const defaultData = store.draggedPlugin.createData?.() || { duration: 1.0 };
-                    transitions[meta.id] = defaultData;
+                    transitions[meta.id] = {
+                        ...defaultData,
+                        ...(slot === 'any' ? { slot: effectiveSlot } : {})
+                    };
                     
                     store.updateClip(clip.id, {
                         data: { ...currentData, transitions }
