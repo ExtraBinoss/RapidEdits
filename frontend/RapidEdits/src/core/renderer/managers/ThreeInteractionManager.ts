@@ -121,10 +121,7 @@ export class ThreeInteractionManager {
     }
 
     private getScaleObject(clipMesh: THREE.Object3D): THREE.Object3D {
-        if (clipMesh instanceof THREE.Group && clipMesh.children.length > 0) {
-            return clipMesh.children[0]!;
-        }
-        return clipMesh; // Mesh: scale is on itself
+        return clipMesh; // Scale is always applied to the top-level stored object in ThreeClipManager
     }
 
     private isGizmo(obj: THREE.Object3D): boolean {

@@ -4,7 +4,7 @@ import { Trash2 } from "lucide-vue-next";
 import type { Track } from "../../../../types/Timeline";
 import ContextMenu from "../../../UI/ContextMenu/ContextMenu.vue";
 import type { ContextMenuItem } from "../../../UI/ContextMenu/ContextMenu.vue";
-import ColorInput from "../../../UI/ColorPicker/ColorInput.vue";
+import ColorPicker from "../../../UI/ColorPicker/ColorPicker.vue";
 import { useProjectStore } from "../../../../stores/projectStore";
 
 const props = defineProps<{
@@ -54,7 +54,7 @@ const ColorPickerSubmenu = {
     setup(props: any) {
         return () =>
             h("div", { class: "p-3 w-64 bg-canvas-dark" }, [
-                h(ColorInput, {
+                h(ColorPicker, {
                     modelValue:
                         store.tracks.find((t) => t.id === props.track?.id)
                             ?.color || "#3B82F6",

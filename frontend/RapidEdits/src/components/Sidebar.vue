@@ -5,6 +5,7 @@ import {
     Type,
     Wand2,
     Sticker,
+    Square,
     SplitSquareHorizontal,
     Sun,
     Moon,
@@ -31,6 +32,7 @@ const projectStore = useProjectStore();
 const tabs = [
     { id: "media", icon: Files, label: "Media" },
     { id: "text", icon: Type, label: "Text" },
+    { id: "shapes", icon: Square, label: "Shapes" },
     { id: "stickers", icon: Sticker, label: "Stickers" },
     { id: "effects", icon: Wand2, label: "Effects" },
     { id: "transitions", icon: SplitSquareHorizontal, label: "Transitions" },
@@ -40,14 +42,23 @@ const tabs = [
 const activePlugins = computed(() => {
     let type: "object" | "effect" | "transition" | null = null;
     if (activeTab.value === "text") type = "object";
-    // TODO: Distinguish between Text objects and other 3D objects if needed
+    if (activeTab.value === "shapes") type = "object";
     if (activeTab.value === "effects") type = "effect";
     if (activeTab.value === "transitions") type = "transition";
 
     if (!type) return [];
     return pluginRegistry.state.availablePlugins.filter((p) => {
         const meta = p.getMetadata();
-        return meta.type === type && !meta.isGlobalInspector;
+        if (meta.type !== type || meta.isGlobalInspector) return false;
+
+        // Categorize Object plugins
+        if (type === "object") {
+            const isText = meta.id.includes("text");
+            if (activeTab.value === "text") return isText;
+            if (activeTab.value === "shapes") return !isText;
+        }
+
+        return true;
     });
 });
 

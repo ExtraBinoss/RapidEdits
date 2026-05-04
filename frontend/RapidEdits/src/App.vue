@@ -20,6 +20,10 @@ import { AppearancePlugin } from "./core/plugins/inspector/AppearancePlugin";
 import { CropPlugin } from "./core/plugins/inspector/CropPlugin";
 import { AudioPlugin } from "./core/plugins/inspector/AudioPlugin";
 import { CursorZoomPlugin } from "./core/plugins/effects/CursorZoomPlugin";
+import { SolidColorPlugin } from "./core/plugins/generators/SolidColorPlugin";
+import { GradientPlugin } from "./core/plugins/generators/GradientPlugin";
+import { NoisePlugin } from "./core/plugins/generators/NoisePlugin";
+import { ShaderBackgroundPlugin } from "./core/plugins/generators/ShaderBackgroundPlugin";
 import { useRecorder } from "./composables/useRecorder";
 import SourcePicker from "./components/Recorder/SourcePicker.vue";
 import RecordingToolbar from "./components/Recorder/RecordingToolbar.vue";
@@ -83,7 +87,11 @@ onMounted(async () => {
         new AppearancePlugin(),
         new CropPlugin(),
         new AudioPlugin(),
-        new CursorZoomPlugin()
+        new CursorZoomPlugin(),
+        new SolidColorPlugin(),
+        new GradientPlugin(),
+        new NoisePlugin(),
+        new ShaderBackgroundPlugin()
     ];
 
     pluginsToRegister.forEach(p => {

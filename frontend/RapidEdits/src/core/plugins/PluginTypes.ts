@@ -135,6 +135,7 @@ export type PluginPropertyType =
     | "select"
     | "long-text"
     | "slider"
+    | "gradient"
     | "divider";
 
 /**

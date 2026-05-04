@@ -110,7 +110,7 @@
                                 </div>
 
                                 <!-- Color -->
-                                <ColorInput
+                                <ColorPicker
                                     v-else-if="prop.type === 'color'"
                                     :model-value="getValue(prop.key)"
                                     @update:model-value="(val) => updateProperty(prop.key, val)"
@@ -130,6 +130,14 @@
                                         :model-value="getValue(prop.key)"
                                         :options="prop.options || []"
                                         size="small"
+                                        @update:model-value="(val) => updateProperty(prop.key, val)"
+                                    />
+                                </div>
+                                
+                                <!-- Gradient -->
+                                <div v-else-if="prop.type === 'gradient'" class="w-full">
+                                    <Gradient
+                                        :model-value="getValue(prop.key)"
                                         @update:model-value="(val) => updateProperty(prop.key, val)"
                                     />
                                 </div>
@@ -166,11 +174,12 @@ import type { PluginId } from "../../core/plugins/PluginTypes";
 import Input from "../UI/Input/Input.vue";
 import TextArea from "../UI/TextArea/TextArea.vue";
 import Slider from "../UI/Slider/Slider.vue";
-import ColorInput from "../UI/ColorPicker/ColorInput.vue";
+import ColorPicker from "../UI/ColorPicker/ColorPicker.vue";
 import Switch from "../UI/Switch/Switch.vue";
 import Select from "../UI/Input/Select.vue";
 import Accordion from "../UI/Accordion/Accordion.vue";
 import Button from "../UI/Button/Button.vue";
+import Gradient from "../UI/Gradient/Gradient.vue";
 
 const props = defineProps<{
     clip: Clip;

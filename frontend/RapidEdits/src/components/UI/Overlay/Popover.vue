@@ -10,32 +10,44 @@ let resizeObserver: ResizeObserver | null = null;
 const props = withDefaults(
     defineProps<{
         isOpen?: boolean;
+        modelValue?: boolean;
         position?: "bottom-right" | "bottom-left" | "top-right" | "top-left" | "bottom" | "top" | "right" | "left";
+        align?: "start" | "center" | "end";
         trigger?: "click" | "hover" | "manual";
         matchWidth?: boolean;
         offset?: number;
         zIndex?: number;
+        anchorPoint?: { x: number; y: number } | null;
+        referenceEl?: HTMLElement | null;
+        transparent?: boolean;
     }>(),
     {
         isOpen: undefined,
+        modelValue: undefined,
         position: "bottom-left",
+        align: "start",
         trigger: "click",
         matchWidth: false,
         offset: 8,
         zIndex: 40,
+        anchorPoint: null,
+        referenceEl: null,
+        transparent: false,
     },
 );
 
-const emit = defineEmits(["update:isOpen"]);
+const emit = defineEmits(["update:isOpen", "update:modelValue"]);
 
 const isActuallyOpen = computed({
-    get: () => (props.isOpen !== undefined ? props.isOpen : internalIsOpen.value),
+    get: () => {
+        if (props.isOpen !== undefined) return props.isOpen;
+        if (props.modelValue !== undefined) return props.modelValue;
+        return internalIsOpen.value;
+    },
     set: (val) => {
-        if (props.isOpen !== undefined) {
-            emit("update:isOpen", val);
-        } else {
-            internalIsOpen.value = val;
-        }
+        if (props.isOpen !== undefined) emit("update:isOpen", val);
+        if (props.modelValue !== undefined) emit("update:modelValue", val);
+        internalIsOpen.value = val;
     },
 });
 
@@ -77,8 +89,42 @@ const close = () => {
 };
 
 const updatePosition = () => {
-    if (!triggerRef.value || !contentRef.value) return;
-    const triggerRect = triggerRef.value.getBoundingClientRect();
+    if (!contentRef.value) return;
+
+    let triggerRect: { top: number; left: number; right: number; bottom: number; width: number; height: number };
+
+    if (props.anchorPoint) {
+        triggerRect = {
+            top: props.anchorPoint.y,
+            bottom: props.anchorPoint.y,
+            left: props.anchorPoint.x,
+            right: props.anchorPoint.x,
+            width: 0,
+            height: 0,
+        };
+    } else if (props.referenceEl) {
+        const rect = props.referenceEl.getBoundingClientRect();
+        triggerRect = {
+            top: rect.top,
+            bottom: rect.bottom,
+            left: rect.left,
+            right: rect.right,
+            width: rect.width,
+            height: rect.height,
+        };
+    } else if (triggerRef.value) {
+        const rect = triggerRef.value.getBoundingClientRect();
+        triggerRect = {
+            top: rect.top,
+            bottom: rect.bottom,
+            left: rect.left,
+            right: rect.right,
+            width: rect.width,
+            height: rect.height,
+        };
+    } else {
+        return;
+    }
     
     // Use offsetWidth/Height to avoid transform interference (like scale-95 in transition)
     const contentWidth = contentRef.value.offsetWidth;
@@ -107,27 +153,31 @@ const updatePosition = () => {
         currentPos = currentPos.replace("top", "bottom") as any;
     }
 
-    if (currentPos === "bottom-right") {
+    // Position logic
+    if (currentPos.startsWith("bottom")) {
         top = triggerRect.bottom + gap;
-        left = triggerRect.right - contentWidth;
-    } else if (currentPos === "bottom-left" || currentPos === "bottom") {
-        top = triggerRect.bottom + gap;
-        left = triggerRect.left;
-    } else if (currentPos === "top-right") {
+    } else if (currentPos.startsWith("top")) {
         top = triggerRect.top - contentHeight - gap;
-        left = triggerRect.right - contentWidth;
-    } else if (currentPos === "top-left" || currentPos === "top") {
-        top = triggerRect.top - contentHeight - gap;
-        left = triggerRect.left;
-    } else if (currentPos === "right") {
+    } else if (currentPos === "right" || currentPos === "left") {
         top = triggerRect.top;
+    }
+
+    // Alignment logic
+    if (currentPos.startsWith("bottom") || currentPos.startsWith("top")) {
+        if (props.align === "start") {
+            left = triggerRect.left;
+        } else if (props.align === "center") {
+            left = triggerRect.left + triggerRect.width / 2 - contentWidth / 2;
+        } else if (props.align === "end") {
+            left = triggerRect.right - contentWidth;
+        }
+    } else if (currentPos === "right") {
         left = triggerRect.right + gap;
     } else if (currentPos === "left") {
-        top = triggerRect.top;
         left = triggerRect.left - contentWidth - gap;
     }
 
-    // Secondary overflow adjustments (if flipping wasn't enough or wasn't applicable)
+    // Secondary overflow adjustments
     if (top + contentHeight > viewportHeight - gap) {
         top = viewportHeight - contentHeight - gap;
     }
@@ -151,7 +201,8 @@ const handleClickOutside = (event: MouseEvent) => {
         triggerRef.value &&
         !triggerRef.value.contains(event.target as Node) &&
         contentRef.value &&
-        !contentRef.value.contains(event.target as Node)
+        !contentRef.value.contains(event.target as Node) &&
+        (!props.referenceEl || !props.referenceEl.contains(event.target as Node))
     ) {
         close();
     }
@@ -183,8 +234,8 @@ defineExpose({
 </script>
 
 <template>
-    <div class="relative inline-block w-full">
-        <div ref="triggerRef" @click="toggle" class="w-full">
+    <div class="relative inline-block">
+        <div ref="triggerRef" @click="toggle" class="w-full h-full">
             <slot name="trigger" :isOpen="isActuallyOpen"></slot>
         </div>
 
@@ -200,20 +251,21 @@ defineExpose({
                 <div
                     v-if="isActuallyOpen"
                     ref="contentRef"
-                    class="fixed bg-canvas-light border border-canvas-border shadow-2xl overflow-hidden rounded-lg"
+                    class="fixed border border-canvas-border shadow-2xl overflow-hidden rounded-lg"
+                    :class="[transparent ? 'bg-transparent border-none shadow-none' : 'bg-canvas-light']"
                     :style="{
                         top: `${coords.top}px`,
                         left: `${coords.left}px`,
-                        minWidth: props.matchWidth ? `max(${coords.width}px, 180px)` : '200px',
+                        minWidth: props.matchWidth ? `max(${coords.width}px, 120px)` : 'auto',
                         width: 'auto',
                         maxWidth: 'min(90vw, 400px)',
                         zIndex: props.zIndex
                     }"
                 >
                     <slot name="content" :close="close"></slot>
+                    <slot :close="close"></slot>
                 </div>
             </Transition>
         </Teleport>
     </div>
 </template>
-
