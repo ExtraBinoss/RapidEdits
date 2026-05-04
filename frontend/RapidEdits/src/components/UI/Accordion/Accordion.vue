@@ -12,7 +12,7 @@
         </button>
         
         <div 
-            v-show="isOpen" 
+            v-if="isOpen" 
             class="p-2 space-y-1 bg-canvas-lighter"
         >
             <slot></slot>

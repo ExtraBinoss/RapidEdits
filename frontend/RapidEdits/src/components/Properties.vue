@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Sliders, Trash2 } from "lucide-vue-next";
 import { useProjectStore } from "../stores/projectStore";
-import { computed, ref, onUnmounted } from "vue";
+import { computed, ref, onUnmounted, watch } from "vue";
 import { pluginRegistry } from "../core/plugins/PluginRegistry";
 import { createPluginId, PluginCategory } from "../core/plugins/PluginTypes";
-import type { PluginId } from "../core/plugins/PluginTypes";
+import type { PluginId, PluginPropertyDefinition } from "../core/plugins/PluginTypes";
 import type { Clip } from "../types/Timeline";
 import PluginPropertiesRenderer from "./Plugins/PluginPropertiesRenderer.vue";
 import Switch from "./UI/Switch/Switch.vue";
@@ -83,25 +83,41 @@ const updateClipData = (newData: any) => {
     }
 };
 
-const pluginProperties = computed(() => {
-    if (!plugin.value || !selectedClip.value) return undefined;
-    return plugin.value.getProperties?.(selectedClip.value);
-});
+// --- Performance Optimized Property Definitions ---
+// We use refs instead of direct computeds to avoid re-calculating the whole property schema
+// every time the clip's DATA (like position) changes. We only update when the clip itself changes.
+const pluginProperties = ref<PluginPropertyDefinition[] | undefined>(undefined);
+const globalInspectorPlugins = ref<any[]>([]);
+const globalPropsCache = ref<Map<string, PluginPropertyDefinition[]>>(new Map());
 
-// --- Dynamic Global Inspectors ---
+watch(() => [selectedClip.value?.id, selectedClip.value?.type], () => {
+    if (!selectedClip.value) {
+        pluginProperties.value = undefined;
+        globalInspectorPlugins.value = [];
+        globalPropsCache.value = new Map();
+        return;
+    }
 
-const globalInspectorPlugins = computed(() => {
-    if (!selectedClip.value) return [];
-    
-    return pluginRegistry.getAll()
+    // Update main plugin properties
+    pluginProperties.value = plugin.value?.getProperties?.(selectedClip.value);
+
+    // Update global inspectors and their properties cache
+    const newCache = new Map<string, PluginPropertyDefinition[]>();
+    const plugins = pluginRegistry.getAll()
         .filter(p => !!p.getMetadata().isGlobalInspector)
         .filter(p => {
-            // Let the plugin decide if it has properties for this clip
             const props = p.getProperties?.(selectedClip.value!);
-            return props && props.length > 0;
+            if (props && props.length > 0) {
+                newCache.set(p.getMetadata().id, props);
+                return true;
+            }
+            return false;
         })
         .sort((a, b) => (a.getMetadata().priority || 0) - (b.getMetadata().priority || 0));
-});
+    
+    globalInspectorPlugins.value = plugins;
+    globalPropsCache.value = newCache;
+}, { immediate: true });
 
 // --- Dynamic Transitions ---
 
@@ -196,7 +212,7 @@ const getTransitionClip = (pluginId: string): Clip => {
                         <PluginPropertiesRenderer
                             :key="selectedClip.id + '-' + inspPlugin.getMetadata().id"
                             :clip="selectedClip"
-                            :properties="inspPlugin.getProperties?.(selectedClip)"
+                            :properties="globalPropsCache.get(inspPlugin.getMetadata().id)"
                             @update:clip-data="(newData: any) => updateClipData(newData)"
                         />
                     </div>

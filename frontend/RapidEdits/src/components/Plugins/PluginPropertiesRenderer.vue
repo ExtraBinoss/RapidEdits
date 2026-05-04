@@ -9,7 +9,11 @@
                 <template v-for="(prop, _) in group.props" :key="prop.key">
                     <template v-if="shouldShow(prop)">
                         <!-- Vector (Dedicated multi-row layout for 2, 3, or 4 components) -->
-                        <div v-if="prop.type === 'vector2' || prop.type === 'vector3' || prop.type === 'vector4'" class="flex flex-col gap-1.5 py-2 px-1 hover:bg-white/[0.02] rounded-sm transition-colors group/vec">
+                        <div 
+                            v-if="prop.type === 'vector2' || prop.type === 'vector3' || prop.type === 'vector4'" 
+                            v-memo="[getValue(prop.key), prop.key, isModified(prop)]"
+                            class="flex flex-col gap-1.5 py-2 px-1 hover:bg-white/[0.02] rounded-sm transition-colors group/vec"
+                        >
                             <div class="flex items-center justify-between px-1">
                                 <label
                                     class="text-[12px] font-semibold text-text-muted transition-colors group-hover/vec:text-text-main cursor-default select-none"
@@ -50,7 +54,11 @@
                         </div>
 
                         <!-- Regular Property Wrapper -->
-                        <div v-else class="group flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px]">
+                        <div 
+                            v-else 
+                            v-memo="[getValue(prop.key), prop.key, isModified(prop)]"
+                            class="group flex items-center gap-2 py-1 px-1 hover:bg-white/[0.02] rounded-sm transition-colors min-h-[32px]"
+                        >
                             <label
                                 :for="getPropId(prop)"
                                 class="w-28 shrink-0 text-[12px] font-semibold text-text-muted transition-colors group-hover:text-text-main cursor-default truncate select-none"
@@ -146,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import type { Clip } from "../../types/Timeline";
 import type { PluginPropertyDefinition } from "../../core/plugins/PluginTypes";
 import { editorEngine } from "../../core/EditorEngine";
@@ -171,6 +179,31 @@ const props = defineProps<{
 }>();
 
 const clipData = computed(() => props.clip.data || {});
+
+// --- 20 FPS Throttled UI State ---
+// We maintain a local copy of the clip data that updates at a lower frequency (20fps)
+// to avoid overloading Vue's reactivity system during fast movements (gizmo dragging).
+const throttledClipData = ref({ ...clipData.value });
+let lastUpdate = 0;
+let rafId: number | null = null;
+const THROTTLE_MS = 50; // 20 FPS
+
+const syncThrottledData = (timestamp: number) => {
+    if (timestamp - lastUpdate >= THROTTLE_MS) {
+        // Deep copy not strictly needed as we only read from it, but shallow spread to trigger reactivity
+        throttledClipData.value = { ...props.clip.data };
+        lastUpdate = timestamp;
+    }
+    rafId = requestAnimationFrame(syncThrottledData);
+};
+
+onMounted(() => {
+    rafId = requestAnimationFrame(syncThrottledData);
+});
+
+onUnmounted(() => {
+    if (rafId) cancelAnimationFrame(rafId);
+});
 
 const safeProperties = computed(() => props.properties ?? []);
 
@@ -206,13 +239,28 @@ const plugin = computed(() => {
     return pluginRegistry.get(props.clip.type as PluginId);
 });
 
+// Cache split keys to avoid string operations on every render
+const keyCache = new Map<string, string[]>();
+const getSplitKey = (key: string) => {
+    if (!keyCache.has(key)) {
+        keyCache.set(key, key.split('.'));
+    }
+    return keyCache.get(key)!;
+};
+
 const getValue = (key: string) => {
-    // Handle dot notation (e.g. "crop.left")
-    const parts = key.split('.');
-    let value: any = clipData.value;
-    for (const part of parts) {
-        if (value === undefined || value === null) break;
-        value = value[part];
+    const parts = getSplitKey(key);
+    // Use the throttled data for display
+    let value: any = throttledClipData.value;
+    
+    // Unrolled loop for common depths (1 or 2) is faster
+    if (parts.length === 1) {
+        value = value[parts[0]];
+    } else {
+        for (const part of parts) {
+            if (value === undefined || value === null) break;
+            value = value[part];
+        }
     }
     
     if (value !== undefined) return value;
@@ -240,7 +288,7 @@ const getPropId = (prop: PluginPropertyDefinition) => {
 
 const shouldShow = (prop: PluginPropertyDefinition) => {
     if (prop.showIf) {
-        return prop.showIf(clipData.value);
+        return prop.showIf(throttledClipData.value);
     }
     return true;
 };
@@ -271,7 +319,7 @@ const resetProperty = (prop: PluginPropertyDefinition) => {
 };
 
 const updateProperty = (key: string, value: any) => {
-    const parts = key.split('.');
+    const parts = getSplitKey(key);
     const newData = { ...clipData.value };
     
     if (parts.length === 1) {
@@ -306,6 +354,9 @@ const emit = defineEmits<{
 }>();
 
 const applyUpdate = (newData: any) => {
+    // Immediate UI update for direct user interaction
+    throttledClipData.value = newData;
+
     // Emit for parent handling (e.g. for transitions)
     emit("update:clip-data", newData);
 
