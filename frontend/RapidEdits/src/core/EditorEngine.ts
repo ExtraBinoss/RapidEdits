@@ -229,6 +229,10 @@ export class EditorEngine {
         this.timelineSystem.updateClip(id, updates);
     }
 
+    public getClip(id: string): Clip | undefined {
+        return this.timelineSystem.getClip(id);
+    }
+
     public splitClip(clipId: string, time: number) {
         this.timelineSystem.splitClip(clipId, time);
     }
@@ -349,11 +353,11 @@ export class EditorEngine {
         return this.inputSystem.getMousePosition();
     }
 
-    public registerRenderer(renderer: any) {
+    public registerRenderer(renderer: ThreeRenderer) {
         this._renderer = renderer;
     }
 
-    public getRenderer() {
+    public getRenderer(): ThreeRenderer | null {
         return this._renderer;
     }
 

@@ -33,6 +33,7 @@ export class ThreeRenderer {
     public clipManager: ThreeClipManager;
     public videoManager: ThreeVideoManager;
     public guidesManager: ThreeGuidesManager;
+    public textureAllocator: TextureAllocator;
 
     // State
     private isCaptureMode: boolean = false;
@@ -44,6 +45,7 @@ export class ThreeRenderer {
 
     constructor(options: ThreeRendererOptions) {
         const allocator = options.allocator || new TextureAllocator();
+        this.textureAllocator = allocator;
         this.isCaptureMode = options.isCaptureMode || false;
 
         this.sceneManager = new ThreeSceneManager({

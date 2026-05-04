@@ -22,6 +22,8 @@ import AI from "./SidebarMenus/AI.vue";
 import { useProjectStore } from "../stores/projectStore";
 import { markRaw } from "vue";
 
+import TransitionLibrary from "./Plugins/TransitionLibrary.vue";
+
 const activeTab = ref("media");
 const themeStore = useThemeStore();
 const projectStore = useProjectStore();
@@ -159,6 +161,11 @@ const handlePluginDragEnd = () => {
                 <MediaLibrary v-if="activeTab === 'media'" />
 
                 <AI v-else-if="activeTab === 'speech'" />
+
+                <TransitionLibrary 
+                    v-else-if="activeTab === 'transitions'" 
+                    @add="addPlugin"
+                />
 
                 <div v-else class="flex flex-col h-full">
                     <div
