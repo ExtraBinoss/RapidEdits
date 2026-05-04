@@ -31,8 +31,8 @@ export class TransformPlugin extends BasePlugin {
     }
 
     getProperties(clip: Clip): PluginPropertyDefinition[] | undefined {
-        // Transform is for visual clips
-        if (clip.type === "audio") return undefined;
+        // Transform is for visual clips (video/image), Text has its own 3D transform controls
+        if (clip.type === "audio" || clip.type.includes("text")) return undefined;
 
         return [
             {

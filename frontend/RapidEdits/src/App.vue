@@ -131,7 +131,7 @@ onMounted(async () => {
                 <div class="flex flex-1 min-h-0">
                     <!-- Preview Area (PixiJS) -->
                     <div
-                        class="flex-1 relative bg-black/40 flex items-center justify-center overflow-hidden p-4"
+                        class="flex-1 relative bg-black/40 flex items-center justify-center overflow-hidden"
                     >
                         <Preview />
                     </div>

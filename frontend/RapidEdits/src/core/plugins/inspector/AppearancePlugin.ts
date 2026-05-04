@@ -32,8 +32,8 @@ export class AppearancePlugin extends BasePlugin {
     }
 
     getProperties(clip: Clip): PluginPropertyDefinition[] | undefined {
-        // Appearance properties are for visual clips
-        if (clip.type === "audio") return undefined;
+        // Appearance properties are for visual media clips (video/image)
+        if (clip.type === "audio" || clip.type.includes("text")) return undefined;
 
         return [
             {

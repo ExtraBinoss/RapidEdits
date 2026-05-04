@@ -183,54 +183,8 @@ export class ThreeRenderer {
     public renderFrame(currentTime: number, tracks: Track[]) {
         const visibleClips = this.prepareFrame(currentTime, tracks);
         this.renderOnly(visibleClips);
-
-        // 4. Update Ambient Light (Throttled)
-        if (!this.isCaptureMode) {
-            this.updateAmbientLight();
-        }
     }
 
-    private lastAmbientUpdate = 0;
-    private ambientUpdateInterval = 100; // ms
-
-    private updateAmbientLight() {
-        const now = Date.now();
-        if (now - this.lastAmbientUpdate < this.ambientUpdateInterval) return;
-        this.lastAmbientUpdate = now;
-
-        try {
-            const gl = this.sceneManager.renderer.getContext();
-            const width = gl.drawingBufferWidth;
-            const height = gl.drawingBufferHeight;
-
-            // Sample a few pixels from center/around
-            const pixel = new Uint8Array(4);
-            gl.readPixels(
-                width / 2,
-                height / 2,
-                1,
-                1,
-                gl.RGBA,
-                gl.UNSIGNED_BYTE,
-                pixel,
-            );
-
-            const r = pixel[0];
-            const g = pixel[1];
-            const b = pixel[2];
-            // alpha = pixel[3]
-
-            const color = `rgb(${r}, ${g}, ${b})`;
-
-            // Emit event
-            globalEventBus.emit({
-                type: EditorEventType.AMBIENT_COLOR_UPDATE,
-                payload: color,
-            });
-        } catch (e) {
-            // Context lost or other issue
-        }
-    }
 
     // Used by ExportService
     public getActiveVideoElements(): HTMLVideoElement[] {

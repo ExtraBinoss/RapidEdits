@@ -45,7 +45,7 @@ const activePlugins = computed(() => {
     if (!type) return [];
     return pluginRegistry.state.availablePlugins.filter((p) => {
         const meta = p.getMetadata();
-        return meta.type === type;
+        return meta.type === type && !meta.isGlobalInspector;
     });
 });
 

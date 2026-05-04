@@ -5,7 +5,6 @@ import type { ScreenRect } from "../../core/renderer/ThreeRenderer";
 import { useProjectStore } from "../../stores/projectStore";
 import { editorEngine } from "../../core/EditorEngine";
 import OSD from "../UI/Overlay/OSD.vue";
-import AmbientLight from "../UI/AmbientLight.vue";
 import Select from "../UI/Input/Select.vue";
 import QuickActions from "./QuickActions.vue";
 
@@ -279,13 +278,11 @@ const handleDrop = (e: DragEvent) => {
 
 <template>
     <div class="w-full h-full relative isolate">
-        <!-- Background Ambient Light -->
-        <AmbientLight />
 
         <!-- Main Canvas Container -->
         <div
             ref="canvasContainer"
-            class="w-full h-full overflow-hidden flex items-center justify-center rounded-lg border border-canvas-border relative z-10 bg-transparent"
+            class="w-full h-full overflow-hidden flex items-center justify-center relative z-10 bg-transparent"
             @dragover.prevent
             @drop="handleDrop"
         >

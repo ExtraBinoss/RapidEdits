@@ -271,6 +271,11 @@ export class TextPlugin extends BasePlugin {
                 key: "rotation",
                 type: "vector3",
             },
+            {
+                label: "Scale",
+                key: "scale",
+                type: "vector3",
+            },
         ];
     }
 
