@@ -71,7 +71,7 @@ const activePopoverId = ref<string | null>(null);
         }"
     >
         <!-- Action Buttons Sidebar -->
-        <div class="flex flex-col gap-1 p-1 bg-canvas-dark border border-canvas-border shadow-2xl rounded-md">
+        <div class="flex flex-col gap-1 p-1 bg-canvas-light border border-canvas-border shadow-2xl rounded-md">
             <div v-for="action in activeActions" :key="action.definition.id">
                 <Popover 
                     :is-open="activePopoverId === action.definition.id"
@@ -94,7 +94,7 @@ const activePopoverId = ref<string | null>(null);
                     </template>
 
                     <template #content>
-                        <div class="w-72 p-4 bg-canvas-dark text-text-main">
+                        <div class="w-72 p-4 bg-canvas-light text-text-main">
                             <div class="flex items-center justify-between mb-4 pb-2 border-b border-white/5">
                                 <span class="text-[10px] font-black uppercase tracking-widest text-text-muted">
                                     {{ action.definition.label }}
