@@ -46,7 +46,7 @@ const transitionStyle = computed(() => {
         ]"
         :style="{
             left: `${x}px`,
-            width: `${(isTransition ? 1.0 : ghostData.duration) * zoomLevel}px`,
+            width: `${(isTransition ? (ghostData.duration || 1.0) : ghostData.duration) * zoomLevel}px`,
             ...transitionStyle
         }"
     >

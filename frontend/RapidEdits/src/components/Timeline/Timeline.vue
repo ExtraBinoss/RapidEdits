@@ -11,11 +11,16 @@ import TimelineToolbar from "./TimelineComponents/Toolbar/TimelineToolbar.vue";
 import TrackHeader from "./TimelineComponents/Track/TrackHeader.vue";
 import { ref, watch, computed } from "vue";
 import { storeToRefs } from "pinia";
+import { onMounted, onUnmounted } from "vue";
+import { Video, Music, Image as ImageIcon, Box, Plus } from "lucide-vue-next";
+import { EditorEventType, MediaType } from "../../types/Media";
+import GhostClip from "./TimelineComponents/Track/GhostClip.vue";
+import { globalEventBus } from "../../core/events/EventBus";
+import { pluginRegistry } from "../../core/plugins/PluginRegistry";
+import type { PluginId } from "../../core/plugins/PluginTypes";
 
 const store = useProjectStore();
 const { tracks, currentTime, isPlaying } = storeToRefs(store);
-
-// ... (other imports)
 
 // Context menu logic (for Clips)
 const showContextMenu = ref(false);
@@ -63,11 +68,6 @@ const audioTracks = computed(() => {
 const customTracks = computed(() => {
     return tracks.value.filter((t) => t.type !== "video" && t.type !== "audio");
 });
-import { onMounted, onUnmounted } from "vue";
-import { Video, Music, Image as ImageIcon, Box, Plus } from "lucide-vue-next";
-import { EditorEventType, MediaType } from "../../types/Media";
-import GhostClip from "./TimelineComponents/Track/GhostClip.vue";
-import { globalEventBus } from "../../core/events/EventBus";
 
 // Ghost Preview for New Track Zones
 const hoverZone = ref<"video" | "audio" | null>(null);
@@ -210,8 +210,6 @@ watch(currentTime, (time) => {
 });
 
 const {} = useDragDrop(() => {
-    // Handle File Drop directly onto track (upload + add)
-    // For now, focus on Internal Asset Drop which is handled differently
 });
 
 const handleTrackDrop = (e: DragEvent, trackId: number) => {
@@ -238,9 +236,9 @@ const handleTrackDrop = (e: DragEvent, trackId: number) => {
         const meta = store.draggedPlugin.getMetadata();
         
         if (meta.type === 'transition') {
-            // Find clip at drop position with small epsilon
             const epsilon = 0.01;
             const track = store.tracks.find(t => t.id === trackId);
+
             if (track) {
                 const clip = track.clips.find(c => 
                     rawTime >= (c.start - epsilon) && rawTime <= (c.start + c.duration + epsilon)
@@ -249,6 +247,17 @@ const handleTrackDrop = (e: DragEvent, trackId: number) => {
                 if (clip) {
                     const currentData = { ...(clip.data || {}) };
                     const transitions = { ...(currentData.transitions || {}) };
+                    const slot = meta.transitionSlot || "in";
+
+                    // Enforce "one transition per slot"
+                    if (slot !== "any") {
+                        Object.keys(transitions).forEach(id => {
+                            const existingPlugin = pluginRegistry.get(id as PluginId);
+                            if (existingPlugin?.getMetadata().transitionSlot === slot) {
+                                delete transitions[id];
+                            }
+                        });
+                    }
                     
                     // Create default data for this transition
                     const defaultData = store.draggedPlugin.createData?.() || { duration: 1.0 };
@@ -258,12 +267,8 @@ const handleTrackDrop = (e: DragEvent, trackId: number) => {
                         data: { ...currentData, transitions }
                     });
 
-                    // FORCE auto-select the clip to show properties
-                    // We deselect then select to ensure a reactive change if it was already selected
-                    store.deselectAll();
-                    setTimeout(() => {
-                        store.selectClip(clip.id, false);
-                    }, 50);
+                    // Auto-select the clip to show properties
+                    store.selectClip(clip.id, false);
                     
                     globalEventBus.emit({
                         type: EditorEventType.SHOW_FEEDBACK,
@@ -272,7 +277,6 @@ const handleTrackDrop = (e: DragEvent, trackId: number) => {
                 }
             }
         }
-        // Handle other plugin types if needed...
         return;
     }
 
@@ -316,7 +320,6 @@ const handleNewTrackDrop = (e: DragEvent, type: "video" | "audio") => {
                 if (snapPoint !== null) finalTime = snapPoint;
             }
 
-            // We must add to the SPECIFIC track we just created
             store.addClipToTimeline(assetData.id, newTrack.id, finalTime);
         } catch (err) {
             console.error("Invalid drop data", err);
@@ -327,13 +330,10 @@ const handleNewTrackDrop = (e: DragEvent, type: "video" | "audio") => {
 const isScrubbing = ref(false);
 let scrubRafId: number | null = null;
 
-// Local reactive state for snapping
 const isSnappingEnabled = ref(editorEngine.getIsSnappingEnabled());
 
 const toggleSnapping = () => {
     editorEngine.toggleSnapping();
-    // Manually sync local state whenever we toggle
-    isSnappingEnabled.value = editorEngine.getIsSnappingEnabled();
     isSnappingEnabled.value = editorEngine.getIsSnappingEnabled();
 };
 
@@ -347,30 +347,20 @@ const setActiveTool = (tool: "select" | "razor") => {
 
 // Split Logic
 const handleSplit = () => {
-    // Split at playhead
-    // We need to find which clip is under the playhead on Selected Tracks
-    // For now, let's just split the FIRST clip found under playhead on ANY track for simplicity,
-    // or better: split all clips under playhead if no selection, or just selected clip
-
-    // Simple v1: Split selected clip at playhead
-    // Simple v1: Split selected clip at playhead
     const selectedIds = store.getSelectedClipIds();
     if (selectedIds.length > 0) {
         selectedIds.forEach((id) => {
             store.splitClip(id, currentTime.value);
         });
-        // Clear selection to avoid stale IDs for next split attempt
         store.selectClip("", false);
     } else {
-        // Fallback: Split valid clips under playhead on ALL tracks
-        // We capture the list of clips to split FIRST to avoid issues if tracks array changes during iteration
         const clipsToSplit: { id: string; time: number }[] = [];
 
         store.tracks.forEach((track) => {
             const clipUnderPlayhead = track.clips.find(
                 (c) =>
                     c.start < currentTime.value &&
-                    c.start + c.duration > currentTime.value, // strict inequality to avoid splitting at exact edge
+                    c.start + c.duration > currentTime.value,
             );
             if (clipUnderPlayhead) {
                 clipsToSplit.push({
@@ -389,7 +379,6 @@ const handleSplit = () => {
 const handleRazorClick = (_e: MouseEvent, trackId: number, time: number) => {
     if (activeTool.value !== "razor") return;
 
-    // Find clip at time
     const track = store.tracks.find((t) => t.id === trackId);
     if (!track) return;
 
@@ -398,13 +387,10 @@ const handleRazorClick = (_e: MouseEvent, trackId: number, time: number) => {
     );
     if (clip) {
         store.splitClip(clip.id, time);
-        // Optional: switch back to select tool after one cut?
-        // setActiveTool('select');
     }
 };
 
 const startScrubbing = (e: MouseEvent) => {
-    // ...
     e.preventDefault();
     isScrubbing.value = true;
 
@@ -423,7 +409,6 @@ const startScrubbing = (e: MouseEvent) => {
         scrubRafId = requestAnimationFrame(scrubLoop);
     };
 
-    // Initial seek
     scrubLoop();
 
     const stopScrubbing = () => {
@@ -439,7 +424,7 @@ const startScrubbing = (e: MouseEvent) => {
 };
 
 const handleTimelineClick = () => {
-    store.selectClip("", false); // Deselect all when clicking empty space
+    store.selectClip("", false);
 };
 </script>
 
@@ -560,7 +545,7 @@ const handleTimelineClick = () => {
 
                 <!-- Track Content -->
                 <div class="relative min-w-[2000px]">
-                    <!-- Playhead Line (Now inside content to span full height) -->
+                    <!-- Playhead Line -->
                     <div
                         class="absolute top-0 bottom-0 w-[1px] bg-red-500 z-30 pointer-events-none transition-none"
                         :style="{
@@ -640,7 +625,7 @@ const handleTimelineClick = () => {
                         </div>
                     </template>
 
-                    <!-- Video Drop Zone (Always Present Bottom) -->
+                    <!-- Video Drop Zone -->
                     <div
                         class="h-24 border-y border-brand-primary/20 relative bg-brand-primary/[0.04] border-dashed border-2 border-brand-primary/20 hover:border-brand-primary/40 hover:bg-brand-primary/10 transition-all flex group"
                         @dragover.prevent="handleZoneDragOver($event, 'video')"
@@ -711,7 +696,7 @@ const handleTimelineClick = () => {
                         </div>
                     </template>
 
-                    <!-- Audio Drop Zone (Create new track) -->
+                    <!-- Audio Drop Zone -->
                     <div
                         class="h-24 border-y border-emerald-500/20 relative bg-emerald-500/[0.04] border-dashed border-2 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/10 transition-all flex group"
                         @dragover.prevent="handleZoneDragOver($event, 'audio')"

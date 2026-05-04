@@ -92,7 +92,7 @@ const pluginProperties = computed(() => {
 
 const globalInspectorPlugins = computed(() => {
     return pluginRegistry.getAll()
-        .filter(p => p.getMetadata().isGlobalInspector)
+        .filter(p => !!p.getMetadata().isGlobalInspector)
         .sort((a, b) => (a.getMetadata().priority || 0) - (b.getMetadata().priority || 0));
 });
 
@@ -100,7 +100,7 @@ const globalInspectorPlugins = computed(() => {
 
 const transitionPlugins = computed(() => {
     return pluginRegistry.getAll()
-        .filter(p => p.getMetadata().isAttachedTransition);
+        .filter(p => !!p.getMetadata().isAttachedTransition);
 });
 
 const isTransitionActive = (pluginId: string) => {
@@ -138,9 +138,8 @@ const activeTransitions = computed(() => {
     
     return Object.keys(selectedClip.value.data.transitions).map(id => {
         const plugin = pluginRegistry.get(id as PluginId);
-        if (!plugin) return null;
-        return { id, plugin };
-    }).filter((t): t is { id: string, plugin: any } => t !== null);
+        return plugin ? { id, plugin } : null;
+    }).filter((t): t is { id: string, plugin: any } => t !== null && !!t.plugin.getMetadata().isAttachedTransition);
 });
 
 // Create a virtual clip for the transition plugin to render its properties

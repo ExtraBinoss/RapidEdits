@@ -202,7 +202,8 @@ const handleClipDragOver = (e: DragEvent) => {
     if (dragged) {
         // We override the parent Track's restriction
         e.preventDefault();
-        e.stopImmediatePropagation(); // content > container
+        // Allow propagation so DynamicTrack can show the ghost preview
+        // e.stopImmediatePropagation(); 
 
         if (e.dataTransfer) {
             e.dataTransfer.dropEffect = "copy";
@@ -228,59 +229,69 @@ const handleDrop = (e: DragEvent) => {
             const offsetX = e.clientX - rect.left;
             const percentage = offsetX / rect.width;
 
-            const currentTransitions = props.clip.data?.transitions || {};
-            let updates = {};
+            const pluginId = data.pluginId as PluginId;
+            const plugin = pluginRegistry.get(pluginId);
+            const meta = plugin?.getMetadata();
+            const slot = meta?.transitionSlot || "in";
 
-            // Extract generic transition type from pluginId
-            // Example: "transitions:motion" -> type: "motion"
-            const pluginIdParts = data.pluginId.split(":");
-            const transitionType = pluginIdParts[pluginIdParts.length - 1] || "fade";
-
-            if (percentage < 0.5) {
-                // Attach to start (Fade In)
-                updates = {
-                    ...currentTransitions,
-                    fadeIn: { 
-                        type: transitionType,
-                        duration: 1.0, 
-                        easing: "linear",
-                        ...(transitionType === "motion" ? { motionType: "slide-up" } : {})
-                    },
-                };
-            } else {
-                // Attach to end (Fade Out)
-                updates = {
-                    ...currentTransitions,
-                    fadeOut: { 
-                        type: transitionType,
-                        duration: 1.0, 
-                        easing: "linear",
-                        ...(transitionType === "motion" ? { motionType: "slide-up" } : {})
-                    },
-                };
+            const currentTransitions = { ...(props.clip.data?.transitions || {}) };
+            
+            // Enforce "one transition per slot": remove any existing transition that shares the same slot
+            if (slot !== "any") {
+                Object.keys(currentTransitions).forEach(id => {
+                    const existingPlugin = pluginRegistry.get(id as PluginId);
+                    if (existingPlugin?.getMetadata().transitionSlot === slot) {
+                        delete currentTransitions[id];
+                    }
+                });
             }
 
+            // Use the actual plugin ID as the key for the transition config
+            currentTransitions[pluginId] = {
+                ...plugin?.createData(),
+                ...(meta?.transitionSlot === "any" ? { slot: percentage < 0.5 ? "in" : "out" } : {})
+            };
+
             store.updateClip(props.clip.id, {
-                data: { ...props.clip.data, transitions: updates },
+                data: { ...props.clip.data, transitions: currentTransitions },
             });
+
+            // Auto-select the clip to show properties
+            store.selectClip(props.clip.id, false);
         }
     } catch (e) {
         console.error("Drop error", e);
     }
 };
 
-const transitions = computed(() => props.clip.data?.transitions || {});
-const hasFadeIn = computed(() => !!transitions.value.fadeIn);
-const hasFadeOut = computed(() => !!transitions.value.fadeOut);
+const activeTransitions = computed(() => {
+    const data = props.clip.data?.transitions || {};
+    return Object.entries(data).map(([id, config]) => {
+        const plugin = pluginRegistry.get(id as PluginId);
+        return {
+            id,
+            config: config as any,
+            metadata: plugin?.getMetadata()
+        };
+    });
+});
+
+const fadeInTransition = computed(() => {
+    return activeTransitions.value.find(t => t.metadata?.transitionSlot === 'in' || (t.metadata?.transitionSlot === 'any' && t.config.slot === 'in'));
+});
+
+const fadeOutTransition = computed(() => {
+    return activeTransitions.value.find(t => t.metadata?.transitionSlot === 'out' || (t.metadata?.transitionSlot === 'any' && t.config.slot === 'out'));
+});
 
 const fadeInWidth = computed(() => {
-    if (!hasFadeIn.value) return 0;
-    return (transitions.value.fadeIn.duration || 0) * props.zoomLevel;
+    if (!fadeInTransition.value) return 0;
+    return (fadeInTransition.value.config.duration || 1.0) * props.zoomLevel;
 });
 
 const fadeOutWidth = computed(() => {
-    if (!hasFadeOut.value) return 0;
-    return (transitions.value.fadeOut.duration || 0) * props.zoomLevel;
+    if (!fadeOutTransition.value) return 0;
+    return (fadeOutTransition.value.config.duration || 1.0) * props.zoomLevel;
 });
 </script>
 
@@ -308,12 +319,12 @@ const fadeOutWidth = computed(() => {
 
         <!-- Visual Ramps for Transitions -->
         <svg
-            v-if="hasFadeIn || hasFadeOut"
+            v-if="fadeInTransition || fadeOutTransition"
             class="absolute inset-0 w-full h-full pointer-events-none z-20 overflow-visible"
         >
             <!-- Fade In Ramp -->
             <polygon
-                v-if="hasFadeIn"
+                v-if="fadeInTransition"
                 :points="`0,100 ${fadeInWidth},0 0,0`"
                 class="fill-white/30"
                 vector-effect="non-scaling-stroke"
@@ -321,7 +332,7 @@ const fadeOutWidth = computed(() => {
 
             <!-- Fade Out Ramp -->
             <polygon
-                v-if="hasFadeOut"
+                v-if="fadeOutTransition"
                 :points="`${clip.duration * zoomLevel - fadeOutWidth},0 ${clip.duration * zoomLevel},100 ${clip.duration * zoomLevel},0`"
                 class="fill-white/30"
             />
