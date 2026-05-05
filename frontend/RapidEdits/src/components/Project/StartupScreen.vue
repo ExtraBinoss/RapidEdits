@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { useProjectStore } from "../../stores/projectStore";
 import Button from "../UI/Button/Button.vue";
 import { Plus, History, ChevronLeft, Check, Monitor, Smartphone, Square, Play, Settings2 } from "lucide-vue-next";
@@ -70,6 +70,8 @@ const presets = [
 
 const selectedPreset = ref(presets[1]);
 const hasPlayedInitialAnimation = ref(false);
+const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+const activeTweens: gsap.core.Tween[] = [];
 
 const handleImageLoad = (id: string) => {
     loadedImages.value[id] = true;
@@ -113,26 +115,30 @@ onMounted(() => {
     if (props.isOpen) {
         animateLanding();
 
-        // Animate background gradient with GSAP (Slow & Subtle)
+        // Animate background gradient with GSAP (GPU-friendly: transform only)
         if (gradientRef.value) {
-            gsap.to(gradientRef.value, {
-                backgroundPosition: "100% 50%",
-                duration: 45,
-                repeat: -1,
-                yoyo: true,
-                ease: "sine.inOut"
-            });
-
-            gsap.to(gradientRef.value, {
-                rotation: 15,
-                scale: 1.15,
-                duration: 35,
-                repeat: -1,
-                yoyo: true,
-                ease: "sine.inOut"
-            });
+            gsap.set(gradientRef.value, { force3D: true, willChange: "transform, opacity" });
+            if (!prefersReducedMotion) {
+                activeTweens.push(
+                    gsap.to(gradientRef.value, {
+                        xPercent: 3,
+                        yPercent: -2,
+                        rotation: 8,
+                        scale: 1.06,
+                        duration: 28,
+                        repeat: -1,
+                        yoyo: true,
+                        ease: "sine.inOut",
+                    }),
+                );
+            }
         }
     }
+});
+
+onUnmounted(() => {
+    activeTweens.forEach((t) => t.kill());
+    activeTweens.length = 0;
 });
 
 watch(view, (newView) => {
@@ -364,9 +370,10 @@ const gradientRef = ref(null);
         #316ea0, 
         #2a5298
     );
-    background-size: 400% 400%;
-    filter: blur(80px);
+    background-size: 180% 180%;
+    filter: blur(36px);
     will-change: transform, background-position;
+    transform: translateZ(0);
 }
 
 .custom-scrollbar-hidden {
