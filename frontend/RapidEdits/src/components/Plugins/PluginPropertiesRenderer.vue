@@ -53,6 +53,35 @@
                             </div>
                         </div>
 
+                        <!-- Gradient (Full Width Block) -->
+                        <div 
+                            v-else-if="prop.type === 'gradient'"
+                            v-memo="[getValue(prop.key), prop.key, isModified(prop)]"
+                            class="flex flex-col gap-1.5 py-2 px-1 hover:bg-white/[0.02] rounded-sm transition-colors group/grad"
+                        >
+                            <div class="flex items-center justify-between px-1">
+                                <label
+                                    class="text-[12px] font-semibold text-text-muted transition-colors group-hover/grad:text-text-main cursor-default select-none"
+                                >
+                                    {{ prop.label }}
+                                </label>
+                                <div :class="{ 'opacity-0 group-hover/grad:opacity-100 transition-opacity': !isModified(prop) }" class="shrink-0">
+                                    <Button
+                                        variant="icon"
+                                        size="xs"
+                                        :icon="RotateCcw"
+                                        @click="resetProperty(prop)"
+                                    />
+                                </div>
+                            </div>
+                            <div class="w-full">
+                                <Gradient
+                                    :model-value="getValue(prop.key)"
+                                    @update:model-value="(val) => updateProperty(prop.key, val)"
+                                />
+                            </div>
+                        </div>
+
                         <!-- Regular Property Wrapper -->
                         <div 
                             v-else 
@@ -124,20 +153,12 @@
                                     />
                                 </div>
 
-                                <!-- Select -->
+                                 <!-- Select -->
                                 <div v-else-if="prop.type === 'select'" class="w-full">
                                     <Select
                                         :model-value="getValue(prop.key)"
                                         :options="prop.options || []"
                                         size="small"
-                                        @update:model-value="(val) => updateProperty(prop.key, val)"
-                                    />
-                                </div>
-                                
-                                <!-- Gradient -->
-                                <div v-else-if="prop.type === 'gradient'" class="w-full">
-                                    <Gradient
-                                        :model-value="getValue(prop.key)"
                                         @update:model-value="(val) => updateProperty(prop.key, val)"
                                     />
                                 </div>

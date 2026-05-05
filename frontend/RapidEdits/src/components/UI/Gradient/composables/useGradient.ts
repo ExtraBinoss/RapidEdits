@@ -15,11 +15,17 @@ export type GradientStop = {
 };
 
 export type GradientValue = {
+    type: 'linear' | 'radial';
+    angle: number;
     stops: GradientStop[];
+    origin?: { x: number; y: number };
+    destination?: { x: number; y: number };
 };
 
 export type GradientPreset = {
     id: string;
+    type?: 'linear' | 'radial';
+    angle?: number;
     stops: GradientStop[];
 };
 
@@ -37,6 +43,7 @@ export function useGradient(
 
     // Interaction State
     const trackRef = ref<HTMLElement | null>(null);
+    const padRef = ref<HTMLElement | null>(null);
     const draggingStopId = ref<string | null>(null);
     const showDragLabels = ref(false);
     let dragLabelsTimeout: any = null;
@@ -249,11 +256,27 @@ export function useGradient(
 
     // Local state to avoid flicker during parent prop updates
     const localStops = ref<GradientStop[]>(normalizeStops(props.modelValue));
+    const gradientType = ref<'linear' | 'radial'>(
+        props.modelValue?.type ?? 'linear'
+    );
+    const gradientAngle = ref<number>(props.modelValue?.angle ?? 90);
+    const origin = ref<{ x: number; y: number }>(
+        props.modelValue?.origin ?? { x: 0.5, y: 0 }
+    );
+    const destination = ref<{ x: number; y: number }>(
+        props.modelValue?.destination ?? { x: 0.5, y: 1 }
+    );
 
     watch(
         () => props.modelValue,
         (val) => {
             localStops.value = normalizeStops(val);
+            if (val) {
+                gradientType.value = val.type ?? 'linear';
+                gradientAngle.value = val.angle ?? 90;
+                origin.value = val.origin ?? { x: 0.5, y: 0 };
+                destination.value = val.destination ?? { x: 0.5, y: 1 };
+            }
         },
         { deep: true }
     );
@@ -268,14 +291,32 @@ export function useGradient(
                 return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha}) ${Math.round(clamp01(stop.position) * 100)}%`;
             })
             .join(', ');
+
+        if (gradientType.value === 'radial') {
+            return {
+                background: `radial-gradient(circle at ${origin.value.x * 100}% ${origin.value.y * 100}%, ${cssStops})`,
+            };
+        }
+
         return {
-            background: `linear-gradient(90deg, ${cssStops})`,
+            background: `linear-gradient(${gradientAngle.value}deg, ${cssStops})`,
         };
     });
 
     const selectedStop = computed(() =>
         stops.value.find((s) => s.id === selectedStopId.value)
     );
+
+    function emitValue(nextStops?: GradientStop[]) {
+        const stopsToEmit = nextStops || localStops.value;
+        emit('update:modelValue', {
+            type: gradientType.value,
+            angle: gradientAngle.value,
+            stops: stopsToEmit,
+            origin: origin.value,
+            destination: destination.value,
+        });
+    }
 
     function emitStops(nextStops: GradientStop[]): void {
         const normalized = [...nextStops]
@@ -294,7 +335,38 @@ export function useGradient(
 
         // Update local state immediately to avoid flicker
         localStops.value = normalized;
-        emit('update:modelValue', { stops: normalized });
+        emitValue(normalized);
+    }
+
+    function updateGradientType(type: 'linear' | 'radial') {
+        gradientType.value = type;
+        emitValue();
+    }
+
+    function updateGradientAngle(angle: number) {
+        gradientAngle.value = angle;
+        emitValue();
+    }
+
+    function updateGradientDisposition(
+        newOrigin: { x: number; y: number },
+        newDestination: { x: number; y: number }
+    ) {
+        origin.value = newOrigin;
+        destination.value = newDestination;
+
+        if (gradientType.value === 'linear') {
+            const dy = newDestination.y - newOrigin.y;
+            const dx = newDestination.x - newOrigin.x;
+            if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+                const rad = Math.atan2(dy, dx);
+                let deg = (rad * 180) / Math.PI + 90;
+                if (deg < 0) deg += 360;
+                gradientAngle.value = Math.round(deg % 360);
+            }
+        }
+
+        emitValue();
     }
 
     function addStopAt(position: number): void {
@@ -493,7 +565,7 @@ export function useGradient(
 
         // Update both local stops and selection in the same tick to avoid flicker
         localStops.value = nextStops;
-        emit('update:modelValue', { stops: nextStops });
+        emitValue(nextStops);
 
         if (nextStops.length > 0) {
             selectedStopId.value = nextStops[0].id;
@@ -503,6 +575,7 @@ export function useGradient(
     }
 
     function togglePresets(e: Event) {
+        e.stopPropagation();
         const mouseEvent = e as MouseEvent;
         const rect = (
             mouseEvent.currentTarget as HTMLElement
@@ -522,6 +595,30 @@ export function useGradient(
     function updateSelectedStopPosition(value: number): void {
         if (!selectedStop.value) return;
         updateStop(selectedStop.value.id, { position: clamp01(value) });
+    }
+
+    function startDraggingDisposition(type: 'origin' | 'destination', e: MouseEvent) {
+        e.stopPropagation();
+        const onMoving = (moveEvent: MouseEvent) => {
+            if (!padRef.value) return;
+            const rect = padRef.value.getBoundingClientRect();
+            const x = clamp01((moveEvent.clientX - rect.left) / rect.width);
+            const y = clamp01((moveEvent.clientY - rect.top) / rect.height);
+            
+            if (type === 'origin') {
+                updateGradientDisposition({ x, y }, destination.value);
+            } else {
+                updateGradientDisposition(origin.value, { x, y });
+            }
+        };
+        
+        const onStopped = () => {
+            window.removeEventListener('mousemove', onMoving);
+            window.removeEventListener('mouseup', onStopped);
+        };
+        
+        window.addEventListener('mousemove', onMoving);
+        window.addEventListener('mouseup', onStopped);
     }
 
     onBeforeUnmount(() => {
@@ -550,12 +647,21 @@ export function useGradient(
         isPresetsPopoverOpen,
         presetsPopoverAnchor,
         allPresets,
+        gradientType,
+        gradientAngle,
+        origin,
+        destination,
         gradientPreviewStyle,
         trackRef,
+        padRef,
         effectiveMinStops,
         addStop,
         removeStop,
         updateStop,
+        updateGradientType,
+        updateGradientAngle,
+        updateGradientDisposition,
+        startDraggingDisposition,
         onTrackClick,
         startDragging,
         handleStopClick,

@@ -43,35 +43,9 @@ export class GradientPlugin extends BasePlugin {
     getProperties(_clip: Clip): PluginPropertyDefinition[] {
         return [
             {
-                label: "Gradient Editor",
-                key: "sep_gradient",
-                type: "divider",
-            },
-            {
                 label: "Colors",
                 key: "gradient",
                 type: "gradient",
-            },
-            {
-                label: "Configuration",
-                key: "sep_config",
-                type: "divider",
-            },
-            {
-                label: "Type",
-                key: "type",
-                type: "select",
-                options: [
-                    { label: "Linear", value: "linear" },
-                    { label: "Radial", value: "radial" },
-                ],
-            },
-            {
-                label: "Angle",
-                key: "angle",
-                type: "slider",
-                props: { min: 0, max: 360, step: 1 },
-                showIf: (data: any) => data.type === "linear",
             },
             {
                 label: "Transform",
@@ -112,21 +86,27 @@ export class GradientPlugin extends BasePlugin {
             uniform float alphas[8];
             uniform float positions[8];
             uniform int numStops;
-            uniform float type; // 0 for linear, 1 for radial
-            uniform float angle;
+            uniform float type;
+            uniform vec2 origin;
+            uniform vec2 destination;
             varying vec2 vUv;
 
             void main() {
                 float f = 0.0;
                 if (type < 0.5) {
                     // Linear
-                    float rad = radians(angle);
-                    vec2 dir = vec2(cos(rad), sin(rad));
-                    // Re-center UV to rotate around middle
-                    f = dot(vUv - 0.5, dir) + 0.5;
+                    vec2 dir = destination - origin;
+                    float l2 = dot(dir, dir);
+                    if (l2 < 0.0001) {
+                        f = 0.0;
+                    } else {
+                        f = dot(vUv - origin, dir) / l2;
+                    }
                 } else {
                     // Radial
-                    f = distance(vUv, vec2(0.5)) * 2.0;
+                    float dist = distance(vUv, origin);
+                    float radius = distance(origin, destination);
+                    f = radius < 0.0001 ? 0.0 : dist / radius;
                 }
                 
                 f = clamp(f, 0.0, 1.0);
@@ -177,8 +157,9 @@ export class GradientPlugin extends BasePlugin {
             alphas: { value: alphas },
             positions: { value: positions },
             numStops: { value: numStops },
-            type: { value: data.type === "linear" ? 0.0 : 1.0 },
-            angle: { value: data.angle || 0 },
+            type: { value: (data.gradient?.type || "linear") === "linear" ? 0.0 : 1.0 },
+            origin: { value: new THREE.Vector2(data.gradient?.origin?.x ?? 0.5, 1.0 - (data.gradient?.origin?.y ?? 0.5)) },
+            destination: { value: new THREE.Vector2(data.gradient?.destination?.x ?? 0.5, 1.0 - (data.gradient?.destination?.y ?? 0.5)) },
         };
     }
 

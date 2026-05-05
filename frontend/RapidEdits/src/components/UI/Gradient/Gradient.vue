@@ -1,5 +1,5 @@
 <script setup lang="ts">
-    import { Trash2, X, Library } from 'lucide-vue-next';
+    import { Trash2, X, Library, Maximize, Circle } from 'lucide-vue-next';
     import Button from '../Button/Button.vue';
     import Slider from '../Slider/Slider.vue';
     import Popover from '../Overlay/Popover.vue';
@@ -9,6 +9,7 @@
         type GradientValue,
         type GradientPreset,
     } from './composables/useGradient';
+import { ref } from 'vue';
 
     const props = defineProps<{
         modelValue: GradientValue | null | undefined;
@@ -35,12 +36,21 @@
         isPresetsPopoverOpen,
         presetsPopoverAnchor,
         allPresets,
+        gradientType,
+        gradientAngle,
+        origin,
+        destination,
         gradientPreviewStyle,
         trackRef,
+        padRef,
         effectiveMinStops,
         addStop,
         removeStop,
         updateStop,
+        updateGradientType,
+        updateGradientAngle,
+        updateGradientDisposition,
+        startDraggingDisposition,
         onTrackClick,
         startDragging,
         handleStopClick,
@@ -52,36 +62,173 @@
         hexToRgb,
         effectiveMaxStops,
     } = useGradient(props, emit);
-    void trackRef;
-    void addStop;
+
+    const getPresetPreviewStyle = (preset: GradientPreset) => {
+        const normalized = normalizeStops(preset);
+        const stopsStr = normalized
+            .map((s) => {
+                const rgb = hexToRgb(s.color);
+                const alpha = s.alpha ?? 1;
+                return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha}) ${Math.round(s.position * 100)}%`;
+            })
+            .join(', ');
+        return {
+            background: `linear-gradient(to right, ${stopsStr})`,
+        };
+    };
+
 </script>
 
 <template>
     <div class="gradient-editor">
-        <div class="gradient-visual-container">
-            <div
-                class="delete-zone delete-zone--top"
-                :class="{
-                    'is-visible': showDragLabels,
-                    'is-active':
-                        showDragLabels && dragDeleteDirection === 'top',
-                }"
-            >
-                <Trash2 :size="12" />
-                <span>Drag up to delete</span>
+        <!-- Top Toolbar: Type & Disposition -->
+        <div class="gradient-toolbar-integrated">
+            <div class="toolbar-left">
+                <div class="flex items-center gap-1">
+                    <Button 
+                        variant="ghost" 
+                        size="xs" 
+                        :active="gradientType === 'linear'"
+                        @click="updateGradientType('linear')"
+                        title="Linear"
+                    >
+                        <Maximize :size="14" />
+                    </Button>
+                    <Button 
+                        variant="ghost" 
+                        size="xs" 
+                        :active="gradientType === 'radial'"
+                        @click="updateGradientType('radial')"
+                        title="Radial"
+                    >
+                        <Circle :size="14" />
+                    </Button>
+                </div>
             </div>
-            <div
-                ref="trackRef"
-                class="gradient-track"
-                :class="{ 'is-locked': stops.length >= effectiveMaxStops }"
+
+            <div class="toolbar-right">
+                <!-- Direction Popover -->
+                <Popover
+                    placement="bottom"
+                    align="center"
+                    :offset="12"
+                    :z-index="10001"
+                    transparent
+                >
+                    <template #trigger="{ isOpen }">
+                        <Button 
+                            variant="ghost" 
+                            size="xs" 
+                            class="direction-btn"
+                            :active="isOpen"
+                        >
+                            <span class="text-[10px] uppercase font-bold tracking-tighter opacity-70">Direction</span>
+                        </Button>
+                    </template>
+                    <template #content="{ close }">
+                        <div class="direction-card" @click.stop>
+                            <div class="card-header">
+                                <span>Geometry</span>
+                                <button class="close-icon" @click="close()"><X :size="14" /></button>
+                            </div>
+                            
+                            <div class="pad-container">
+                                <div class="large-pad" ref="padRef">
+                                    <div class="pad-grid"></div>
+                                    <div class="pad-preview" :style="gradientPreviewStyle"></div>
+                                    <svg class="pad-vector" width="100%" height="100%">
+                                        <line
+                                            :x1="`${origin.x * 100}%`" :y1="`${origin.y * 100}%`"
+                                            :x2="`${destination.x * 100}%`" :y2="`${destination.y * 100}%`"
+                                        />
+                                    </svg>
+                                    <div
+                                        class="pad-dot origin"
+                                        :style="{ left: `${origin.x * 100}%`, top: `${origin.y * 100}%` }"
+                                        @mousedown="startDraggingDisposition('origin', $event)"
+                                    ></div>
+                                    <div
+                                        class="pad-dot destination"
+                                        :style="{ left: `${destination.x * 100}%`, top: `${destination.y * 100}%` }"
+                                        @mousedown="startDraggingDisposition('destination', $event)"
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <div v-if="gradientType === 'linear'" class="angle-section">
+                                <label>Angle</label>
+                                <div class="slider-with-text">
+                                    <Slider
+                                        :model-value="gradientAngle"
+                                        :min="0" :max="360"
+                                        @update:model-value="updateGradientAngle"
+                                        class="flex-1"
+                                    />
+                                    <span class="angle-val">{{ gradientAngle }}°</span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </Popover>
+
+                <div class="divider-v"></div>
+
+                <!-- Presets Popover -->
+                <Popover
+                    placement="bottom"
+                    align="end"
+                    :offset="12"
+                    :z-index="10001"
+                >
+                    <template #trigger="{ isOpen }">
+                        <Button 
+                            variant="ghost" 
+                            size="xs" 
+                            :icon="Library" 
+                            :active="isOpen"
+                            title="Presets" 
+                        />
+                    </template>
+                    <template #content="{ close }">
+                        <div class="presets-card" @click.stop>
+                            <div class="card-header">
+                                <span>Library</span>
+                                <button class="close-icon" @click="close()"><X :size="14" /></button>
+                            </div>
+                            <div class="presets-grid">
+                                <button
+                                    v-for="preset in allPresets"
+                                    :key="preset.id"
+                                    class="preset-item"
+                                    @click="applyPreset(preset); close()"
+                                >
+                                    <div class="preset-preview" :style="getPresetPreviewStyle(preset)"></div>
+                                    <span class="preset-name">{{ preset.id }}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </Popover>
+            </div>
+        </div>
+
+
+        <!-- Main Interaction Area -->
+        <div class="gradient-visual-area">
+            <div class="delete-zone top" :class="{ visible: showDragLabels, active: showDragLabels && dragDeleteDirection === 'top' }">
+                <Trash2 :size="12" /> <span>Release to delete</span>
+            </div>
+            
+            <div 
+                ref="trackRef" 
+                class="gradient-track" 
+                :class="{ locked: stops.length >= effectiveMaxStops }"
                 @mousedown="onTrackClick"
             >
-                <!-- Checkerboard background for alpha visibility -->
-                <div class="checkerboard"></div>
-                <!-- Gradient preview -->
-                <div class="gradient-fill" :style="gradientPreviewStyle"></div>
+                <div class="track-checkers"></div>
+                <div class="track-fill" :style="gradientPreviewStyle"></div>
 
-                <!-- Interaction markers -->
+                <!-- Handles -->
                 <div
                     v-for="stop in stops"
                     :key="stop.id"
@@ -89,36 +236,22 @@
                     :class="{
                         active: selectedStopId === stop.id,
                         dragging: draggingStopId === stop.id,
-                        'over-trash': draggingStopId === stop.id && isOverTrash,
+                        'is-over-trash': draggingStopId === stop.id && isOverTrash,
                     }"
                     :style="{ left: `${stop.position * 100}%` }"
                     @mousedown="startDragging($event, stop.id)"
                     @click="handleStopClick($event, stop.id)"
                 >
-                    <div
-                        class="stop-marker"
-                        :style="{
-                            backgroundColor: `rgba(${hexToRgb(stop.color).r}, ${hexToRgb(stop.color).g}, ${hexToRgb(stop.color).b}, ${stop.alpha ?? 1})`,
-                        }"
+                    <div class="handle-stem"></div>
+                    <div 
+                        class="handle-color" 
+                        :style="{ backgroundColor: `rgba(${hexToRgb(stop.color).r}, ${hexToRgb(stop.color).g}, ${hexToRgb(stop.color).b}, ${stop.alpha ?? 1})` }"
                     ></div>
-                    <div
-                        v-if="draggingStopId === stop.id && isOverTrash"
-                        class="trash-indicator"
-                    >
-                        <Trash2 :size="14" />
-                    </div>
                 </div>
             </div>
-            <div
-                class="delete-zone delete-zone--bottom"
-                :class="{
-                    'is-visible': showDragLabels,
-                    'is-active':
-                        showDragLabels && dragDeleteDirection === 'bottom',
-                }"
-            >
-                <Trash2 :size="12" />
-                <span>Drag down to delete</span>
+
+            <div class="delete-zone bottom" :class="{ visible: showDragLabels, active: showDragLabels && dragDeleteDirection === 'bottom' }">
+                <Trash2 :size="12" /> <span>Release to delete</span>
             </div>
         </div>
 
@@ -127,131 +260,62 @@
             :model-value="isStopPopoverVisible"
             @update:model-value="isStopPopoverVisible = $event"
             :anchor-point="popoverAnchor"
+            :reference-el="trackRef"
             placement="top"
             align="center"
-            :offset="20"
-            :z-index="9999"
+            :offset="24"
+            :z-index="10000"
             transparent
-            class="stop-popover"
         >
-            <div v-if="selectedStop" class="stop-edit-form">
-                <div class="form-header">
-                    <span class="form-title">Edit Stop</span>
-                    <button class="close-btn" @click="isPopoverOpen = false">
-                        <X :size="14" />
-                    </button>
+            <div v-if="selectedStop" class="stop-popover-card" @click.stop>
+                <div class="card-header">
+                    <span>Edit Stop</span>
+                    <button class="close-icon" @click="isStopPopoverVisible = false"><X :size="14" /></button>
                 </div>
 
-                <div class="form-row">
-                    <label>Color</label>
-                    <ColorPicker
-                        :model-value="selectedStop.color"
-                        @update:model-value="
-                            updateStop(selectedStop.id, { color: $event })
-                        "
-                    />
-                </div>
-
-                <div class="form-row">
-                    <label>Opacity</label>
-                    <div class="range-group">
+                <div class="card-body">
+                    <div class="body-row">
+                        <label>Color</label>
+                        <div class="flex-1">
+                            <ColorPicker
+                                :model-value="selectedStop.color"
+                                @update:model-value="updateStop(selectedStop.id, { color: $event })"
+                            />
+                        </div>
+                    </div>
+                    <div class="body-row">
+                        <label>Alpha</label>
                         <Slider
                             :model-value="selectedStop.alpha ?? 1"
-                            :min="0"
-                            :max="1"
-                            :step="0.01"
+                            :min="0" :max="1" :step="0.01"
                             @update:model-value="updateSelectedStopAlpha"
+                            class="flex-1"
                         />
-                        <span class="value-label">
-                            {{ Math.round((selectedStop.alpha ?? 1) * 100) }}%
-                        </span>
                     </div>
-                </div>
-
-                <div class="form-row">
-                    <label>Position</label>
-                    <div class="range-group">
+                    <div class="body-row">
+                        <label>Pos</label>
                         <Slider
                             :model-value="selectedStop.position"
-                            :min="0"
-                            :max="1"
-                            :step="0.001"
+                            :min="0" :max="1" :step="0.001"
                             @update:model-value="updateSelectedStopPosition"
+                            class="flex-1"
                         />
-                        <span class="value-label">
-                            {{ Math.round(selectedStop.position * 100) }}%
-                        </span>
                     </div>
                 </div>
 
-                <div class="form-actions merged-actions">
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        :icon="Library"
-                        icon-only
-                        title="Presets"
-                        @click="togglePresets"
-                    />
-                    <div class="flex-spacer"></div>
-                    <Button
-                        variant="danger"
-                        size="sm"
-                        :icon="Trash2"
-                        icon-only
-                        title="Remove Stop"
+                <div class="card-footer">
+                    <Button variant="danger" size="xs" :icon="Trash2" 
                         :disabled="stops.length <= effectiveMinStops"
                         @click="removeStop(selectedStop!.id)"
-                    />
+                        class="w-full"
+                    >
+                        Delete Stop
+                    </Button>
                 </div>
             </div>
         </Popover>
 
-        <!-- Presets Library Popover -->
-        <Popover
-            v-model="isPresetsPopoverOpen"
-            :anchor-point="presetsPopoverAnchor"
-            placement="right"
-            align="start"
-            :offset="10"
-            :z-index="4000"
-            transparent
-            class="presets-library-popover"
-        >
-            <div class="presets-library compact">
-                <div class="presets-header">
-                    <span class="presets-title">Presets</span>
-                    <button
-                        class="close-btn"
-                        @click="isPresetsPopoverOpen = false"
-                    >
-                        <X :size="14" />
-                    </button>
-                </div>
-                <div class="presets-grid">
-                    <div
-                        v-for="preset in allPresets"
-                        :key="preset.id"
-                        class="preset-card"
-                        @click="applyPreset(preset)"
-                    >
-                        <div
-                            class="preset-preview-large"
-                            :style="{
-                                background: `linear-gradient(90deg, ${normalizeStops(
-                                    { stops: preset.stops }
-                                )
-                                    .map(
-                                        (s) => `${s.color} ${s.position * 100}%`
-                                    )
-                                    .join(', ')})`,
-                            }"
-                        ></div>
-                        <span class="preset-name">{{ preset.id }}</span>
-                    </div>
-                </div>
-            </div>
-        </Popover>
+
     </div>
 </template>
 
@@ -259,125 +323,242 @@
     .gradient-editor {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 8px;
         width: 100%;
         user-select: none;
     }
 
-    .gradient-toolbar {
+    /* Toolbar Layout */
+    .gradient-toolbar-integrated {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        background: rgba(15, 23, 42, 0.6);
+        padding: 5px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(16px);
+        margin-bottom: 4px;
     }
 
-    .gradient-count {
-        font-size: 0.75rem;
-        color: var(--text-color-secondary, #9ca3af);
-        font-weight: 500;
-    }
-
-    .gradient-visual-container {
-        padding: 8px 0 22px 0;
+    .angle-section {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
+    }
+
+    .angle-section label {
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.3);
+    }
+
+    .slider-with-text {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .angle-val {
+        font-family: var(--font-mono, monospace);
+        font-size: 0.7rem;
+        color: #fff;
+        min-width: 32px;
+        text-align: right;
+    }
+
+    .toolbar-left {
+        display: flex;
+        align-items: center;
+        gap: 16px; /* Increased gap */
+        padding-left: 4px;
+    }
+
+    .toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .divider-v {
+        width: 1px;
+        height: 16px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 0 4px;
+    }
+
+    .direction-btn {
+        padding: 0 8px !important;
+        height: 24px !important;
+        border-radius: 6px !important;
+    }
+
+    .direction-btn.active {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: #55b2e2 !important;
+    }
+
+    /* Direction Card */
+    .direction-card {
+        width: 180px;
+        background: #1e293b;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+        overflow: hidden;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .pad-container {
+        display: flex;
+        justify-content: center;
+    }
+
+    .large-pad {
+        width: 120px;
+        height: 120px;
+        background: #000;
+        border-radius: 8px;
+        position: relative;
+        /* overflow: hidden; */ /* Allow handles to breathe at edges */
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.8);
+    }
+
+    .pad-grid {
+        position: absolute;
+        inset: 0;
+        border-radius: 7px;
+        background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                          linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+        background-size: 25% 25%;
+    }
+
+    .pad-preview {
+        position: absolute;
+        inset: 0;
+        opacity: 0.4;
+        border-radius: 7px;
+        overflow: hidden;
+    }
+
+    .pad-vector {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: visible;
+    }
+
+    .pad-vector line {
+        stroke: rgba(255, 255, 255, 0.5);
+        stroke-width: 1.5;
+        stroke-dasharray: 4 3;
+    }
+
+    .pad-dot {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        border: 1.5px solid #000;
+        background: #fff;
+        transform: translate(-50%, -50%);
+        cursor: grab;
+        z-index: 5;
+        box-shadow: 0 0 6px rgba(0,0,0,0.5);
+    }
+
+    .pad-dot.destination {
+        background: #55b2e2;
+    }
+
+    .pad-dot:active {
+        cursor: grabbing;
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+
+    /* Visual Area (Track + Delete zones) */
+    .gradient-visual-area {
+        display: flex;
+        flex-direction: column;
+        padding-bottom: 12px;
     }
 
     .delete-zone {
+        height: 14px;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 6px;
-        height: 18px;
-        border-radius: 6px;
-        border: 1px dashed rgba(156, 163, 175, 0.35);
-        background: rgba(15, 23, 42, 0.25);
-        color: var(--text-color-secondary, #9ca3af);
-        font-size: 0.66rem;
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: rgba(239, 68, 68, 0.6);
+        background: rgba(127, 29, 29, 0.1);
+        border-radius: 4px;
         opacity: 0;
-        transform: scale(0.98);
-        transition: all 0.15s ease;
+        transform: scale(0.95);
+        transition: all 0.2s;
         pointer-events: none;
+        margin: 2px 0;
     }
 
-    .delete-zone.is-visible {
-        opacity: 0.8;
+    .delete-zone.visible {
+        opacity: 0.4;
     }
 
-    .delete-zone.is-active {
+    .delete-zone.active {
         opacity: 1;
-        border-color: rgba(239, 68, 68, 0.75);
-        color: var(--error-color, #ef4444);
-        background: rgba(127, 29, 29, 0.22);
+        color: #ef4444;
+        background: rgba(127, 29, 29, 0.3);
         transform: scale(1);
+        border: 1px dashed rgba(239, 68, 68, 0.5);
     }
 
     .gradient-track {
         position: relative;
-        width: 100%;
-        height: 28px;
-        border-radius: 8px;
-        cursor: crosshair;
+        height: 22px;
         background: #000;
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-        overflow: visible;
-        transition: opacity 0.2s;
+        border-radius: 4px;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 2px 6px rgba(0,0,0,0.4);
+        cursor: crosshair;
+        z-index: 10;
     }
 
-    .gradient-track.is-locked {
-        cursor: default;
-    }
-
-    .checkerboard {
+    .track-checkers {
         position: absolute;
         inset: 0;
-        border-radius: 8px;
-        background-color: #ffffff;
-        background-image:
-            linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
-            linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
-            linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
-            linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
-        background-size: 8px 8px;
-        background-position:
-            0 0,
-            0 4px,
-            4px -4px,
-            -4px 0px;
+        border-radius: 4px;
+        background-color: #fff;
+        background-image: linear-gradient(45deg, #ddd 25%, transparent 25%),
+                          linear-gradient(-45deg, #ddd 25%, transparent 25%),
+                          linear-gradient(45deg, transparent 75%, #ddd 75%),
+                          linear-gradient(-45deg, transparent 75%, #ddd 75%);
+        background-size: 6px 6px;
+        background-position: 0 0, 0 3px, 3px -3px, -3px 0;
     }
 
-    .gradient-fill {
+    .track-fill {
         position: absolute;
         inset: 0;
-        border-radius: 8px;
+        border-radius: 4px;
     }
 
+    /* Handles */
     .stop-handle {
         position: absolute;
-        top: 28px;
-        width: 14px;
+        top: 22px;
+        width: 12px;
         height: 18px;
         transform: translateX(-50%);
         cursor: grab;
-        z-index: 10;
-        transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 20;
     }
 
-    .stop-handle:active {
-        cursor: grabbing;
-    }
-
-    .stop-handle.active {
-        z-index: 12;
-    }
-
-    .stop-handle.dragging {
-        z-index: 13;
-        transition: none; /* Disable transition while dragging for responsiveness */
-    }
-
-    .stop-handle::before {
-        content: '';
+    .handle-stem {
         position: absolute;
         top: -6px;
         left: 50%;
@@ -386,229 +567,118 @@
         height: 0;
         border-left: 6px solid transparent;
         border-right: 6px solid transparent;
-        border-bottom: 6px solid var(--surface-color-light, #374151);
+        border-bottom: 6px solid #1e293b;
     }
 
-    .stop-handle.active::before {
-        border-bottom-color: var(--primary-color, #55b2e2);
+    .stop-handle.active .handle-stem {
+        border-bottom-color: #55b2e2;
     }
 
-    .stop-marker {
+    .handle-color {
         width: 100%;
         height: 100%;
         border-radius: 2px;
-        border: 2px solid var(--surface-color-light, #374151);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        position: relative;
-        overflow: hidden;
-        background-color: #fff;
+        border: 1.5px solid #1e293b;
+        background: #fff;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     }
 
-    .stop-handle.active .stop-marker {
-        border-color: var(--primary-color, #55b2e2);
-        box-shadow: 0 0 0 2px rgba(85, 178, 226, 0.2);
+    .stop-handle.active .handle-color {
+        border-color: #55b2e2;
+        box-shadow: 0 0 8px rgba(85, 178, 226, 0.3);
     }
 
-    .trash-indicator {
-        position: absolute;
-        bottom: -24px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: var(--error-color, #ef4444);
-        animation: bounce 0.5s infinite alternate;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 18px;
-        height: 18px;
+    .stop-handle.is-over-trash .handle-color {
+        opacity: 0.3;
+        border-color: #ef4444;
     }
 
-    @keyframes bounce {
-        from {
-            transform: translateX(-50%) translateY(0);
-        }
-        to {
-            transform: translateX(-50%) translateY(-4px);
-        }
-    }
-
-    .stop-handle.over-trash .stop-marker {
-        border-color: var(--error-color, #ef4444);
-        opacity: 0.5;
-        transform: scale(0.8);
-    }
-
-    .gradient-presets {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 4px;
-    }
-
-    .preset-chip {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: var(--surface-color-light, #374151);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 6px;
-        padding: 4px 10px 4px 4px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-
-    .preset-chip:hover {
-        background: var(--surface-color-lighter, #4b5563);
-        border-color: var(--primary-color, #55b2e2);
-    }
-
-    .preset-preview {
-        width: 24px;
-        height: 24px;
-        border-radius: 4px;
-        border: 1px solid rgba(0, 0, 0, 0.2);
-    }
-
-    .preset-chip span {
-        font-size: 0.72rem;
-        color: var(--text-color, #e5e7eb);
-        font-weight: 500;
-    }
-
-    /* Popover Styles */
-    .stop-edit-form {
-        width: 220px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        background: var(--canvas-light, #1e293b);
-        padding: 14px;
-        border-radius: 12px;
-        border: 1px solid var(--canvas-border, rgba(255, 255, 255, 0.1));
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    }
-
-    .form-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 4px;
-    }
-
-    .form-title {
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: var(--text-color-secondary, #9ca3af);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .close-btn {
-        background: none;
-        border: none;
-        color: var(--text-color-secondary, #9ca3af);
-        cursor: pointer;
-        padding: 4px;
-        border-radius: 4px;
-        display: flex;
-        transition: all 0.2s;
-    }
-
-    .close-btn:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: var(--text-color, #fff);
-    }
-
-    .form-row {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .form-row label {
-        font-size: 0.7rem;
-        font-weight: 500;
-        color: var(--text-color-secondary, #9ca3af);
-    }
-
-    .color-input-wrapper {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        background: rgba(0, 0, 0, 0.2);
-        padding: 4px;
-        border-radius: 6px;
+    /* Popover Card Styles */
+    .stop-popover-card {
+        width: 200px;
+        background: #1e293b;
         border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+        overflow: hidden;
     }
 
-    .color-input-wrapper input[type='color'] {
-        width: 28px;
-        height: 28px;
-        border: none;
-        border-radius: 4px;
-        background: none;
-        padding: 0;
-        cursor: pointer;
-    }
-
-    .hex-value {
-        font-family: var(--font-mono, monospace);
-        font-size: 0.75rem;
-        color: var(--text-color, #fff);
-    }
-
-    .range-group {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-    }
-
-    .value-label {
-        font-size: 0.7rem;
-        min-width: 36px;
-        text-align: right;
-        color: var(--text-color, #fff);
-    }
-
-    .form-actions.merged-actions {
-        margin-top: 8px;
-        padding-top: 12px;
-        border-top: 1px solid rgba(255, 255, 255, 0.05);
-        display: flex;
-        align-items: center;
-        width: 100%;
-    }
-
-    .flex-spacer {
-        flex: 1;
-    }
-
-    /* Presets Library */
-    .presets-library {
-        width: 260px;
-        max-height: 320px;
-        overflow-y: auto;
-        padding: 10px;
-        background: var(--surface-color, #1e293b);
-        border-radius: 8px;
-    }
-
-    .presets-header {
+    .card-header {
+        background: rgba(255, 255, 255, 0.03);
+        padding: 8px 12px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 10px;
-        padding-bottom: 6px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
 
-    .presets-title {
-        font-size: 0.75rem;
+    .card-header span {
+        font-size: 0.7rem;
         font-weight: 700;
         text-transform: uppercase;
-        color: var(--text-color-secondary);
         letter-spacing: 0.05em;
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .close-icon {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.3);
+        cursor: pointer;
+        padding: 2px;
+    }
+
+    .card-body {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .body-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .body-row label {
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.4);
+        min-width: 40px;
+    }
+
+    .card-footer {
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.1);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .spacer { flex: 1; }
+
+    /* Presets Panel */
+    .presets-panel {
+        width: 240px;
+        background: #1e293b;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        padding: 12px;
+    }
+
+    .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+
+    .panel-header span {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.6);
     }
 
     .presets-grid {
@@ -617,35 +687,31 @@
         gap: 8px;
     }
 
-    .preset-card {
+    .preset-item {
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.05);
         border-radius: 6px;
         padding: 4px;
         cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
+        transition: all 0.2s;
     }
 
-    .preset-card:hover {
+    .preset-item:hover {
         background: rgba(255, 255, 255, 0.08);
-        border-color: var(--primary-color);
+        border-color: #55b2e2;
         transform: translateY(-1px);
     }
 
-    .preset-preview-large {
-        width: 100%;
-        height: 24px;
-        border-radius: 3px;
-        border: 1px solid rgba(0, 0, 0, 0.2);
+    .preset-mini-preview {
+        height: 20px;
+        border-radius: 4px;
+        margin-bottom: 4px;
     }
 
-    .preset-name {
-        font-size: 0.65rem;
-        color: var(--text-color);
-        font-weight: 500;
+    .preset-label {
+        font-size: 0.6rem;
+        color: rgba(255, 255, 255, 0.6);
+        display: block;
         text-align: center;
         white-space: nowrap;
         overflow: hidden;
