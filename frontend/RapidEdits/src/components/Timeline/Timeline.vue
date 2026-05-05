@@ -72,6 +72,10 @@ const customTracks = computed(() => {
 // Ghost Preview for New Track Zones
 const hoverZone = ref<"video" | "audio" | null>(null);
 const zoneGhostX = ref(0);
+let zoneDragRafPending = false;
+let zoneDragClientX = 0;
+let zoneDragType: "video" | "audio" | null = null;
+let zoneDragTarget: HTMLElement | null = null;
 
 const ghostData = computed(() => {
     if (store.draggedAsset) {
@@ -106,16 +110,19 @@ const ghostData = computed(() => {
     return null;
 });
 
-const handleZoneDragOver = (e: DragEvent, type: "video" | "audio") => {
+const processZoneDragOver = () => {
+    zoneDragRafPending = false;
+    if (!zoneDragTarget || !zoneDragType) return;
+
     // Transitions cannot be dropped on empty zones to create tracks
     if (store.draggedPlugin?.getMetadata().type === 'transition') {
         hoverZone.value = null;
         return;
     }
 
-    hoverZone.value = type;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const rawX = e.clientX - rect.left;
+    hoverZone.value = zoneDragType;
+    const rect = zoneDragTarget.getBoundingClientRect();
+    const rawX = zoneDragClientX - rect.left;
     const rawTime = rawX / zoomLevel.value;
 
     // Snapping
@@ -132,8 +139,19 @@ const handleZoneDragOver = (e: DragEvent, type: "video" | "audio") => {
     zoneGhostX.value = finalTime * zoomLevel.value;
 };
 
+const handleZoneDragOver = (e: DragEvent, type: "video" | "audio") => {
+    zoneDragClientX = e.clientX;
+    zoneDragType = type;
+    zoneDragTarget = e.currentTarget as HTMLElement;
+    if (zoneDragRafPending) return;
+    zoneDragRafPending = true;
+    requestAnimationFrame(processZoneDragOver);
+};
+
 const handleZoneDragLeave = () => {
     hoverZone.value = null;
+    zoneDragType = null;
+    zoneDragTarget = null;
 };
 
 // Pixels per second

@@ -156,16 +156,24 @@ const ghostData = computed(() => {
 const ghostDuration = ref(5.0);
 const ghostTransitionSlot = ref<string | undefined>(undefined);
 
-const handleDragOver = (e: DragEvent) => {
+let dragOverRafPending = false;
+let lastDragClientX = 0;
+let lastDragTarget: HTMLElement | null = null;
+let lastDragDataTransfer: DataTransfer | null = null;
+
+const processDragOver = () => {
+    dragOverRafPending = false;
+    if (!lastDragTarget) return;
+
     if (!isDropAllowed.value) {
-        if (e.dataTransfer) {
-            e.dataTransfer.dropEffect = "none";
+        if (lastDragDataTransfer) {
+            lastDragDataTransfer.dropEffect = "none";
         }
         return;
     }
 
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const rawX = e.clientX - rect.left;
+    const rect = lastDragTarget.getBoundingClientRect();
+    const rawX = lastDragClientX - rect.left;
     const rawTime = rawX / props.zoomLevel;
 
     // Snapping Logic
@@ -230,13 +238,24 @@ const handleDragOver = (e: DragEvent) => {
     isOver.value = showGhost;
 
     // Allow drop
-    if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = "copy";
+    if (lastDragDataTransfer) {
+        lastDragDataTransfer.dropEffect = "copy";
     }
+};
+
+const handleDragOver = (e: DragEvent) => {
+    lastDragClientX = e.clientX;
+    lastDragTarget = e.currentTarget as HTMLElement;
+    lastDragDataTransfer = e.dataTransfer;
+    if (dragOverRafPending) return;
+    dragOverRafPending = true;
+    requestAnimationFrame(processDragOver);
 };
 
 const handleDragLeave = () => {
     isOver.value = false;
+    lastDragTarget = null;
+    lastDragDataTransfer = null;
 };
 
 const handleDrop = (e: DragEvent) => {

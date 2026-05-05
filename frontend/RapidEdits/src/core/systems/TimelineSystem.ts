@@ -540,16 +540,39 @@ export class TimelineSystem {
         excludeClipId?: string,
     ): number | null {
         if (!this.isSnappingEnabled) return null;
-
-        const points = this.getSnapPoints(currentTime, excludeClipId);
-        let closest = null;
+        let closest: number | null = null;
         let minDiff = thresholdSeconds;
 
-        for (const point of points) {
+        // Include timeline origin and playhead as snap candidates.
+        const basePoints = [0, currentTime];
+        for (const point of basePoints) {
             const diff = Math.abs(point - time);
             if (diff < minDiff) {
                 minDiff = diff;
                 closest = point;
+            }
+        }
+
+        // Hot path for drag operations:
+        // avoid building/sorting temporary arrays each mouse event.
+        for (const track of this.tracks) {
+            for (const clip of track.clips) {
+                if (clip.id === excludeClipId) continue;
+
+                const start = clip.start;
+                const end = clip.start + clip.duration;
+
+                const dStart = Math.abs(start - time);
+                if (dStart < minDiff) {
+                    minDiff = dStart;
+                    closest = start;
+                }
+
+                const dEnd = Math.abs(end - time);
+                if (dEnd < minDiff) {
+                    minDiff = dEnd;
+                    closest = end;
+                }
             }
         }
 
