@@ -11,6 +11,7 @@ import { ThreeCropManager } from "./managers/ThreeCropManager";
 import { ThreeGizmoManager, type ScreenRect } from "./managers/ThreeGizmoManager";
 import { ThreeGuidesManager } from "./managers/ThreeGuidesManager";
 import { EditorEventType } from "../../types/Media";
+import { EffectComposer, RenderPass, HalftonePass, ShaderPass, CopyShader } from "three-stdlib";
 export type { ScreenRect };
 
 export interface ThreeRendererOptions {
@@ -34,6 +35,11 @@ export class ThreeRenderer {
     public videoManager: ThreeVideoManager;
     public guidesManager: ThreeGuidesManager;
     public textureAllocator: TextureAllocator;
+
+    // Post-processing
+    public composer: EffectComposer | null = null;
+    public renderPass: RenderPass | null = null;
+    // Removed halftonePass as global - now handled per-plugin for granular control
 
     // State
     private isCaptureMode: boolean = false;
@@ -70,6 +76,17 @@ export class ThreeRenderer {
         );
 
         this.guidesManager = new ThreeGuidesManager(this.sceneManager.scene);
+
+        // Init Post-processing
+        if (!this.isCaptureMode) {
+            this.initPostProcessing();
+        }
+    }
+
+    private initPostProcessing() {
+        this.composer = new EffectComposer(this.sceneManager.renderer);
+        this.renderPass = new RenderPass(this.sceneManager.scene, this.sceneManager.camera);
+        this.composer.addPass(this.renderPass);
     }
 
     public setCaptureMode(isCapture: boolean) {
@@ -78,6 +95,9 @@ export class ThreeRenderer {
 
     public setSize(width: number, height: number) {
         this.sceneManager.setSize(width, height);
+        if (this.composer) {
+            this.composer.setSize(width, height);
+        }
     }
 
     public setProjectResolution(width: number, height: number) {
@@ -176,10 +196,15 @@ export class ThreeRenderer {
     public renderOnly(visibleClips: any[]) {
         // 3. Render Scene
         this.sceneManager.placeholderMesh.visible = visibleClips.length === 0;
-        this.sceneManager.renderer.render(
-            this.sceneManager.scene,
-            this.sceneManager.camera,
-        );
+        
+        if (this.composer && !this.isCaptureMode) {
+            this.composer.render();
+        } else {
+            this.sceneManager.renderer.render(
+                this.sceneManager.scene,
+                this.sceneManager.camera,
+            );
+        }
     }
 
     public renderFrame(currentTime: number, tracks: Track[]) {

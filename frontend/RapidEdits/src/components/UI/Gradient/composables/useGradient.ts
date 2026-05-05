@@ -20,6 +20,17 @@ export type GradientValue = {
     stops: GradientStop[];
     origin?: { x: number; y: number };
     destination?: { x: number; y: number };
+    speed?: number; // legacy alias for gradientSpeed
+    noise?: number; // legacy alias for noiseStrength
+    gradientSpeed?: number;
+    noiseStrength?: number;
+    noiseSpeed?: number;
+    noiseScale?: number;
+    offset?: number;
+    halftoneStrength?: number;
+    halftoneSize?: number;
+    halftoneAngle?: number;
+    wrapMode?: 'repeat' | 'mirror' | 'clamp';
 };
 
 export type GradientPreset = {
@@ -261,11 +272,20 @@ export function useGradient(
     );
     const gradientAngle = ref<number>(props.modelValue?.angle ?? 90);
     const origin = ref<{ x: number; y: number }>(
-        props.modelValue?.origin ?? { x: 0.5, y: 0 }
+        props.modelValue?.origin ?? { x: 0.5, y: 0.2 }
     );
     const destination = ref<{ x: number; y: number }>(
-        props.modelValue?.destination ?? { x: 0.5, y: 1 }
+        props.modelValue?.destination ?? { x: 0.5, y: 0.8 }
     );
+    const speed = ref<number>(props.modelValue?.gradientSpeed ?? props.modelValue?.speed ?? 0);
+    const noise = ref<number>(props.modelValue?.noiseStrength ?? props.modelValue?.noise ?? 0);
+    const noiseSpeed = ref<number>(props.modelValue?.noiseSpeed ?? 0);
+    const noiseScale = ref<number>(props.modelValue?.noiseScale ?? 1);
+    const offset = ref<number>(props.modelValue?.offset ?? 0);
+    const halftoneStrength = ref<number>(props.modelValue?.halftoneStrength ?? 0);
+    const halftoneSize = ref<number>(props.modelValue?.halftoneSize ?? 10);
+    const halftoneAngle = ref<number>(props.modelValue?.halftoneAngle ?? 45);
+    const wrapMode = ref<'repeat' | 'mirror' | 'clamp'>(props.modelValue?.wrapMode ?? 'repeat');
 
     watch(
         () => props.modelValue,
@@ -274,8 +294,17 @@ export function useGradient(
             if (val) {
                 gradientType.value = val.type ?? 'linear';
                 gradientAngle.value = val.angle ?? 90;
-                origin.value = val.origin ?? { x: 0.5, y: 0 };
-                destination.value = val.destination ?? { x: 0.5, y: 1 };
+                origin.value = val.origin ?? { x: 0.5, y: 0.2 };
+                destination.value = val.destination ?? { x: 0.5, y: 0.8 };
+                speed.value = val.gradientSpeed ?? val.speed ?? 0;
+                noise.value = val.noiseStrength ?? val.noise ?? 0;
+                noiseSpeed.value = val.noiseSpeed ?? 0;
+                noiseScale.value = val.noiseScale ?? 1;
+                offset.value = val.offset ?? 0;
+                halftoneStrength.value = val.halftoneStrength ?? 0;
+                halftoneSize.value = val.halftoneSize ?? 10;
+                halftoneAngle.value = val.halftoneAngle ?? 45;
+                wrapMode.value = val.wrapMode ?? 'repeat';
             }
         },
         { deep: true }
@@ -315,6 +344,17 @@ export function useGradient(
             stops: stopsToEmit,
             origin: origin.value,
             destination: destination.value,
+            speed: speed.value,
+            noise: noise.value,
+            gradientSpeed: speed.value,
+            noiseStrength: noise.value,
+            noiseSpeed: noiseSpeed.value,
+            noiseScale: noiseScale.value,
+            offset: offset.value,
+            halftoneStrength: halftoneStrength.value,
+            halftoneSize: halftoneSize.value,
+            halftoneAngle: halftoneAngle.value,
+            wrapMode: wrapMode.value,
         });
     }
 
@@ -597,6 +637,51 @@ export function useGradient(
         updateStop(selectedStop.value.id, { position: clamp01(value) });
     }
 
+    function updateSpeed(val: number) {
+        speed.value = val;
+        emitValue();
+    }
+
+    function updateNoise(val: number) {
+        noise.value = val;
+        emitValue();
+    }
+
+    function updateNoiseSpeed(val: number) {
+        noiseSpeed.value = val;
+        emitValue();
+    }
+
+    function updateNoiseScale(val: number) {
+        noiseScale.value = val;
+        emitValue();
+    }
+
+    function updateOffset(val: number) {
+        offset.value = val;
+        emitValue();
+    }
+
+    function updateHalftoneStrength(val: number) {
+        halftoneStrength.value = val;
+        emitValue();
+    }
+
+    function updateHalftoneSize(val: number) {
+        halftoneSize.value = val;
+        emitValue();
+    }
+
+    function updateHalftoneAngle(val: number) {
+        halftoneAngle.value = val;
+        emitValue();
+    }
+
+    function updateWrapMode(val: 'repeat' | 'mirror' | 'clamp') {
+        wrapMode.value = val;
+        emitValue();
+    }
+
     function startDraggingDisposition(type: 'origin' | 'destination', e: MouseEvent) {
         e.stopPropagation();
         const onMoving = (moveEvent: MouseEvent) => {
@@ -651,6 +736,15 @@ export function useGradient(
         gradientAngle,
         origin,
         destination,
+        gradientSpeed: speed,
+        noiseStrength: noise,
+        noiseSpeed,
+        noiseScale,
+        offset,
+        halftoneStrength,
+        halftoneSize,
+        halftoneAngle,
+        wrapMode,
         gradientPreviewStyle,
         trackRef,
         padRef,
@@ -661,6 +755,15 @@ export function useGradient(
         updateGradientType,
         updateGradientAngle,
         updateGradientDisposition,
+        updateGradientSpeed: updateSpeed,
+        updateNoiseStrength: updateNoise,
+        updateNoiseSpeed,
+        updateNoiseScale,
+        updateOffset,
+        updateHalftoneStrength,
+        updateHalftoneSize,
+        updateHalftoneAngle,
+        updateWrapMode,
         startDraggingDisposition,
         onTrackClick,
         startDragging,

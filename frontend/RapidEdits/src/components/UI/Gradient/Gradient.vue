@@ -40,6 +40,13 @@ import { ref } from 'vue';
         gradientAngle,
         origin,
         destination,
+        gradientSpeed: speed,
+        noiseStrength: noise,
+        noiseSpeed,
+        noiseScale,
+        offset,
+        dither,
+        wrapMode,
         gradientPreviewStyle,
         trackRef,
         padRef,
@@ -50,6 +57,13 @@ import { ref } from 'vue';
         updateGradientType,
         updateGradientAngle,
         updateGradientDisposition,
+        updateGradientSpeed: updateSpeed,
+        updateNoiseStrength: updateNoise,
+        updateNoiseSpeed,
+        updateNoiseScale,
+        updateOffset,
+        updateDither,
+        updateWrapMode,
         startDraggingDisposition,
         onTrackClick,
         startDragging,
@@ -202,8 +216,8 @@ import { ref } from 'vue';
                                     class="preset-item"
                                     @click="applyPreset(preset); close()"
                                 >
-                                    <div class="preset-preview" :style="getPresetPreviewStyle(preset)"></div>
-                                    <span class="preset-name">{{ preset.id }}</span>
+                                    <div class="preset-mini-preview" :style="getPresetPreviewStyle(preset)"></div>
+                                    <span class="preset-label">{{ preset.id }}</span>
                                 </button>
                             </div>
                         </div>

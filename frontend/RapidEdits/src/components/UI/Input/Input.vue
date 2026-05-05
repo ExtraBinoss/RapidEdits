@@ -103,9 +103,8 @@ const handleMouseDown = (e: MouseEvent) => {
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     
-    // Prevent default to avoid text selection IF we end up dragging
-    // But this might block the focus if not careful.
-    // We allow the browser to handle the focus if we don't move.
+    // Prevent immediate focus so we can distinguish between drag and click
+    e.preventDefault();
 };
 
 const handleMouseMove = (e: MouseEvent) => {
