@@ -285,7 +285,7 @@ export function useGradient(
     const halftoneStrength = ref<number>(props.modelValue?.halftoneStrength ?? 0);
     const halftoneSize = ref<number>(props.modelValue?.halftoneSize ?? 10);
     const halftoneAngle = ref<number>(props.modelValue?.halftoneAngle ?? 45);
-    const wrapMode = ref<'repeat' | 'mirror' | 'clamp'>(props.modelValue?.wrapMode ?? 'repeat');
+    const wrapMode = ref<'repeat' | 'mirror' | 'clamp'>(props.modelValue?.wrapMode ?? 'mirror');
 
     watch(
         () => props.modelValue,

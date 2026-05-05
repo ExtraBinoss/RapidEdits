@@ -82,7 +82,7 @@ export class GradientPlugin extends BasePlugin {
                 halftoneStrength: 0,
                 halftoneSize: 10,
                 halftoneAngle: 45,
-                wrapMode: "repeat",
+                wrapMode: "mirror",
             },
             postFx: {
                 enabled: false,

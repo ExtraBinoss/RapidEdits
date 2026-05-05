@@ -39,8 +39,10 @@ const clipStyle = computed(() => {
     // If dragging, use the tempStart, otherwise efficient prop
     const start = isDragging.value ? tempStart.value : props.clip.start;
     return {
-        left: `${start * props.zoomLevel}px`,
+        left: "0px",
+        transform: `translate3d(${start * props.zoomLevel}px, 0, 0)`,
         width: `${props.clip.duration * props.zoomLevel}px`,
+        willChange: isDragging.value ? "transform" : "auto",
         cursor:
             props.activeTool === "razor"
                 ? "cell"

@@ -31,7 +31,7 @@ const transitionStyle = computed(() => {
         clipPath,
         borderRadius: '0px',
         backgroundColor: '#10b981', // Emerald 500
-        boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)'
+        boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)',
     };
 });
 </script>
@@ -45,8 +45,10 @@ const transitionStyle = computed(() => {
             isTransition ? '!top-0 !bottom-0 !border-0 opacity-80 animate-pulse' : ''
         ]"
         :style="{
-            left: `${x}px`,
+            left: '0px',
+            transform: `translate3d(${x}px, 0, 0)`,
             width: `${(isTransition ? (ghostData.duration || 1.0) : ghostData.duration) * zoomLevel}px`,
+            willChange: 'transform',
             ...transitionStyle
         }"
     >
