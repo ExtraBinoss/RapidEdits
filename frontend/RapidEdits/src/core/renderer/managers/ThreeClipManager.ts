@@ -146,7 +146,7 @@ export class ThreeClipManager {
                     }
 
                     if (object) {
-                        object.position.z = 500 + trackIndex;
+                        object.position.z = (tracks.length - trackIndex) * 10;
                         this.applyClipTransform(object, clip);
 
                         if (object.children.length > 0) {
@@ -192,12 +192,8 @@ export class ThreeClipManager {
                     }
                 }
 
-                const track = tracks.find((t) => t.id === clip.trackId);
-                const isOverlayTrack = track && track.type !== "video" && track.type !== "audio";
-                const zLayer = isOverlayTrack ? 500 : 0;
-
                 if (object) {
-                    object.position.z = zLayer + trackIndex;
+                    object.position.z = (tracks.length - trackIndex) * 10;
                     this.applyClipTransform(object, clip);
                 }
             }
@@ -237,10 +233,9 @@ export class ThreeClipManager {
                         object.children[0]!.userData.logicalHeight = rH;
                     }
 
-                    // Transitions usually go on top, but effects might vary.
                     const metadata = plugin.getMetadata();
-                    const zBase = metadata.type === "transition" ? 1000 : 800;
-                    object.position.z = zBase + trackIndex;
+                    const typeOffset = metadata.type === "transition" ? 5 : 2;
+                    object.position.z = ((tracks.length - trackIndex) * 10) + typeOffset;
                     
                     if (object.children.length > 0) {
                         plugin.update(

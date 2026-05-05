@@ -97,24 +97,28 @@ import { ref } from 'vue';
         <div class="gradient-toolbar-integrated">
             <div class="toolbar-left">
                 <div class="flex items-center gap-1">
-                    <Button 
-                        variant="ghost" 
-                        size="xs" 
-                        :active="gradientType === 'linear'"
-                        @click="updateGradientType('linear')"
-                        title="Linear"
-                    >
-                        <Maximize :size="14" />
-                    </Button>
-                    <Button 
-                        variant="ghost" 
-                        size="xs" 
-                        :active="gradientType === 'radial'"
-                        @click="updateGradientType('radial')"
-                        title="Radial"
-                    >
-                        <Circle :size="14" />
-                    </Button>
+                    <div class="button-group">
+                        <Button 
+                            variant="ghost" 
+                            size="xs" 
+                            :active="gradientType === 'linear'"
+                            @click="updateGradientType('linear')"
+                            class="group-item"
+                            title="Linear"
+                        >
+                            <Maximize :size="14" />
+                        </Button>
+                        <Button 
+                            variant="ghost" 
+                            size="xs" 
+                            :active="gradientType === 'radial'"
+                            @click="updateGradientType('radial')"
+                            class="group-item"
+                            title="Radial"
+                        >
+                            <Circle :size="14" />
+                        </Button>
+                    </div>
                 </div>
             </div>
 
@@ -148,10 +152,10 @@ import { ref } from 'vue';
                                 <div class="large-pad" ref="padRef">
                                     <div class="pad-grid"></div>
                                     <div class="pad-preview" :style="gradientPreviewStyle"></div>
-                                    <svg class="pad-vector" width="100%" height="100%">
+                                    <svg class="pad-vector" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
                                         <line
-                                            :x1="`${origin.x * 100}%`" :y1="`${origin.y * 100}%`"
-                                            :x2="`${destination.x * 100}%`" :y2="`${destination.y * 100}%`"
+                                            :x1="origin.x * 100" :y1="origin.y * 100"
+                                            :x2="destination.x * 100" :y2="destination.y * 100"
                                         />
                                     </svg>
                                     <div
@@ -383,8 +387,28 @@ import { ref } from 'vue';
     .toolbar-left {
         display: flex;
         align-items: center;
-        gap: 16px; /* Increased gap */
+        gap: 8px;
         padding-left: 4px;
+    }
+
+    .button-group {
+        display: flex;
+        background: rgba(0, 0, 0, 0.2);
+        padding: 2px;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .group-item {
+        border-radius: 4px !important;
+        padding: 0 6px !important;
+        height: 20px !important;
+    }
+
+    .group-item.active {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: #55b2e2 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
 
     .toolbar-right {
@@ -715,6 +739,7 @@ import { ref } from 'vue';
     }
 
     .preset-mini-preview {
+        width: 100%;
         height: 20px;
         border-radius: 4px;
         margin-bottom: 4px;

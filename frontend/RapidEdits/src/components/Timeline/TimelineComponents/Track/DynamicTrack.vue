@@ -102,19 +102,15 @@ const isDropAllowed = computed(() => {
         return true;
     }
 
-    // Asset restrictions based on track type
+    // Asset restrictions based on broad lane type: audio vs clip tracks
     if (draggedAsset) {
         const type = props.track.type;
-        
-        if (type === TrackType.VIDEO) {
-            return draggedAsset.type === MediaType.VIDEO || draggedAsset.type === MediaType.IMAGE;
-        } else if (type === TrackType.AUDIO) {
+
+        if (type === TrackType.AUDIO) {
             return draggedAsset.type === MediaType.AUDIO;
-        } else {
-            // For "Overlay & Effects" (text, image, custom), block raw video/audio
-            // Only allow images or plugins
-            return draggedAsset.type === MediaType.IMAGE;
         }
+
+        return draggedAsset.type !== MediaType.AUDIO;
     }
 
     return true;
@@ -276,6 +272,7 @@ const handleContainerClick = (e: MouseEvent) => {
 <template>
     <div
         class="h-24 border-canvas-border/30 relative bg-canvas/20 transition-colors"
+        :data-track-id="track.id"
         :class="{
             'bg-red-500/10 border-red-500/30':
                 !isDropAllowed && (store.draggedPlugin || store.draggedAsset),

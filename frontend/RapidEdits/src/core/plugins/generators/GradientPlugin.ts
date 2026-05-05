@@ -414,8 +414,8 @@ export class GradientPlugin extends BasePlugin {
         const numStops = Math.min(stops.length, 8);
 
         const colors = Array.from({ length: 8 }, () => new THREE.Color(0xffffff));
-        const alphas = new Array(8).fill(1.0);
-        const positions = new Array(8).fill(0.0);
+        const alphas = new Float32Array(8).fill(1.0);
+        const positions = new Float32Array(8).fill(0.0);
 
         stops.forEach((stop: any, i: number) => {
             if (i < 8) {
@@ -472,8 +472,9 @@ export class GradientPlugin extends BasePlugin {
         );
         sourceCamera.position.z = 1;
 
+        const uniforms = this.getUniforms(data);
         const sourceMaterial = new THREE.ShaderMaterial({
-            uniforms: this.getUniforms(data),
+            uniforms: uniforms,
             vertexShader: this.getVertexShader(),
             fragmentShader: this.getFragmentShader(),
             transparent: true,
@@ -487,6 +488,8 @@ export class GradientPlugin extends BasePlugin {
             minFilter: THREE.LinearFilter,
             magFilter: THREE.LinearFilter,
             format: THREE.RGBAFormat,
+            stencilBuffer: false,
+            depthBuffer: false
         });
         rt.texture.colorSpace = THREE.SRGBColorSpace;
 
@@ -510,11 +513,8 @@ export class GradientPlugin extends BasePlugin {
         composer.addPass(renderPass);
         composer.addPass(halftonePass);
 
-        const outputTexture = composer.readBuffer.texture;
-        outputTexture.colorSpace = THREE.SRGBColorSpace;
-
         const outputMaterial = new THREE.MeshBasicMaterial({
-            map: outputTexture,
+            map: rt.texture,
             transparent: true,
             side: THREE.DoubleSide,
         });
@@ -525,7 +525,7 @@ export class GradientPlugin extends BasePlugin {
             sourceMesh,
             composer,
             halftonePass,
-            outputTexture,
+            outputTexture: rt.texture,
             outputMaterial,
             width: scaleX,
             height: scaleY,
@@ -634,8 +634,12 @@ export class GradientPlugin extends BasePlugin {
         const stops = g.stops || [];
 
         const sourceMaterial = runtime.sourceMesh.material as THREE.ShaderMaterial;
+        
+        // Essential updates for animations
         sourceMaterial.uniforms.time.value = relativeTime;
         sourceMaterial.uniforms.globalTime.value = performance.now() * 0.001;
+        
+        // Sync properties
         sourceMaterial.uniforms.gradientSpeed.value = g.gradientSpeed ?? 0.0;
         sourceMaterial.uniforms.offset.value = g.offset ?? 0.0;
         sourceMaterial.uniforms.noiseStrength.value = g.noiseStrength ?? 0.0;
@@ -656,9 +660,10 @@ export class GradientPlugin extends BasePlugin {
             );
         }
 
+        // TypedArray sync for performance and reliability
         const colors = sourceMaterial.uniforms.colors.value;
-        const alphas = sourceMaterial.uniforms.alphas.value;
-        const positions = sourceMaterial.uniforms.positions.value;
+        const alphas = sourceMaterial.uniforms.alphas.value as Float32Array;
+        const positions = sourceMaterial.uniforms.positions.value as Float32Array;
 
         for (let i = 0; i < 8; i++) {
             const stop = stops[i];
@@ -666,13 +671,28 @@ export class GradientPlugin extends BasePlugin {
                 colors[i].set(stop.color);
                 alphas[i] = stop.alpha ?? 1.0;
                 positions[i] = stop.position;
+            } else {
+                // Pad with last stop or default
+                if (i > 0 && stops[i-1]) {
+                    colors[i].copy(colors[i-1]);
+                    alphas[i] = alphas[i-1];
+                    positions[i] = positions[i-1];
+                }
             }
         }
 
+        // Force uniform update for arrays if needed
+        sourceMaterial.uniforms.colors.value = [...colors];
+        sourceMaterial.uniforms.alphas.value = new Float32Array(alphas);
+        sourceMaterial.uniforms.positions.value = new Float32Array(positions);
+
         this.applyHalftoneParams(runtime.halftonePass, clip);
+        
+        // Render to the internal target
         runtime.composer.render();
-        // Composer swaps read/write buffers each frame (ping-pong).
-        // Rebind the output map to avoid frame-to-frame texture flipping/flicker.
+        
+        // Update the output material to point to the correct render result
+        // Standard EffectComposer swaps buffers. The final result is in readBuffer.
         runtime.outputMaterial.map = runtime.composer.readBuffer.texture;
         runtime.outputMaterial.needsUpdate = true;
 
@@ -683,3 +703,4 @@ export class GradientPlugin extends BasePlugin {
         runtime.lastSeenFrame = this.frameTick;
     }
 }
+

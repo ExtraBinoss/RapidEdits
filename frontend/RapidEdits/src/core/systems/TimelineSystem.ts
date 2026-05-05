@@ -579,6 +579,53 @@ export class TimelineSystem {
         return closest;
     }
 
+    public moveClipToTrack(
+        clipId: string,
+        targetTrackId: number,
+        newStart?: number,
+    ): boolean {
+        const targetTrack = this.tracks.find((t) => t.id === targetTrackId);
+        if (!targetTrack) return false;
+
+        let sourceTrack: Track | undefined;
+        let sourceClipIndex = -1;
+        let sourceClip: Clip | undefined;
+
+        for (const track of this.tracks) {
+            const idx = track.clips.findIndex((c) => c.id === clipId);
+            if (idx !== -1) {
+                sourceTrack = track;
+                sourceClipIndex = idx;
+                sourceClip = track.clips[idx];
+                break;
+            }
+        }
+
+        if (!sourceTrack || !sourceClip || sourceClipIndex === -1) return false;
+
+        const isAudioClip = sourceClip.type === MediaType.AUDIO;
+        const targetIsAudioTrack = targetTrack.type === "audio";
+        if (isAudioClip !== targetIsAudioTrack) return false;
+
+        const updatedClip: Clip = {
+            ...sourceClip,
+            trackId: targetTrack.id,
+            ...(newStart !== undefined ? { start: Math.max(0, newStart) } : {}),
+        };
+
+        sourceTrack.clips.splice(sourceClipIndex, 1);
+        targetTrack.clips.push(updatedClip);
+
+        sourceTrack.clips.sort((a, b) => a.start - b.start);
+        targetTrack.clips.sort((a, b) => a.start - b.start);
+
+        globalEventBus.emit({
+            type: EditorEventType.TIMELINE_UPDATED,
+            payload: undefined,
+        });
+        return true;
+    }
+
     public cleanupEmptyTracks() {
         const initialCount = this.tracks.length;
         // Keep tracks that are NOT custom OR have clips

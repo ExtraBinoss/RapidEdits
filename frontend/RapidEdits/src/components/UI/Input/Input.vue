@@ -67,8 +67,11 @@ const handleKeyDown = (e: KeyboardEvent) => {
 };
 
 const handleMouseDown = (e: MouseEvent) => {
-    // Only drag if it's a number and NOT already focused
-    if (props.type !== 'number' || document.activeElement === e.target) return;
+    // Only drag if it's a number
+    if (props.type !== 'number') return;
+    
+    // Stop propagation so we don't trigger parent drag (like timeline or pad)
+    e.stopPropagation();
     
     startX.value = e.clientX;
     startValue.value = Number(props.modelValue) || 0;
@@ -79,6 +82,8 @@ const handleMouseDown = (e: MouseEvent) => {
         if (!isDragging.value && delta > 3) {
             isDragging.value = true;
             document.body.style.cursor = 'ew-resize';
+            // Once we start dragging, we prevent default to avoid text selection/focus issues
+            moveEvent.preventDefault();
         }
         
         if (isDragging.value) {
@@ -89,9 +94,11 @@ const handleMouseDown = (e: MouseEvent) => {
 
     const onMouseUp = () => {
         if (!hasMoved.value && !isDragging.value) {
-            // It was a click, focus the input
-            (e.target as HTMLInputElement).focus();
-            (e.target as HTMLInputElement).select();
+            // It was a click, focus the input if not already focused
+            if (document.activeElement !== e.target) {
+                (e.target as HTMLInputElement).focus();
+                (e.target as HTMLInputElement).select();
+            }
         }
         
         isDragging.value = false;
@@ -102,9 +109,6 @@ const handleMouseDown = (e: MouseEvent) => {
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
-    
-    // Prevent immediate focus so we can distinguish between drag and click
-    e.preventDefault();
 };
 
 const handleMouseMove = (e: MouseEvent) => {

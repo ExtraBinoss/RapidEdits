@@ -22,6 +22,9 @@ const store = useProjectStore();
 const isDragging = ref(false);
 // Optimistic UI state during drag
 const tempStart = ref(props.clip.start);
+const tempTrackId = ref(props.clip.trackId);
+const tempTranslateY = ref(0);
+const targetTranslateY = ref(0);
 
 // Video/Image clips always get filmstrip. Plugin clips only if long enough (>2s) to avoid lag.
 const shouldShowFilmstrip = computed(() => {
@@ -40,9 +43,10 @@ const clipStyle = computed(() => {
     const start = isDragging.value ? tempStart.value : props.clip.start;
     return {
         left: "0px",
-        transform: `translate3d(${start * props.zoomLevel}px, 0, 0)`,
+        transform: `translate3d(${start * props.zoomLevel}px, ${tempTranslateY.value}px, 0) scale(${isDragging.value ? 1.01 : 1})`,
         width: `${props.clip.duration * props.zoomLevel}px`,
         willChange: isDragging.value ? "transform" : "auto",
+        transition: isDragging.value ? "none" : "transform 120ms ease-out",
         cursor:
             props.activeTool === "razor"
                 ? "cell"
@@ -50,6 +54,11 @@ const clipStyle = computed(() => {
                   ? "grabbing"
                   : "grab",
         zIndex: isDragging.value ? 50 : 10,
+        pointerEvents: isDragging.value ? "none" : "auto",
+        opacity: isDragging.value && tempTrackId.value !== props.track.id ? 0.75 : 1,
+        boxShadow: isDragging.value
+            ? "0 12px 28px rgba(0,0,0,0.35)"
+            : "none",
     };
 });
 
@@ -76,6 +85,55 @@ const getTrackColor = (type: string) => {
 };
 
 let rafId: number | null = null;
+let dragMouseX = 0;
+let dragMouseY = 0;
+
+const handleGlobalMouseMove = (e: MouseEvent) => {
+    dragMouseX = e.clientX;
+    dragMouseY = e.clientY;
+};
+
+const updateTargetTrackFromPointer = () => {
+    const stack = document.elementsFromPoint(dragMouseX, dragMouseY) as HTMLElement[];
+    for (const el of stack) {
+        const trackEl = el.closest?.("[data-track-id]") as HTMLElement | null;
+        if (!trackEl) continue;
+        const id = Number(trackEl.dataset.trackId);
+        if (!Number.isNaN(id)) {
+            tempTrackId.value = id;
+            return trackEl;
+        }
+    }
+    return null;
+};
+
+const updateVerticalDragOffset = (sourceTrackTop: number) => {
+    const trackEl = updateTargetTrackFromPointer();
+    if (!trackEl) return;
+    const targetTop = trackEl.getBoundingClientRect().top;
+    targetTranslateY.value = targetTop - sourceTrackTop;
+
+    // Smooth interpolation for a softer / juicier feel
+    tempTranslateY.value += (targetTranslateY.value - tempTranslateY.value) * 0.35;
+};
+
+const resetDragVisualState = () => {
+    tempTranslateY.value = 0;
+    targetTranslateY.value = 0;
+};
+
+const updateTargetTrackOnly = () => {
+    const stack = document.elementsFromPoint(dragMouseX, dragMouseY) as HTMLElement[];
+    for (const el of stack) {
+        const trackEl = el.closest?.("[data-track-id]") as HTMLElement | null;
+        if (!trackEl) continue;
+        const id = Number(trackEl.dataset.trackId);
+        if (!Number.isNaN(id)) {
+            tempTrackId.value = id;
+            return;
+        }
+    }
+};
 
 const startDrag = (e: MouseEvent) => {
     if (props.activeTool === "razor") return;
@@ -85,9 +143,13 @@ const startDrag = (e: MouseEvent) => {
 
     isDragging.value = true;
     tempStart.value = props.clip.start;
+    tempTrackId.value = props.clip.trackId;
+    resetDragVisualState();
+    dragMouseX = e.clientX;
+    dragMouseY = e.clientY;
 
     // Calculate where we clicked relative to the clip start
-    const { x } = editorEngine.getMousePosition();
+    const x = e.clientX;
     // We need to account for the container's absolute positioning or just use delta
     // A safer way for absolute positioning:
     // Initial Mouse X - Initial Clip Start Pixel = Offset
@@ -98,6 +160,7 @@ const startDrag = (e: MouseEvent) => {
     const trackEl = (e.currentTarget as HTMLElement).parentElement;
     if (!trackEl) return;
     const trackRect = trackEl.getBoundingClientRect();
+    const sourceTrackTop = trackRect.top;
 
     // Determine the precise time offset within the clip where the user clicked
     const clickTime = Math.max(0, (x - trackRect.left) / props.zoomLevel);
@@ -106,7 +169,7 @@ const startDrag = (e: MouseEvent) => {
     const dragLoop = () => {
         if (!isDragging.value) return;
 
-        const { x: currentMouseX } = editorEngine.getMousePosition();
+        const currentMouseX = dragMouseX;
 
         const newTrackRect = trackEl.getBoundingClientRect();
         const rawNewStartPct =
@@ -137,12 +200,16 @@ const startDrag = (e: MouseEvent) => {
         }
 
         tempStart.value = newStart;
+        updateVerticalDragOffset(sourceTrackTop);
 
         rafId = requestAnimationFrame(dragLoop);
     };
 
     dragLoop();
 
+    window.addEventListener("mousemove", handleGlobalMouseMove, {
+        passive: true,
+    });
     window.addEventListener("mouseup", stopDrag);
 };
 
@@ -188,12 +255,22 @@ const stopDrag = () => {
         cancelAnimationFrame(rafId);
         rafId = null;
     }
+    window.removeEventListener("mousemove", handleGlobalMouseMove);
     window.removeEventListener("mouseup", stopDrag);
 
     // Commit change
-    if (Math.abs(tempStart.value - props.clip.start) > 0.001) {
+    updateTargetTrackOnly();
+
+    const trackChanged = tempTrackId.value !== props.clip.trackId;
+    const startChanged = Math.abs(tempStart.value - props.clip.start) > 0.001;
+
+    if (trackChanged) {
+        store.moveClipToTrack(props.clip.id, tempTrackId.value, tempStart.value);
+    } else if (startChanged) {
         store.updateClip(props.clip.id, { start: tempStart.value });
     }
+
+    resetDragVisualState();
 };
 
 const handleClipDragOver = (e: DragEvent) => {

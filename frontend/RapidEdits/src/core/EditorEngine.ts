@@ -229,6 +229,18 @@ export class EditorEngine {
         this.timelineSystem.updateClip(id, updates);
     }
 
+    public moveClipToTrack(
+        clipId: string,
+        targetTrackId: number,
+        newStart?: number,
+    ): boolean {
+        return this.timelineSystem.moveClipToTrack(
+            clipId,
+            targetTrackId,
+            newStart,
+        );
+    }
+
     public getClip(id: string): Clip | undefined {
         return this.timelineSystem.getClip(id);
     }

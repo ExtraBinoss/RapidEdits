@@ -162,6 +162,8 @@ export const useProjectStore = defineStore("project", () => {
         addTrack,
         updateClip: (id: string, updates: Partial<Clip>) =>
             editorEngine.updateClip(id, updates),
+        moveClipToTrack: (clipId: string, targetTrackId: number, newStart?: number) =>
+            editorEngine.moveClipToTrack(clipId, targetTrackId, newStart),
         updateTrack: (id: number, updates: Partial<Track>) =>
             editorEngine.updateTrack(id, updates),
         removeTrack: (id: number) => editorEngine.removeTrack(id),

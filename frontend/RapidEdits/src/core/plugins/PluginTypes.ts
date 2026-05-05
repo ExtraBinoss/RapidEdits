@@ -81,6 +81,10 @@ export interface PluginPropertyDefinition {
     defaultValue?: any;
     /** HTML/component props like min, max, step, placeholder */
     props?: Record<string, any>;
+    /** Direct access to numeric constraints for convenience */
+    min?: number;
+    max?: number;
+    step?: number;
     /** For select type: available options */
     options?: { label: string; value: any }[];
     /** Conditional visibility based on clip data */
